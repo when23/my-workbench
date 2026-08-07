@@ -1,0 +1,19 @@
+{
+  "name": "个人日常记录工作台",
+  "short_name": "记录工作台",
+  "description": "每日执行、灵感记录、日常整理",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f8fa",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
