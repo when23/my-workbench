@@ -1,5 +1,5 @@
-// Service Worker - 缓存应用以支持离线使用
-const CACHE = 'daily-workspace-v1';
+// Service Worker - 网络优先策略，确保刷新能看到最新版本
+const CACHE = 'daily-workspace-v3';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
@@ -18,6 +18,20 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // 导航请求（HTML页面）使用网络优先策略，确保刷新能看到最新内容
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(resp => {
+        if (resp.ok) {
+          const clone = resp.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return resp;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+  // 静态资源使用缓存优先策略
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
