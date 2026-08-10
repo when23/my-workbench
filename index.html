@@ -123,6 +123,7 @@ img{max-width:100%;display:block}
 .org-location-group .loc-count{font-size:13px;color:var(--text-3)}
 .org-location-group .loc-arrow{font-size:18px;color:var(--text-3)}
 .record-status{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.record-status.none{background:#f3f4f6;color:#6b7280}
 .record-status.pending{background:#fef3c7;color:#92400e}
 .record-status.done{background:#d1fae5;color:#065f46}
 .org-detail-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
@@ -231,8 +232,8 @@ img{max-width:100%;display:block}
           <div class="org-stats-grid">
             <div class="org-stat-card"><div class="org-stat-num" id="orgTotalCount">0</div><div class="org-stat-label">物品总数</div></div>
             <div class="org-stat-card"><div class="org-stat-num" id="orgCatCount">0</div><div class="org-stat-label">物品分类</div></div>
-            <div class="org-stat-card"><div class="org-stat-num" id="orgPendingCount">0</div><div class="org-stat-label">待处理</div></div>
-            <div class="org-stat-card"><div class="org-stat-num" id="orgDoneCount">0</div><div class="org-stat-label">已处理</div></div>
+            <div class="org-stat-card"><div class="org-stat-num" id="orgPendingCount" style="color:#92400e">0</div><div class="org-stat-label">待处理</div></div>
+            <div class="org-stat-card"><div class="org-stat-num" id="orgDoneCount" style="color:#065f46">0</div><div class="org-stat-label">已处理</div></div>
           </div>
           <div class="org-list-section">
             <div class="org-list-header">
@@ -265,6 +266,7 @@ img{max-width:100%;display:block}
             <input type="text" id="orgTitle" placeholder="物品名称（如：冬季羽绒服）" style="width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg);margin-bottom:8px">
             <textarea id="orgText" placeholder="详细描述（如：颜色、尺寸、备注等）" rows="3"></textarea>
             <input type="text" id="orgLocation" placeholder="存放位置（如：大衣柜上层右侧）" style="width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg);margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><label style="font-size:13px;color:var(--text-2);white-space:nowrap">状态</label><select id="orgStatus" style="border:1px solid var(--border);border-radius:var(--r-s);padding:6px 10px;font-size:13px;background:var(--bg)"><option value="none" selected>无需处理</option><option value="pending">⏳ 待处理</option><option value="done">✓ 已处理</option></select></div>
             <div class="image-preview" id="orgImgPreview"></div>
             <div class="input-actions">
               <label class="upload-btn">📷 添加图片<input type="file" accept="image/*" multiple id="orgFileInput"></label>
@@ -387,7 +389,7 @@ async function loadOrg(){S.org=(await DB.get('organizing'))||[];renderOrgOvervie
 // Layer 1: Overview
 function renderOrgOverview(){
   const total=S.org.length;const catCount=S.orgCategories.length;
-  const pending=S.org.filter(r=>r.status!=='done').length;
+  const pending=S.org.filter(r=>r.status==='pending').length;
   const done=S.org.filter(r=>r.status==='done').length;
   document.getElementById('orgTotalCount').textContent=total;
   document.getElementById('orgCatCount').textContent=catCount;
@@ -431,7 +433,7 @@ function renderOrgLocations(){
     html=`<div class="empty"><div class="empty-icon">${cat.icon}</div><p>这个分类还没有物品<br>点击下方按钮添加第一件</p></div>`;
   }else{
     html=orgLocationNames.map((loc,i)=>{
-      const items=locGroups[loc];const pend=items.filter(r=>r.status!=='done').length;
+      const items=locGroups[loc];const pend=items.filter(r=>r.status==='pending').length;
       return `<div class="org-location-group" onclick="openOrgLocation(${i})"><span class="loc-icon">📍</span><span class="loc-name">${escapeHtml(loc)}</span><span class="loc-count">${items.length} 件${pend>0?' · '+pend+'待处理':''}</span><span class="loc-arrow">›</span></div>`;
     }).join('');
   }
@@ -470,26 +472,26 @@ function renderOrgItems(){
   if(S.orgCurrentLocation){records=records.filter(r=>(r.location||'未指定位置')===S.orgCurrentLocation)}
   if(records.length===0){list.innerHTML=`<div class="empty"><div class="empty-icon">${cat.icon}</div><p>这里还没有物品<br>在上方添加第一件吧</p></div>`;return}
   list.innerHTML=records.map(r=>{
-    const isDone=r.status==='done';
-    return `<div class="record-card"><div class="record-meta"><span class="record-status ${isDone?'done':'pending'}" onclick="toggleOrgStatus('${r.id}')">${isDone?'✓ 已处理':'⏳ 待处理'}</span><span class="record-time">${fmtDate(r.timestamp)}</span></div>${r.title?`<div class="record-title">${escapeHtml(r.title)}</div>`:''}${r.text?`<div class="record-text">${escapeHtml(r.text)}</div>`:''}${r.location?`<div class="record-location">📍 ${escapeHtml(r.location)}</div>`:''}${r.images&&r.images.length?`<div class="record-images">${r.images.map(src=>`<img src="${src}" onclick="openLightbox('${src.replace(/'/g,"\\'")}')" alt="">`).join('')}</div>`:''}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="editOrg('${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delOrg('${r.id}')">删除</button></div></div>`;
+    const st=r.status||'none';const stCls=st==='done'?'done':st==='pending'?'pending':'none';const stText=st==='done'?'✓ 已处理':st==='pending'?'⏳ 待处理':'○ 无需处理';
+    return `<div class="record-card"><div class="record-meta"><span class="record-status ${stCls}" onclick="toggleOrgStatus('${r.id}')">${stText}</span><span class="record-time">${fmtDate(r.timestamp)}</span></div>${r.title?`<div class="record-title">${escapeHtml(r.title)}</div>`:''}${r.text?`<div class="record-text">${escapeHtml(r.text)}</div>`:''}${r.location?`<div class="record-location">📍 ${escapeHtml(r.location)}</div>`:''}${r.images&&r.images.length?`<div class="record-images">${r.images.map(src=>`<img src="${src}" onclick="openLightbox('${src.replace(/'/g,"\\'")}')" alt="">`).join('')}</div>`:''}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="editOrg('${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delOrg('${r.id}')">删除</button></div></div>`;
   }).join('');
 }
-async function toggleOrgStatus(id){const r=S.org.find(x=>x.id===id);if(!r)return;r.status=r.status==='done'?'pending':'done';await DB.set('organizing',S.org);renderOrgItems()}
+async function toggleOrgStatus(id){const r=S.org.find(x=>x.id===id);if(!r)return;const cur=r.status||'none';r.status=cur==='none'?'pending':cur==='pending'?'done':'none';await DB.set('organizing',S.org);renderOrgItems();renderOrgOverview()}
 document.getElementById('orgFileInput').addEventListener('change',e=>handleFiles(e.target,'org'));
 document.getElementById('submitOrg').addEventListener('click',async()=>{
   const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);if(!cat){showToast('请先选择一个分类','error');return}
-  const title=document.getElementById('orgTitle').value.trim();const text=document.getElementById('orgText').value.trim();const location=document.getElementById('orgLocation').value.trim();const images=[...S.pendingImgs.org];
+  const title=document.getElementById('orgTitle').value.trim();const text=document.getElementById('orgText').value.trim();const location=document.getElementById('orgLocation').value.trim();const status=document.getElementById('orgStatus').value;const images=[...S.pendingImgs.org];
   if(!title&&!text&&images.length===0){showToast('请输入内容','error');return}
-  const rec={id:genId(),timestamp:nowISO(),category:cat.name,title,text,location,images,status:'pending'};
+  const rec={id:genId(),timestamp:nowISO(),category:cat.name,title,text,location,images,status};
   S.org.unshift(rec);await DB.set('organizing',S.org);
-  document.getElementById('orgTitle').value='';document.getElementById('orgText').value='';document.getElementById('orgLocation').value=S.orgCurrentLocation||'';
+  document.getElementById('orgTitle').value='';document.getElementById('orgText').value='';document.getElementById('orgLocation').value=S.orgCurrentLocation||'';document.getElementById('orgStatus').value='none';
   S.pendingImgs.org=[];renderPendingImgs('org');showToast('记录成功','success');renderOrgItems();
 });
 async function delOrg(id){if(!confirm('确定删除这条物品记录吗？'))return;S.org=S.org.filter(r=>r.id!==id);await DB.set('organizing',S.org);showToast('已删除','success');renderOrgItems()}
 function editOrg(id){
   const r=S.org.find(x=>x.id===id);if(!r)return;S.edit={type:'org',id,images:[...(r.images||[])]};
   const catOptions=S.orgCategories.map(c=>`<option value="${c.name}" ${r.category===c.name?'selected':''}>${c.icon} ${c.name}</option>`).join('');
-  const statusOptions=`<option value="pending" ${r.status!=='done'?'selected':''}>⏳ 待处理</option><option value="done" ${r.status==='done'?'selected':''}>✓ 已处理</option>`;
+  const statusOptions=`<option value="none" ${(r.status||'none')==='none'?'selected':''}>○ 无需处理</option><option value="pending" ${r.status==='pending'?'selected':''}>⏳ 待处理</option><option value="done" ${r.status==='done'?'selected':''}>✓ 已处理</option>`;
   openEditModal('编辑物品记录',`<label>分类</label><select id="edit-category">${catOptions}</select><label>状态</label><select id="edit-status">${statusOptions}</select><label>物品名称</label><input type="text" id="edit-title" value="${escapeHtml(r.title||'')}"><label>描述</label><textarea id="edit-text" rows="4">${escapeHtml(r.text||'')}</textarea><label>存放位置</label><input type="text" id="edit-location" value="${escapeHtml(r.location||'')}"><label>图片</label><div class="image-preview" id="edit-img-preview"></div><label class="upload-btn" style="display:inline-flex;margin-top:8px">📷 添加图片<input type="file" accept="image/*" multiple id="edit-file-input"></label>`);
   renderEditImgs();document.getElementById('edit-file-input').addEventListener('change',async e=>{const files=Array.from(e.target.files);for(const f of files){if(f.type.startsWith('image/'))S.edit.images.push(await compressImage(f))}renderEditImgs();e.target.value=''});
 }
@@ -511,7 +513,7 @@ document.getElementById('closeModal').addEventListener('click',closeEditModal);
 document.getElementById('cancelEdit').addEventListener('click',closeEditModal);
 document.getElementById('editModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEditModal()});
 function closeEditModal(){document.getElementById('editModal').classList.remove('show');S.edit=null}
-document.getElementById('saveEdit').addEventListener('click',async()=>{if(!S.edit)return;const{type,id,images}=S.edit;if(type==='insp'){const text=document.getElementById('edit-text').value.trim();const r=S.insp.find(x=>x.id===id);if(r){r.text=text;r.images=images;await DB.set('inspirations',S.insp)}showToast('已更新','success');renderInsp()}else if(type==='org'){const category=document.getElementById('edit-category').value;const status=document.getElementById('edit-status').value;const title=document.getElementById('edit-title').value.trim();const text=document.getElementById('edit-text').value.trim();const location=document.getElementById('edit-location').value.trim();const r=S.org.find(x=>x.id===id);if(r){r.category=category;r.status=status;r.title=title;r.text=text;r.location=location;r.images=images;await DB.set('organizing',S.org)}showToast('已更新','success');renderOrgItems()}closeEditModal()});
+document.getElementById('saveEdit').addEventListener('click',async()=>{if(!S.edit)return;const{type,id,images}=S.edit;if(type==='insp'){const text=document.getElementById('edit-text').value.trim();const r=S.insp.find(x=>x.id===id);if(r){r.text=text;r.images=images;await DB.set('inspirations',S.insp)}showToast('已更新','success');renderInsp()}else if(type==='org'){const category=document.getElementById('edit-category').value;const status=document.getElementById('edit-status').value;const title=document.getElementById('edit-title').value.trim();const text=document.getElementById('edit-text').value.trim();const location=document.getElementById('edit-location').value.trim();const r=S.org.find(x=>x.id===id);if(r){r.category=category;r.status=status;r.title=title;r.text=text;r.location=location;r.images=images;await DB.set('organizing',S.org)}showToast('已更新','success');renderOrgItems();renderOrgOverview()}closeEditModal()});
 
 // ===== Export / Import (纯前端，不需要服务器) =====
 document.getElementById('exportBtn').addEventListener('click',async()=>{const keys=await DB.keys();const data={version:'2.0',exportDate:nowISO()};for(const k of keys)data[k]=await DB.get(k);const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`daily-workspace-backup-${new Date().toISOString().split('T')[0]}.json`;a.click();URL.revokeObjectURL(url);showToast('备份已导出','success')});
@@ -524,8 +526,9 @@ showToast('导入成功','success');await init()}catch(err){showToast('导入失
 // ===== Excel Import for Organizing =====
 function downloadOrgTemplate(){
   const ws=XLSX.utils.json_to_sheet([
-    {'物品名称':'示例：羽绒服','描述':'黑色，冬季穿','分类':'衣物','存放位置':'大衣柜悬挂','状态':'待处理'},
-    {'物品名称':'示例：充电器','描述':'USB-C 快充','分类':'电子产品','存放位置':'抽屉A','状态':'已处理'}
+    {'物品名称':'示例：羽绒服','描述':'黑色，冬季穿','分类':'衣物','存放位置':'大衣柜悬挂','状态':'无需处理'},
+    {'物品名称':'示例：充电器','描述':'USB-C 快充，线有点松','分类':'电子产品','存放位置':'抽屉A','状态':'待处理'},
+    {'物品名称':'示例：旧手机','描述':'已清理数据','分类':'电子产品','存放位置':'抽屉B','状态':'已处理'}
   ]);
   ws['!cols']=[{wch:20},{wch:25},{wch:15},{wch:18},{wch:10}];
   const wb=XLSX.utils.book_new();
@@ -565,10 +568,11 @@ document.getElementById('orgExcelInput').addEventListener('change',async e=>{
         }
       }
       // 处理状态
-      let status='pending';
+      let status='none';
       if(rec.status){
         const s=rec.status.toLowerCase();
-        if(s.includes('已')||s.includes('done')||s.includes('完'))status='done';
+        if(s.includes('待')||s.includes('pending'))status='pending';
+        else if(s.includes('已')||s.includes('done')||s.includes('完'))status='done';
       }
       const item={
         id:genId(),timestamp:nowISO(),
