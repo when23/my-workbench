@@ -184,6 +184,7 @@ img{max-width:100%;display:block}
 .install-banner.show{display:flex}
 .install-banner span{font-size:13px;color:var(--text-2)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -236,9 +237,14 @@ img{max-width:100%;display:block}
           <div class="org-list-section">
             <div class="org-list-header">
               <h3>我的物品列表</h3>
-              <button class="btn btn-ghost btn-sm" onclick="showAddCatModal()">+ 新增分类</button>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn btn-ghost btn-sm" onclick="downloadOrgTemplate()">📋 下载模板</button>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('orgExcelInput').click()">📥 Excel导入</button>
+                <button class="btn btn-ghost btn-sm" onclick="showAddCatModal()">+ 新增分类</button>
+              </div>
             </div>
             <div class="org-cat-list" id="orgCatList"></div>
+            <input type="file" id="orgExcelInput" accept=".xlsx,.xls,.csv" style="display:none">
           </div>
         </div>
         <!-- Layer 2: Location Groups -->
@@ -514,6 +520,72 @@ document.getElementById('importFile').addEventListener('change',async e=>{const 
 // 兼容新旧两种格式
 if(data.version==='2.0'){for(const[k,v]of Object.entries(data)){if(k==='version'||k==='exportDate')continue;await DB.set(k,v)}}else{if(data.boards)await DB.set('boards',data.boards);if(data.daily){for(const[date,tasks]of Object.entries(data.daily))await DB.set('daily:'+date,tasks)}if(data.inspirations)await DB.set('inspirations',data.inspirations);if(data.organizing)await DB.set('organizing',data.organizing)}
 showToast('导入成功','success');await init()}catch(err){showToast('导入失败：文件格式错误','error')}e.target.value=''});
+
+// ===== Excel Import for Organizing =====
+function downloadOrgTemplate(){
+  const ws=XLSX.utils.json_to_sheet([
+    {'物品名称':'示例：羽绒服','描述':'黑色，冬季穿','分类':'衣物','存放位置':'大衣柜悬挂','状态':'待处理'},
+    {'物品名称':'示例：充电器','描述':'USB-C 快充','分类':'电子产品','存放位置':'抽屉A','状态':'已处理'}
+  ]);
+  ws['!cols']=[{wch:20},{wch:25},{wch:15},{wch:18},{wch:10}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'物品清单');
+  XLSX.writeFile(wb,'物品导入模板.xlsx');
+}
+document.getElementById('orgExcelInput').addEventListener('change',async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+    if(rows.length===0){showToast('Excel文件中没有数据','error');e.target.value='';return}
+    // 列名映射（支持中英文）
+    const colMap={
+      '物品名称':'title','名称':'title','title':'title','Name':'title',
+      '描述':'text','内容':'text','说明':'text','text':'text','Description':'text',
+      '分类':'category','类别':'category','category':'category','Category':'category',
+      '存放位置':'location','位置':'location','location':'location','Location':'location',
+      '状态':'status','status':'status','Status':'status'
+    };
+    let imported=0,newCats=[];
+    for(const row of rows){
+      const rec={};
+      for(const[key,val]of Object.entries(row)){
+        const field=colMap[key.trim()];
+        if(field)rec[field]=String(val).trim();
+      }
+      if(!rec.title&&!rec.text){continue}
+      // 处理分类：不存在则自动创建
+      if(rec.category){
+        const exist=S.orgCategories.find(c=>c.name===rec.category);
+        if(!exist&&!newCats.find(c=>c.name===rec.category)){
+          const nc={id:genId(),name:rec.category,icon:'📦'};
+          newCats.push(nc);S.orgCategories.push(nc);
+        }
+      }
+      // 处理状态
+      let status='pending';
+      if(rec.status){
+        const s=rec.status.toLowerCase();
+        if(s.includes('已')||s.includes('done')||s.includes('完'))status='done';
+      }
+      const item={
+        id:genId(),timestamp:nowISO(),
+        category:rec.category||'未分类',
+        title:rec.title||'',
+        text:rec.text||'',
+        location:rec.location||'',
+        images:[],status
+      };
+      S.org.unshift(item);imported++;
+    }
+    if(newCats.length>0)await DB.set('orgCategories',S.orgCategories);
+    if(imported>0){await DB.set('organizing',S.org);renderOrgOverview();showToast(`成功导入 ${imported} 条记录${newCats.length>0?'，新增 '+newCats.length+' 个分类':''}`,'success')}
+    else{showToast('没有找到有效数据，请检查列名是否匹配','error')}
+  }catch(err){console.error(err);showToast('导入失败：'+err.message,'error')}
+  e.target.value='';
+});
 
 // ===== Lightbox =====
 function openLightbox(src){document.getElementById('lightboxImg').src=src;document.getElementById('lightbox').classList.add('show')}
