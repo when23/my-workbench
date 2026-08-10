@@ -97,19 +97,37 @@ img{max-width:100%;display:block}
 .filter-bar::-webkit-scrollbar{height:0}
 .filter-btn{padding:5px 12px;border-radius:20px;font-size:13px;color:var(--text-2);background:var(--surface);border:1px solid var(--border);white-space:nowrap;transition:all .15s}
 .filter-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
-/* ===== Org Category Boards ===== */
-.org-board-card{background:var(--surface);border-radius:var(--r);padding:20px 16px;box-shadow:var(--shadow-sm);text-align:center;cursor:pointer;transition:all .2s;position:relative}
-.org-board-card:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
-.org-board-icon{font-size:36px;margin-bottom:8px}
-.org-board-name{font-size:15px;font-weight:600;margin-bottom:4px}
-.org-board-count{font-size:12px;color:var(--text-2)}
-.org-board-del{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--danger-bg);color:var(--danger);font-size:13px;display:none;align-items:center;justify-content:center}
-.org-board-card:hover .org-board-del{display:flex}
-.org-board-add{border:2px dashed var(--border);background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:110px;color:var(--text-3);cursor:pointer;transition:all .2s;border-radius:var(--r)}
-.org-board-add:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+/* ===== Org 3-Layer ===== */
+.org-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:640px){.org-stats-grid{grid-template-columns:repeat(2,1fr)}}
+.org-stat-card{background:var(--surface);border-radius:var(--r);padding:16px 12px;box-shadow:var(--shadow-sm);text-align:center}
+.org-stat-num{font-size:28px;font-weight:700;color:var(--primary)}
+.org-stat-label{font-size:12px;color:var(--text-2);margin-top:4px}
+.org-list-section{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);overflow:hidden}
+.org-list-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border-l)}
+.org-list-header h3{font-size:16px;font-weight:600}
+.org-cat-list{display:flex;flex-direction:column}
+.org-cat-item{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border-l);cursor:pointer;transition:background .15s;position:relative}
+.org-cat-item:last-child{border-bottom:none}
+.org-cat-item:hover{background:var(--border-l)}
+.org-cat-item .cat-icon{font-size:24px}
+.org-cat-item .cat-name{flex:1;font-size:14px;font-weight:500}
+.org-cat-item .cat-count{font-size:13px;color:var(--text-3)}
+.org-cat-item .cat-arrow{font-size:18px;color:var(--text-3)}
+.org-cat-item .cat-del{position:absolute;right:42px;width:22px;height:22px;border-radius:50%;background:var(--danger-bg);color:var(--danger);font-size:13px;display:none;align-items:center;justify-content:center}
+.org-cat-item:hover .cat-del{display:flex}
+.org-location-group{background:var(--surface);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:12px}
+.org-location-group:hover{box-shadow:var(--shadow)}
+.org-location-group .loc-icon{font-size:20px}
+.org-location-group .loc-name{flex:1;font-size:15px;font-weight:500}
+.org-location-group .loc-count{font-size:13px;color:var(--text-3)}
+.org-location-group .loc-arrow{font-size:18px;color:var(--text-3)}
+.record-status{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.record-status.pending{background:#fef3c7;color:#92400e}
+.record-status.done{background:#d1fae5;color:#065f46}
 .org-detail-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
 .org-detail-header .back-btn{width:36px;height:36px;border-radius:var(--r-s);background:var(--surface);box-shadow:var(--shadow-sm);font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.org-detail-header h2{font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px}
+.org-detail-header h2{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .emoji-picker{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:4px}
 .emoji-item{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:22px;border-radius:var(--r-xs);cursor:pointer;transition:all .15s;border:2px solid transparent}
 .emoji-item:hover{background:var(--border-l)}
@@ -207,27 +225,47 @@ img{max-width:100%;display:block}
         <div class="record-list" id="inspList"></div>
       </div>
       <div class="tab-content" id="tab-organize">
-        <!-- Boards Grid View -->
-        <div id="orgBoardsView">
-          <div class="boards-grid" id="orgBoardsGrid"></div>
+        <!-- Layer 1: Overview -->
+        <div id="orgOverviewView">
+          <div class="org-stats-grid">
+            <div class="org-stat-card"><div class="org-stat-num" id="orgTotalCount">0</div><div class="org-stat-label">物品总数</div></div>
+            <div class="org-stat-card"><div class="org-stat-num" id="orgCatCount">0</div><div class="org-stat-label">物品分类</div></div>
+            <div class="org-stat-card"><div class="org-stat-num" id="orgPendingCount">0</div><div class="org-stat-label">待处理</div></div>
+            <div class="org-stat-card"><div class="org-stat-num" id="orgDoneCount">0</div><div class="org-stat-label">已处理</div></div>
+          </div>
+          <div class="org-list-section">
+            <div class="org-list-header">
+              <h3>我的物品列表</h3>
+              <button class="btn btn-ghost btn-sm" onclick="showAddCatModal()">+ 新增分类</button>
+            </div>
+            <div class="org-cat-list" id="orgCatList"></div>
+          </div>
         </div>
-        <!-- Category Detail View -->
-        <div id="orgDetailView" style="display:none">
+        <!-- Layer 2: Location Groups -->
+        <div id="orgLocationView" style="display:none">
           <div class="org-detail-header">
-            <button class="back-btn" id="orgBackBtn">‹</button>
-            <h2 id="orgDetailTitle"></h2>
+            <button class="back-btn" id="orgBackToOverview">‹</button>
+            <h2 id="orgLocationTitle"></h2>
+          </div>
+          <div id="orgLocationGroups"></div>
+        </div>
+        <!-- Layer 3: Item Detail -->
+        <div id="orgItemView" style="display:none">
+          <div class="org-detail-header">
+            <button class="back-btn" id="orgBackToLocation">‹</button>
+            <h2 id="orgItemTitle"></h2>
           </div>
           <div class="input-card">
-            <input type="text" id="orgTitle" placeholder="标题（如：整理冬季外套）" style="width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg);margin-bottom:8px">
-            <textarea id="orgText" placeholder="详细记录整理内容，如分类方式、存放位置、处理方法等..." rows="4"></textarea>
-            <input type="text" id="orgLocation" placeholder="存放位置（如：衣柜上层右侧）" style="width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg);margin-bottom:8px">
+            <input type="text" id="orgTitle" placeholder="物品名称（如：冬季羽绒服）" style="width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg);margin-bottom:8px">
+            <textarea id="orgText" placeholder="详细描述（如：颜色、尺寸、备注等）" rows="3"></textarea>
+            <input type="text" id="orgLocation" placeholder="存放位置（如：大衣柜上层右侧）" style="width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg);margin-bottom:8px">
             <div class="image-preview" id="orgImgPreview"></div>
             <div class="input-actions">
               <label class="upload-btn">📷 添加图片<input type="file" accept="image/*" multiple id="orgFileInput"></label>
-              <button class="btn btn-primary" id="submitOrg">记录整理</button>
+              <button class="btn btn-primary" id="submitOrg">记录物品</button>
             </div>
           </div>
-          <div class="record-list" id="orgList"></div>
+          <div class="record-list" id="orgItemList"></div>
         </div>
       </div>
     </div>
@@ -292,7 +330,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:new Date().toISOString().split('T')[0],boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null};
+const S={tab:'daily',date:new Date().toISOString().split('T')[0],boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作'},{id:'b2',name:'学习'},{id:'b3',name:'健康'},{id:'b4',name:'生活'}];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
 const EMOJI_LIST=['📦','📚','👕','💄','🍳','📱','💊','🎮','🧸','⚽','🎵','🖼️','🔧','🌿','🐾','💎','🎨','🛏️','🧹','🗄️','🎒','🧴','🪔','🛋️','🚗','🔑','💝','🏀','🧩','🎸'];
@@ -310,7 +348,7 @@ function renderPendingImgs(type){const c=document.getElementById(type==='insp'?'
 function removePendingImg(type,idx){S.pendingImgs[type].splice(idx,1);renderPendingImgs(type)}
 
 // ===== Tab Switching =====
-document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();loadOrg();closeOrgBoard()}})});
+document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();S.orgCurrentCat=null;S.orgCurrentLocation=null;document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}})});
 
 // ===== Daily Execution =====
 async function loadBoards(){const b=await DB.get('boards');if(b&&b.length){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}}
@@ -337,18 +375,120 @@ function editInsp(id){const r=S.insp.find(x=>x.id===id);if(!r)return;S.edit={typ
 function renderEditImgs(){const c=document.getElementById('edit-img-preview');if(!c)return;c.innerHTML=S.edit.images.map((src,i)=>`<div class="image-preview-item"><img src="${src}" alt=""><div class="remove-img" onclick="removeEditImg(${i})">×</div></div>`).join('')}
 function removeEditImg(idx){S.edit.images.splice(idx,1);renderEditImgs()}
 
-// ===== Organizing (Board-based) =====
+// ===== Organizing (3-Layer) =====
 async function loadOrgCategories(){const c=await DB.get('orgCategories');if(c&&c.length){S.orgCategories=c}else{S.orgCategories=[...DEFAULT_ORG_CATEGORIES];await DB.set('orgCategories',S.orgCategories)}}
-async function loadOrg(){S.org=(await DB.get('organizing'))||[];renderOrgBoards()}
-function renderOrgBoards(){const g=document.getElementById('orgBoardsGrid');const counts={};S.org.forEach(r=>{counts[r.category]=(counts[r.category]||0)+1});g.innerHTML=S.orgCategories.map(cat=>{const count=counts[cat.name]||0;return `<div class="org-board-card" onclick="openOrgBoard('${cat.id}')"><div class="org-board-del" onclick="event.stopPropagation();deleteOrgCategory('${cat.id}')">×</div><div class="org-board-icon">${cat.icon}</div><div class="org-board-name">${escapeHtml(cat.name)}</div><div class="org-board-count">${count} 件物品</div></div>`}).join('') + `<div class="org-board-add" onclick="showAddCatModal()"><span style="font-size:28px">➕</span><span>新增分类</span></div>`}
-function openOrgBoard(catId){S.orgCurrentCat=catId;const cat=S.orgCategories.find(c=>c.id===catId);if(!cat)return;document.getElementById('orgBoardsView').style.display='none';document.getElementById('orgDetailView').style.display='block';document.getElementById('orgDetailTitle').innerHTML=`<span>${cat.icon}</span> ${escapeHtml(cat.name)}`;renderOrgDetail()}
-function closeOrgBoard(){S.orgCurrentCat=null;document.getElementById('orgBoardsView').style.display='block';document.getElementById('orgDetailView').style.display='none';renderOrgBoards()}
-function renderOrgDetail(){const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);if(!cat)return;const list=document.getElementById('orgList');const records=S.org.filter(r=>r.category===cat.name);if(records.length===0){list.innerHTML=`<div class="empty"><div class="empty-icon">${cat.icon}</div><p>这个分类还没有记录<br>在上方添加第一条记录吧</p></div>`;return}list.innerHTML=records.map(r=>`<div class="record-card"><div class="record-meta"><span class="record-time">${fmtDate(r.timestamp)}</span></div>${r.title?`<div class="record-title">${escapeHtml(r.title)}</div>`:''}${r.text?`<div class="record-text">${escapeHtml(r.text)}</div>`:''}${r.location?`<div class="record-location">📍 ${escapeHtml(r.location)}</div>`:''}${r.images&&r.images.length?`<div class="record-images">${r.images.map(src=>`<img src="${src}" onclick="openLightbox('${src.replace(/'/g,"\\'")}')" alt="">`).join('')}</div>`:''}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="editOrg('${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delOrg('${r.id}')">删除</button></div></div>`).join('')}
+async function loadOrg(){S.org=(await DB.get('organizing'))||[];renderOrgOverview()}
+// Layer 1: Overview
+function renderOrgOverview(){
+  const total=S.org.length;const catCount=S.orgCategories.length;
+  const pending=S.org.filter(r=>r.status!=='done').length;
+  const done=S.org.filter(r=>r.status==='done').length;
+  document.getElementById('orgTotalCount').textContent=total;
+  document.getElementById('orgCatCount').textContent=catCount;
+  document.getElementById('orgPendingCount').textContent=pending;
+  document.getElementById('orgDoneCount').textContent=done;
+  const list=document.getElementById('orgCatList');
+  const counts={};S.org.forEach(r=>{counts[r.category]=(counts[r.category]||0)+1});
+  if(S.orgCategories.length===0){list.innerHTML='<div class="empty" style="padding:30px 20px"><p>还没有分类<br>点击上方"新增分类"添加</p></div>';return}
+  list.innerHTML=S.orgCategories.map(cat=>{
+    const count=counts[cat.name]||0;
+    return `<div class="org-cat-item" onclick="openOrgCategory('${cat.id}')"><span class="cat-del" onclick="event.stopPropagation();deleteOrgCategory('${cat.id}')">×</span><span class="cat-icon">${cat.icon}</span><span class="cat-name">${escapeHtml(cat.name)}</span><span class="cat-count">${count} 件</span><span class="cat-arrow">›</span></div>`
+  }).join('');
+}
+// Layer 2: Location groups
+let orgLocationNames=[];
+function openOrgCategory(catId){
+  S.orgCurrentCat=catId;S.orgCurrentLocation=null;
+  const cat=S.orgCategories.find(c=>c.id===catId);if(!cat)return;
+  document.getElementById('orgOverviewView').style.display='none';
+  document.getElementById('orgLocationView').style.display='block';
+  document.getElementById('orgItemView').style.display='none';
+  document.getElementById('orgLocationTitle').innerHTML=`<span>${cat.icon}</span> ${escapeHtml(cat.name)}`;
+  renderOrgLocations();
+}
+function closeOrgToOverview(){
+  S.orgCurrentCat=null;S.orgCurrentLocation=null;
+  document.getElementById('orgOverviewView').style.display='block';
+  document.getElementById('orgLocationView').style.display='none';
+  document.getElementById('orgItemView').style.display='none';
+  renderOrgOverview();
+}
+function renderOrgLocations(){
+  const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);if(!cat)return;
+  const container=document.getElementById('orgLocationGroups');
+  const records=S.org.filter(r=>r.category===cat.name);
+  const locGroups={};
+  records.forEach(r=>{const loc=r.location||'未指定位置';if(!locGroups[loc])locGroups[loc]=[];locGroups[loc].push(r)});
+  orgLocationNames=Object.keys(locGroups);
+  let html='';
+  if(orgLocationNames.length===0){
+    html=`<div class="empty"><div class="empty-icon">${cat.icon}</div><p>这个分类还没有物品<br>点击下方按钮添加第一件</p></div>`;
+  }else{
+    html=orgLocationNames.map((loc,i)=>{
+      const items=locGroups[loc];const pend=items.filter(r=>r.status!=='done').length;
+      return `<div class="org-location-group" onclick="openOrgLocation(${i})"><span class="loc-icon">📍</span><span class="loc-name">${escapeHtml(loc)}</span><span class="loc-count">${items.length} 件${pend>0?' · '+pend+'待处理':''}</span><span class="loc-arrow">›</span></div>`;
+    }).join('');
+  }
+  html+=`<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="openOrgLocationWithForm()">+ 添加物品</button>`;
+  container.innerHTML=html;
+}
+// Layer 3: Items
+function openOrgLocation(idx){
+  S.orgCurrentLocation=orgLocationNames[idx]||null;
+  const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);
+  document.getElementById('orgLocationView').style.display='none';
+  document.getElementById('orgItemView').style.display='block';
+  document.getElementById('orgItemTitle').innerHTML=`<span>${cat.icon}</span> ${escapeHtml(cat.name)} <span style="color:var(--text-3);font-size:14px">/ ${escapeHtml(S.orgCurrentLocation||'未指定位置')}</span>`;
+  document.getElementById('orgLocation').value=S.orgCurrentLocation||'';
+  renderOrgItems();
+}
+function openOrgLocationWithForm(){
+  S.orgCurrentLocation=null;
+  const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);
+  document.getElementById('orgLocationView').style.display='none';
+  document.getElementById('orgItemView').style.display='block';
+  document.getElementById('orgItemTitle').innerHTML=`<span>${cat.icon}</span> ${escapeHtml(cat.name)} <span style="color:var(--text-3);font-size:14px">/ 新增物品</span>`;
+  document.getElementById('orgLocation').value='';
+  renderOrgItems();
+}
+function closeOrgToLocation(){
+  S.orgCurrentLocation=null;
+  document.getElementById('orgLocationView').style.display='block';
+  document.getElementById('orgItemView').style.display='none';
+  renderOrgLocations();
+}
+function renderOrgItems(){
+  const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);if(!cat)return;
+  const list=document.getElementById('orgItemList');
+  let records=S.org.filter(r=>r.category===cat.name);
+  if(S.orgCurrentLocation){records=records.filter(r=>(r.location||'未指定位置')===S.orgCurrentLocation)}
+  if(records.length===0){list.innerHTML=`<div class="empty"><div class="empty-icon">${cat.icon}</div><p>这里还没有物品<br>在上方添加第一件吧</p></div>`;return}
+  list.innerHTML=records.map(r=>{
+    const isDone=r.status==='done';
+    return `<div class="record-card"><div class="record-meta"><span class="record-status ${isDone?'done':'pending'}" onclick="toggleOrgStatus('${r.id}')">${isDone?'✓ 已处理':'⏳ 待处理'}</span><span class="record-time">${fmtDate(r.timestamp)}</span></div>${r.title?`<div class="record-title">${escapeHtml(r.title)}</div>`:''}${r.text?`<div class="record-text">${escapeHtml(r.text)}</div>`:''}${r.location?`<div class="record-location">📍 ${escapeHtml(r.location)}</div>`:''}${r.images&&r.images.length?`<div class="record-images">${r.images.map(src=>`<img src="${src}" onclick="openLightbox('${src.replace(/'/g,"\\'")}')" alt="">`).join('')}</div>`:''}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="editOrg('${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delOrg('${r.id}')">删除</button></div></div>`;
+  }).join('');
+}
+async function toggleOrgStatus(id){const r=S.org.find(x=>x.id===id);if(!r)return;r.status=r.status==='done'?'pending':'done';await DB.set('organizing',S.org);renderOrgItems()}
 document.getElementById('orgFileInput').addEventListener('change',e=>handleFiles(e.target,'org'));
-document.getElementById('submitOrg').addEventListener('click',async()=>{const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);if(!cat){showToast('请先选择一个分类','error');return}const title=document.getElementById('orgTitle').value.trim();const text=document.getElementById('orgText').value.trim();const location=document.getElementById('orgLocation').value.trim();const images=[...S.pendingImgs.org];if(!title&&!text&&images.length===0){showToast('请输入内容','error');return}const rec={id:genId(),timestamp:nowISO(),category:cat.name,title,text,location,images};S.org.unshift(rec);await DB.set('organizing',S.org);document.getElementById('orgTitle').value='';document.getElementById('orgText').value='';document.getElementById('orgLocation').value='';S.pendingImgs.org=[];renderPendingImgs('org');showToast('记录成功','success');renderOrgDetail()});
-async function delOrg(id){if(!confirm('确定删除这条整理记录吗？'))return;S.org=S.org.filter(r=>r.id!==id);await DB.set('organizing',S.org);showToast('已删除','success');renderOrgDetail()}
-function editOrg(id){const r=S.org.find(x=>x.id===id);if(!r)return;S.edit={type:'org',id,images:[...(r.images||[])]};const catOptions=S.orgCategories.map(c=>`<option value="${c.name}" ${r.category===c.name?'selected':''}>${c.icon} ${c.name}</option>`).join('');openEditModal('编辑整理记录',`<label>分类</label><select id="edit-category">${catOptions}</select><label>标题</label><input type="text" id="edit-title" value="${escapeHtml(r.title||'')}"><label>内容</label><textarea id="edit-text" rows="4">${escapeHtml(r.text||'')}</textarea><label>存放位置</label><input type="text" id="edit-location" value="${escapeHtml(r.location||'')}"><label>图片</label><div class="image-preview" id="edit-img-preview"></div><label class="upload-btn" style="display:inline-flex;margin-top:8px">📷 添加图片<input type="file" accept="image/*" multiple id="edit-file-input"></label>`);renderEditImgs();document.getElementById('edit-file-input').addEventListener('change',async e=>{const files=Array.from(e.target.files);for(const f of files){if(f.type.startsWith('image/'))S.edit.images.push(await compressImage(f))}renderEditImgs();e.target.value=''})}
-document.getElementById('orgBackBtn').addEventListener('click',closeOrgBoard);
+document.getElementById('submitOrg').addEventListener('click',async()=>{
+  const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);if(!cat){showToast('请先选择一个分类','error');return}
+  const title=document.getElementById('orgTitle').value.trim();const text=document.getElementById('orgText').value.trim();const location=document.getElementById('orgLocation').value.trim();const images=[...S.pendingImgs.org];
+  if(!title&&!text&&images.length===0){showToast('请输入内容','error');return}
+  const rec={id:genId(),timestamp:nowISO(),category:cat.name,title,text,location,images,status:'pending'};
+  S.org.unshift(rec);await DB.set('organizing',S.org);
+  document.getElementById('orgTitle').value='';document.getElementById('orgText').value='';document.getElementById('orgLocation').value=S.orgCurrentLocation||'';
+  S.pendingImgs.org=[];renderPendingImgs('org');showToast('记录成功','success');renderOrgItems();
+});
+async function delOrg(id){if(!confirm('确定删除这条物品记录吗？'))return;S.org=S.org.filter(r=>r.id!==id);await DB.set('organizing',S.org);showToast('已删除','success');renderOrgItems()}
+function editOrg(id){
+  const r=S.org.find(x=>x.id===id);if(!r)return;S.edit={type:'org',id,images:[...(r.images||[])]};
+  const catOptions=S.orgCategories.map(c=>`<option value="${c.name}" ${r.category===c.name?'selected':''}>${c.icon} ${c.name}</option>`).join('');
+  const statusOptions=`<option value="pending" ${r.status!=='done'?'selected':''}>⏳ 待处理</option><option value="done" ${r.status==='done'?'selected':''}>✓ 已处理</option>`;
+  openEditModal('编辑物品记录',`<label>分类</label><select id="edit-category">${catOptions}</select><label>状态</label><select id="edit-status">${statusOptions}</select><label>物品名称</label><input type="text" id="edit-title" value="${escapeHtml(r.title||'')}"><label>描述</label><textarea id="edit-text" rows="4">${escapeHtml(r.text||'')}</textarea><label>存放位置</label><input type="text" id="edit-location" value="${escapeHtml(r.location||'')}"><label>图片</label><div class="image-preview" id="edit-img-preview"></div><label class="upload-btn" style="display:inline-flex;margin-top:8px">📷 添加图片<input type="file" accept="image/*" multiple id="edit-file-input"></label>`);
+  renderEditImgs();document.getElementById('edit-file-input').addEventListener('change',async e=>{const files=Array.from(e.target.files);for(const f of files){if(f.type.startsWith('image/'))S.edit.images.push(await compressImage(f))}renderEditImgs();e.target.value=''});
+}
+document.getElementById('orgBackToOverview').addEventListener('click',closeOrgToOverview);
+document.getElementById('orgBackToLocation').addEventListener('click',closeOrgToLocation);
 // Add Category Modal
 let selectedEmoji='📦';
 function showAddCatModal(){document.getElementById('newCatName').value='';selectedEmoji='📦';document.getElementById('emojiPicker').innerHTML=EMOJI_LIST.map(e=>`<div class="emoji-item ${e===selectedEmoji?'selected':''}" onclick="selectEmoji('${e}')">${e}</div>`).join('');document.getElementById('addCatModal').classList.add('show')}
@@ -356,8 +496,8 @@ function selectEmoji(e){selectedEmoji=e;document.querySelectorAll('.emoji-item')
 document.getElementById('closeAddCat').addEventListener('click',()=>document.getElementById('addCatModal').classList.remove('show'));
 document.getElementById('cancelAddCat').addEventListener('click',()=>document.getElementById('addCatModal').classList.remove('show'));
 document.getElementById('addCatModal').addEventListener('click',e=>{if(e.target===e.currentTarget)document.getElementById('addCatModal').classList.remove('show')});
-document.getElementById('saveAddCat').addEventListener('click',async()=>{const name=document.getElementById('newCatName').value.trim();if(!name){showToast('请输入分类名称','error');return}if(S.orgCategories.some(c=>c.name===name)){showToast('该分类已存在','error');return}S.orgCategories.push({id:'cat-'+genId(),name,icon:selectedEmoji});await DB.set('orgCategories',S.orgCategories);document.getElementById('addCatModal').classList.remove('show');renderOrgBoards();showToast('分类已添加','success')});
-async function deleteOrgCategory(catId){const cat=S.orgCategories.find(c=>c.id===catId);if(!cat)return;const count=S.org.filter(r=>r.category===cat.name).length;if(count>0){if(!confirm(`「${cat.name}」下有 ${count} 条记录，删除分类后这些记录将归入「其他」。确定删除吗？`))return;const otherCat=S.orgCategories.find(c=>c.name==='其他');S.org.forEach(r=>{if(r.category===cat.name)r.category=otherCat?otherCat.name:'其他'});await DB.set('organizing',S.org)}else{if(!confirm(`确定删除「${cat.name}」分类吗？`))return}S.orgCategories=S.orgCategories.filter(c=>c.id!==catId);await DB.set('orgCategories',S.orgCategories);renderOrgBoards();showToast('分类已删除','success')}
+document.getElementById('saveAddCat').addEventListener('click',async()=>{const name=document.getElementById('newCatName').value.trim();if(!name){showToast('请输入分类名称','error');return}if(S.orgCategories.some(c=>c.name===name)){showToast('该分类已存在','error');return}S.orgCategories.push({id:'cat-'+genId(),name,icon:selectedEmoji});await DB.set('orgCategories',S.orgCategories);document.getElementById('addCatModal').classList.remove('show');renderOrgOverview();showToast('分类已添加','success')});
+async function deleteOrgCategory(catId){const cat=S.orgCategories.find(c=>c.id===catId);if(!cat)return;const count=S.org.filter(r=>r.category===cat.name).length;if(count>0){if(!confirm(`「${cat.name}」下有 ${count} 条记录，删除分类后这些记录将归入「其他」。确定删除吗？`))return;const otherCat=S.orgCategories.find(c=>c.name==='其他');S.org.forEach(r=>{if(r.category===cat.name)r.category=otherCat?otherCat.name:'其他'});await DB.set('organizing',S.org)}else{if(!confirm(`确定删除「${cat.name}」分类吗？`))return}S.orgCategories=S.orgCategories.filter(c=>c.id!==catId);await DB.set('orgCategories',S.orgCategories);renderOrgOverview();showToast('分类已删除','success')}
 
 // ===== Edit Modal =====
 function openEditModal(title,bodyHtml){document.getElementById('modalTitle').textContent=title;document.getElementById('modalBody').innerHTML=bodyHtml;document.getElementById('editModal').classList.add('show')}
@@ -365,7 +505,7 @@ document.getElementById('closeModal').addEventListener('click',closeEditModal);
 document.getElementById('cancelEdit').addEventListener('click',closeEditModal);
 document.getElementById('editModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEditModal()});
 function closeEditModal(){document.getElementById('editModal').classList.remove('show');S.edit=null}
-document.getElementById('saveEdit').addEventListener('click',async()=>{if(!S.edit)return;const{type,id,images}=S.edit;if(type==='insp'){const text=document.getElementById('edit-text').value.trim();const r=S.insp.find(x=>x.id===id);if(r){r.text=text;r.images=images;await DB.set('inspirations',S.insp)}showToast('已更新','success');renderInsp()}else if(type==='org'){const category=document.getElementById('edit-category').value;const title=document.getElementById('edit-title').value.trim();const text=document.getElementById('edit-text').value.trim();const location=document.getElementById('edit-location').value.trim();const r=S.org.find(x=>x.id===id);if(r){r.category=category;r.title=title;r.text=text;r.location=location;r.images=images;await DB.set('organizing',S.org)}showToast('已更新','success');renderOrgDetail()}closeEditModal()});
+document.getElementById('saveEdit').addEventListener('click',async()=>{if(!S.edit)return;const{type,id,images}=S.edit;if(type==='insp'){const text=document.getElementById('edit-text').value.trim();const r=S.insp.find(x=>x.id===id);if(r){r.text=text;r.images=images;await DB.set('inspirations',S.insp)}showToast('已更新','success');renderInsp()}else if(type==='org'){const category=document.getElementById('edit-category').value;const status=document.getElementById('edit-status').value;const title=document.getElementById('edit-title').value.trim();const text=document.getElementById('edit-text').value.trim();const location=document.getElementById('edit-location').value.trim();const r=S.org.find(x=>x.id===id);if(r){r.category=category;r.status=status;r.title=title;r.text=text;r.location=location;r.images=images;await DB.set('organizing',S.org)}showToast('已更新','success');renderOrgItems()}closeEditModal()});
 
 // ===== Export / Import (纯前端，不需要服务器) =====
 document.getElementById('exportBtn').addEventListener('click',async()=>{const keys=await DB.keys();const data={version:'2.0',exportDate:nowISO()};for(const k of keys)data[k]=await DB.get(k);const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`daily-workspace-backup-${new Date().toISOString().split('T')[0]}.json`;a.click();URL.revokeObjectURL(url);showToast('备份已导出','success')});
