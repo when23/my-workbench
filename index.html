@@ -114,7 +114,7 @@ img{max-width:100%;display:block}
 .org-cat-item .cat-name{flex:1;font-size:14px;font-weight:500}
 .org-cat-item .cat-count{font-size:13px;color:var(--text-3)}
 .org-cat-item .cat-arrow{font-size:18px;color:var(--text-3)}
-.org-cat-item .cat-del{position:absolute;right:42px;width:22px;height:22px;border-radius:50%;background:var(--danger-bg);color:var(--danger);font-size:13px;display:flex;align-items:center;justify-content:center}
+.org-cat-item .cat-del{width:22px;height:22px;border-radius:50%;background:var(--danger-bg);color:var(--danger);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 @media (hover:hover) and (pointer:fine){.org-cat-item .cat-del{display:none}.org-cat-item:hover .cat-del{display:flex}}
 .org-location-group{background:var(--surface);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:12px}
 .org-location-group:hover{box-shadow:var(--shadow)}
@@ -414,7 +414,7 @@ function renderOrgOverview(){
   if(S.orgCategories.length===0){list.innerHTML='<div class="empty" style="padding:30px 20px"><p>还没有分类<br>点击上方"新增分类"添加</p></div>';return}
   list.innerHTML=S.orgCategories.map(cat=>{
     const count=counts[cat.name]||0;
-    return `<div class="org-cat-item" onclick="openOrgCategory('${cat.id}')"><span class="cat-del" onclick="event.stopPropagation();deleteOrgCategory('${cat.id}')">×</span><span class="cat-icon">${cat.icon}</span><span class="cat-name">${escapeHtml(cat.name)}</span><span class="cat-count">${count} 件</span><span class="cat-arrow">›</span></div>`
+    return `<div class="org-cat-item" onclick="openOrgCategory('${cat.id}')"><span class="cat-icon">${cat.icon}</span><span class="cat-name">${escapeHtml(cat.name)}</span><span class="cat-count">${count} 件</span><span class="cat-del" onclick="event.stopPropagation();deleteOrgCategory('${cat.id}')">×</span><span class="cat-arrow">›</span></div>`
   }).join('');
 }
 // Layer 2: Location groups
