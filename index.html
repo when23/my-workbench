@@ -368,11 +368,18 @@ async function loadBoards(){const b=await DB.get('boards');if(b&&b.length){S.boa
 async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};await carryOverUncompleted();renderBoards()}
 // 未完成的任务自动顺延到下一天，直到完成
 async function carryOverUncompleted(){
+  let changed=false;
+  // 1) 清理当天可能存在的同文本重复（修复旧数据/跨天复制产生的重复）
+  for(const bid in S.daily){
+    const seen={};const before=(S.daily[bid]||[]).length;
+    S.daily[bid]=(S.daily[bid]||[]).filter(t=>{const k=t.text;if(seen[k])return false;seen[k]=true;return true});
+    if((S.daily[bid]||[]).length!==before)changed=true;
+  }
+  // 2) 扫描最近60天，按稳定 id（有 id 用 id，旧任务用 文本 兜底）追踪每个任务最近一次状态
   const allKeys=await DB.keys();
   const prevDates=allKeys.filter(k=>k.startsWith('daily:')).map(k=>k.slice(6)).filter(d=>d<S.date).sort().reverse();
-  if(prevDates.length===0)return;
-  const scanDates=prevDates.slice(0,60); // 最多扫描最近60天，保证性能
-  // 按 taskId 追踪最近一次出现的状态
+  if(prevDates.length===0){if(changed)await saveDaily();return}
+  const scanDates=prevDates.slice(0,60);
   const taskMap={};
   for(const d of scanDates){
     const data=await DB.get('daily:'+d);if(!data)continue;
@@ -384,14 +391,13 @@ async function carryOverUncompleted(){
       }
     }
   }
-  let changed=false;
+  // 3) 未完成的任务顺延到当天（使用稳定 id，不再生成随机 id，避免跨天复制产生重复）
   for(const tid in taskMap){
     const{date,done,dismissed,task,boardId}=taskMap[tid];
     if(done||dismissed)continue; // 已完成或已删除，不再顺延
     if(!S.daily[boardId])S.daily[boardId]=[];
-    const exists=S.daily[boardId].some(t=>(t.id||('txt:'+t.text))===tid);
-    if(exists)continue;
-    S.daily[boardId].push({id:task.id||genId(),text:task.text,done:false,carriedFrom:date});
+    if(S.daily[boardId].some(t=>t.text===task.text))continue; // 当天已有同名任务则不重复添加
+    S.daily[boardId].push({id:tid,text:task.text,done:false,carriedFrom:date});
     changed=true;
   }
   if(changed)await saveDaily();
