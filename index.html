@@ -74,6 +74,7 @@ img{max-width:100%;display:block}
 .task-delete{opacity:0;width:24px;height:24px;border-radius:var(--r-xs);color:var(--text-3);font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
 .task-item:hover .task-delete{opacity:1}
 .task-delete:hover{background:var(--danger-bg);color:var(--danger)}
+.task-carry{font-size:12px;opacity:.5;margin-right:2px;cursor:help}
 .add-task{display:flex;gap:6px;margin-top:6px}
 .add-task input{flex:1;border:1px solid var(--border);border-radius:var(--r-xs);padding:7px 10px;font-size:13px;background:var(--bg);min-width:0}
 .add-task input:focus{outline:none;border-color:var(--primary);background:var(--surface)}
@@ -364,13 +365,56 @@ document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',asy
 
 // ===== Daily Execution =====
 async function loadBoards(){const b=await DB.get('boards');if(b&&b.length){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}}
-async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};renderBoards()}
-function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card"><div class="board-header"><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('');g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
+async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};await carryOverUncompleted();renderBoards()}
+// 未完成的任务自动顺延到下一天，直到完成
+async function carryOverUncompleted(){
+  const allKeys=await DB.keys();
+  const prevDates=allKeys.filter(k=>k.startsWith('daily:')).map(k=>k.slice(6)).filter(d=>d<S.date).sort().reverse();
+  if(prevDates.length===0)return;
+  const scanDates=prevDates.slice(0,60); // 最多扫描最近60天，保证性能
+  // 按 taskId 追踪最近一次出现的状态
+  const taskMap={};
+  for(const d of scanDates){
+    const data=await DB.get('daily:'+d);if(!data)continue;
+    for(const boardId in data){
+      const tasks=data[boardId];if(!Array.isArray(tasks))continue;
+      for(const t of tasks){
+        const tid=t.id||('txt:'+t.text);
+        if(!taskMap[tid]||d>taskMap[tid].date){taskMap[tid]={date:d,done:!!t.done,dismissed:!!t.dismissed,task:t,boardId}}
+      }
+    }
+  }
+  let changed=false;
+  for(const tid in taskMap){
+    const{date,done,dismissed,task,boardId}=taskMap[tid];
+    if(done||dismissed)continue; // 已完成或已删除，不再顺延
+    if(!S.daily[boardId])S.daily[boardId]=[];
+    const exists=S.daily[boardId].some(t=>(t.id||('txt:'+t.text))===tid);
+    if(exists)continue;
+    S.daily[boardId].push({id:task.id||genId(),text:task.text,done:false,carriedFrom:date});
+    changed=true;
+  }
+  if(changed)await saveDaily();
+}
+function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card"><div class="board-header"><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('');g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
 async function saveBoards(){await DB.set('boards',S.boards)}
 async function saveDaily(){const data={};S.boards.forEach(b=>{if(S.daily[b.id]&&S.daily[b.id].length>0)data[b.id]=S.daily[b.id]});await DB.set('daily:'+S.date,data);S.daily=data}
-function addTask(boardId){const input=document.getElementById('add-input-'+boardId);const text=input.value.trim();if(!text)return;if(!S.daily[boardId])S.daily[boardId]=[];S.daily[boardId].push({text,done:false});input.value='';renderBoards();saveDaily()}
+function addTask(boardId){const input=document.getElementById('add-input-'+boardId);const text=input.value.trim();if(!text)return;if(!S.daily[boardId])S.daily[boardId]=[];S.daily[boardId].push({id:genId(),text,done:false});input.value='';renderBoards();saveDaily()}
 function toggleTask(boardId,idx){S.daily[boardId][idx].done=!S.daily[boardId][idx].done;renderBoards();saveDaily()}
-function deleteTask(boardId,idx){S.daily[boardId].splice(idx,1);renderBoards();saveDaily()}
+async function deleteTask(boardId,idx){
+  const task=S.daily[boardId]&&S.daily[boardId][idx];if(!task)return;
+  S.daily[boardId].splice(idx,1);renderBoards();saveDaily();
+  // 标记之前所有日期的同名任务为 dismissed，防止删除后再次顺延
+  const tid=task.id||('txt:'+task.text);
+  const allKeys=await DB.keys();
+  const prevDates=allKeys.filter(k=>k.startsWith('daily:')).map(k=>k.slice(6)).filter(d=>d<S.date);
+  for(const d of prevDates){
+    const data=await DB.get('daily:'+d);if(!data)continue;
+    let modified=false;
+    for(const bid in data){if(!Array.isArray(data[bid]))continue;for(const t of data[bid]){if((t.id||('txt:'+t.text))===tid&&!t.done){t.dismissed=true;modified=true}}}
+    if(modified)await DB.set('daily:'+d,data);
+  }
+}
 function shiftDate(days){const d=new Date(S.date+'T00:00:00');d.setDate(d.getDate()+days);S.date=d.toISOString().split('T')[0];document.getElementById('datePicker').value=S.date;loadDaily()}
 document.getElementById('prevDay').addEventListener('click',()=>shiftDate(-1));
 document.getElementById('nextDay').addEventListener('click',()=>shiftDate(1));
