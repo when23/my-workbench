@@ -207,6 +207,9 @@ img{max-width:100%;display:block}
 .outfit-cart-count{font-size:13px;font-weight:600;color:var(--primary)}
 .outfit-group{margin-bottom:18px}
 .outfit-group-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border-l)}
+.outfit-group-title.loc-toggle{cursor:pointer;transition:background .15s;border-radius:var(--r-xs)}
+.outfit-group-title.loc-toggle:hover{background:var(--border-l)}
+.outfit-group-title .loc-sel{color:var(--primary);font-weight:600;font-size:12px}
 .outfit-card{background:var(--surface);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:10px;transition:box-shadow .15s}
 .outfit-card:hover{box-shadow:var(--shadow)}
 .outfit-card-top{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
@@ -405,7 +408,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:new Date().toISOString().split('T')[0],boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null};
+const S={tab:'daily',date:new Date().toISOString().split('T')[0],boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocCollapsed:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作'},{id:'b2',name:'学习'},{id:'b3',name:'健康'},{id:'b4',name:'生活'}];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
 const EMOJI_LIST=['📦','📚','👕','💄','🍳','📱','💊','🎮','🧸','⚽','🎵','🖼️','🔧','🌿','🐾','💎','🎨','🛏️','🧹','🗄️','🎒','🧴','🪔','🛋️','🚗','🔑','💝','🏀','🧩','🎸'];
@@ -685,6 +688,7 @@ function openOutfitBuilder(){
   document.getElementById('orgOutfitView').style.display='block';
   renderOutfitBuilder();
 }
+let outfitLocNames=[];
 function renderOutfitBuilder(){
   const list=document.getElementById('orgOutfitBuilder');
   const clothes=S.org.filter(r=>r.category==='衣物');
@@ -693,15 +697,42 @@ function renderOutfitBuilder(){
     document.getElementById('outfitCart').style.display='none';
     return;
   }
-  list.innerHTML=clothes.map(r=>{
-    const sel=S.outfitCart.includes(r.id);
-    const thumb=r.images&&r.images.length?`<img class="sel-thumb" src="${r.images[0]}" alt="">`:`<div class="sel-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px">👕</div>`;
-    return `<div class="outfit-sel ${sel?'selected':''}" onclick="toggleOutfitItem('${r.id}')"><div class="sel-check">${sel?'✓':''}</div>${thumb}<div class="sel-info"><div class="sel-title">${escapeHtml(r.title||'(未命名)')}</div><div class="sel-sub">${escapeHtml((r.location||'')+' '+(r.text||''))}</div></div></div>`;
+  // 按位置分组（与衣物清单的位置分组保持一致）
+  const groups={};
+  clothes.forEach(r=>{const loc=(r.location&&r.location.trim())||'未指定位置';(groups[loc]=groups[loc]||[]).push(r)});
+  let locNames=Object.keys(groups);
+  locNames.sort((a,b)=>{const ua=a==='未指定位置'?1:0,ub=b==='未指定位置'?1:0;if(ua!==ub)return ua-ub;return a.localeCompare(b,'zh')});
+  outfitLocNames=locNames;
+  list.innerHTML=locNames.map((loc,i)=>{
+    const items=groups[loc];
+    const collapsed=!!S.outfitLocCollapsed[loc];
+    const selCount=items.filter(r=>S.outfitCart.includes(r.id)).length;
+    const cards=collapsed?'':items.map(r=>{
+      const sel=S.outfitCart.includes(r.id);
+      const thumb=r.images&&r.images.length?`<img class="sel-thumb" src="${r.images[0]}" alt="">`:`<div class="sel-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px">👕</div>`;
+      return `<div class="outfit-sel ${sel?'selected':''}" onclick="toggleOutfitItem('${r.id}')"><div class="sel-check">${sel?'✓':''}</div>${thumb}<div class="sel-info"><div class="sel-title">${escapeHtml(r.title||'(未命名)')}</div><div class="sel-sub">${escapeHtml((r.text||''))}</div></div></div>`;
+    }).join('');
+    return `<div class="outfit-group">
+      <div class="outfit-group-title loc-toggle" onclick="toggleOutfitLoc(${i})">
+        <span style="font-size:16px">📍</span>
+        <span>${escapeHtml(loc)}</span>
+        <span style="color:var(--text-3);font-weight:400;font-size:12px">${items.length} 件</span>
+        ${selCount>0?`<span class="loc-sel">· ${selCount} 已选</span>`:''}
+        <span style="margin-left:auto;font-size:14px;transition:transform .15s;transform:${collapsed?'rotate(-90deg)':'none'}">▾</span>
+      </div>
+      ${cards}
+    </div>`;
   }).join('');
   // 购物车栏
   const cart=document.getElementById('outfitCart');
   document.getElementById('outfitCartCount').textContent='已选 '+S.outfitCart.length+' 件';
   cart.style.display=S.outfitCart.length>0?'flex':'none';
+}
+// 折叠/展开某个位置分组
+function toggleOutfitLoc(i){
+  const loc=outfitLocNames[i];if(loc==null)return;
+  S.outfitLocCollapsed[loc]=!S.outfitLocCollapsed[loc];
+  renderOutfitBuilder();
 }
 function toggleOutfitItem(id){
   const i=S.outfitCart.indexOf(id);
