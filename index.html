@@ -787,18 +787,37 @@ function renderOutfitList(){
   S.outfits.forEach(o=>{(groups[o.tag]=groups[o.tag]||[]).push(o)});
   const order=OUTFIT_TAGS.concat(Object.keys(groups).filter(t=>!OUTFIT_TAGS.includes(t)));
   wrap.innerHTML=order.filter(t=>groups[t]).map(t=>{
-    const list=groups[t].slice().sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
+    const list=groups[t].slice().sort((a,b)=>{
+      const r=(b.rating||0)-(a.rating||0); // 评分高的排前面，未评分(0)排最后
+      if(r!==0)return r;
+      return (b.timestamp||'').localeCompare(a.timestamp||''); // 评分相同则新的在前
+    });
     return `<div class="outfit-group"><div class="outfit-group-title"><span class="outfit-tag" style="background:${tagColor(t)}">${t}</span><span style="color:var(--text-3);font-weight:400;font-size:12px">${list.length} 套</span></div>${list.map(o=>renderOutfitCard(o)).join('')}</div>`;
   }).join('');
 }
+// 评分星星（点击打分，再次点同一颗取消）。卡片/查看/编辑弹窗共用
+function starsHTML(o,withId){
+  const r=o.rating||0;
+  const idAttr=withId?' id="outfitStarsBox"':'';
+  return `<div${idAttr} style="font-size:19px;letter-spacing:1px;cursor:pointer;user-select:none;line-height:1" title="点击星星打分">${[1,2,3,4,5].map(i=>`<span onclick="setOutfitRating('${o.id}',${i})" style="color:${i<=r?'#f59e0b':'#d1d5db'};transition:color .1s">${i<=r?'★':'☆'}</span>`).join('')}</div>`;
+}
+function setOutfitRating(id,n){
+  const o=S.outfits.find(x=>x.id===id);if(!o)return;
+  o.rating=(o.rating===n)?0:n; // 再次点同一颗则取消评分
+  DB.set('outfits',S.outfits).then(()=>{
+    renderOutfitList();
+    const box=document.getElementById('outfitStarsBox');
+    if(box){const cur=S.outfits.find(x=>x.id===id);if(cur)box.innerHTML=starsHTML(cur);}
+  });
+}
 function renderOutfitCard(o){
   const chips=o.items.map(it=>`<div class="outfit-item-chip">${it.image?`<img src="${it.image}" alt="">`:'<div style="width:56px;height:56px;border-radius:6px;background:var(--border-l);display:flex;align-items:center;justify-content:center">👕</div>'}<span>${escapeHtml(it.title||'')}</span></div>`).join('');
-  return `<div class="outfit-card"><div class="outfit-card-top"><span class="outfit-tag" style="background:${tagColor(o.tag)}">${o.tag}</span>${o.title?`<strong style="font-size:14px">${escapeHtml(o.title)}</strong>`:''}<span class="outfit-time">${fmtDateCN(o.timestamp)}</span></div><div class="outfit-items">${chips}</div>${o.note?`<div class="outfit-note">${escapeHtml(o.note)}</div>`:''}<div class="outfit-actions"><button class="btn btn-ghost btn-sm" onclick="viewOutfit('${o.id}')">查看</button><button class="btn btn-ghost btn-sm" onclick="editOutfit('${o.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delOutfit('${o.id}')">删除</button></div></div>`;
+  return `<div class="outfit-card"><div class="outfit-card-top"><span class="outfit-tag" style="background:${tagColor(o.tag)}">${o.tag}</span>${o.title?`<strong style="font-size:14px">${escapeHtml(o.title)}</strong>`:''}<span class="outfit-time">${fmtDateCN(o.timestamp)}</span></div>${starsHTML(o)}<div class="outfit-items">${chips}</div>${o.note?`<div class="outfit-note">${escapeHtml(o.note)}</div>`:''}<div class="outfit-actions"><button class="btn btn-ghost btn-sm" onclick="viewOutfit('${o.id}')">查看</button><button class="btn btn-ghost btn-sm" onclick="editOutfit('${o.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delOutfit('${o.id}')">删除</button></div></div>`;
 }
 function viewOutfit(id){
   const o=S.outfits.find(x=>x.id===id);if(!o)return;
   const items=o.items.map(it=>`<div class="outfit-detail-item">${it.image?`<img src="${it.image}" alt="">`:'<div style="width:52px;height:52px;border-radius:6px;background:var(--border-l);display:flex;align-items:center;justify-content:center">👕</div>'}<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${escapeHtml(it.title||'')}</div>${it.location||it.text?`<div style="font-size:12px;color:var(--text-3)">${escapeHtml((it.location||'')+' '+(it.text||''))}</div>`:''}</div></div>`).join('');
-  openEditModal('穿搭详情',`<div style="margin-bottom:8px"><span class="outfit-tag" style="background:${tagColor(o.tag)}">${o.tag}</span>${o.title?` <strong>${escapeHtml(o.title)}</strong>`:''} <span style="font-size:12px;color:var(--text-3)">${fmtDate(o.timestamp)}</span></div><div class="outfit-detail-items">${items}</div>${o.note?`<div class="outfit-note" style="background:var(--bg);padding:8px 10px;border-radius:6px">${escapeHtml(o.note)}</div>`:''}`);
+  openEditModal('穿搭详情',`<div style="margin-bottom:8px"><span class="outfit-tag" style="background:${tagColor(o.tag)}">${o.tag}</span>${o.title?` <strong>${escapeHtml(o.title)}</strong>`:''} <span style="font-size:12px;color:var(--text-3)">${fmtDate(o.timestamp)}</span></div><div style="margin:4px 0 10px">${starsHTML(o,true)}</div><div class="outfit-detail-items">${items}</div>${o.note?`<div class="outfit-note" style="background:var(--bg);padding:8px 10px;border-radius:6px">${escapeHtml(o.note)}</div>`:''}`);
   document.getElementById('saveEdit').style.display='none';
   document.getElementById('cancelEdit').textContent='关闭';
 }
@@ -812,7 +831,7 @@ async function delOutfit(id){
 function editOutfit(id){
   const o=S.outfits.find(x=>x.id===id);if(!o)return;
   let chips=OUTFIT_TAGS.concat(OUTFIT_TAGS.includes(o.tag)?[]:[o.tag]).map(t=>`<span class="tag-chip ${t===o.tag?'active':''}" data-tag="${t}" style="${t===o.tag?`background:${tagColor(t)}`:'background:var(--surface)'}" onclick="selectOutfitTag('${t}')">${t}</span>`).join('');
-  openEditModal('编辑穿搭',`<label>标签</label><div class="tag-chips" id="outfit-tag-chips">${chips}</div><label>清单标题</label><input type="text" id="outfit-title" value="${escapeHtml(o.title||'')}" maxlength="30"><label>备注</label><textarea id="outfit-note" rows="3">${escapeHtml(o.note||'')}</textarea>`);
+  openEditModal('编辑穿搭',`<div style="margin-bottom:8px">${starsHTML(o,true)} <span style="font-size:12px;color:var(--text-3)">点击星星评分</span></div><label>标签</label><div class="tag-chips" id="outfit-tag-chips">${chips}</div><label>清单标题</label><input type="text" id="outfit-title" value="${escapeHtml(o.title||'')}" maxlength="30"><label>备注</label><textarea id="outfit-note" rows="3">${escapeHtml(o.note||'')}</textarea>`);
   S._outfitTag=o.tag;
   document.getElementById('saveEdit').onclick=()=>{
     o.tag=S._outfitTag;
