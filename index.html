@@ -416,7 +416,7 @@ const EMOJI_LIST=['📦','📚','👕','💄','🍳','📱','💊','🎮','🧸'
 function genId(){return new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)+Math.random().toString(36).substr(2,6)}
 function nowISO(){return new Date().toISOString()}
 function fmtDate(iso){const d=new Date(iso);const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
-function fmtDateCN(s){const d=new Date(s+'T00:00:00');const t=new Date();const diff=Math.floor((t.setHours(0,0,0,0)-new Date(d).setHours(0,0,0,0))/86400000);if(diff===0)return'今天';if(diff===1)return'昨天';if(diff===-1)return'明天';return`${d.getMonth()+1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`}
+function fmtDateCN(s){if(!s)return'';const d=s.includes('T')?new Date(s):new Date(s+'T00:00:00');if(isNaN(d.getTime()))return'';const t=new Date();const diff=Math.floor((t.setHours(0,0,0,0)-new Date(d).setHours(0,0,0,0))/86400000);if(diff===0)return'今天';if(diff===1)return'昨天';if(diff===-1)return'明天';return`${d.getMonth()+1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`}
 function showToast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show '+type;setTimeout(()=>t.classList.remove('show'),2500)}
 function escapeHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
