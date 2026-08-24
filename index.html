@@ -118,8 +118,11 @@ img{max-width:100%;display:block}
 .org-cat-item .cat-arrow{font-size:18px;color:var(--text-3)}
 .org-cat-item .cat-del{width:22px;height:22px;border-radius:50%;background:var(--danger-bg);color:var(--danger);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 @media (hover:hover) and (pointer:fine){.org-cat-item .cat-del{display:none}.org-cat-item:hover .cat-del{display:flex}}
-.org-cat-item .cat-move{width:22px;height:22px;border-radius:50%;background:var(--border-l);color:var(--text-2);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
-.org-cat-item .cat-move:hover{background:var(--primary-light);color:var(--primary)}
+.org-cat-item .cat-handle{width:16px;flex-shrink:0;color:var(--text-3);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.org-cat-item .cat-handle:active{color:var(--primary)}
+.org-cat-item.dragging{opacity:.35;background:var(--primary-light)}
+.org-cat-item.drop-before{box-shadow:inset 0 3px 0 0 var(--primary)}
+.org-cat-item.drop-after{box-shadow:inset 0 -3px 0 0 var(--primary)}
 .org-location-group{background:var(--surface);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:12px}
 .org-location-group:hover{box-shadow:var(--shadow)}
 .org-location-group .loc-icon{font-size:20px}
@@ -548,19 +551,51 @@ function renderOrgOverview(){
   const list=document.getElementById('orgCatList');
   const counts={};S.org.forEach(r=>{counts[r.category]=(counts[r.category]||0)+1});
   if(S.orgCategories.length===0){list.innerHTML='<div class="empty" style="padding:30px 20px"><p>还没有分类<br>点击上方"新增分类"添加</p></div>';return}
-  list.innerHTML=S.orgCategories.map((cat,idx)=>{
+  list.innerHTML=S.orgCategories.map(cat=>{
     const count=counts[cat.name]||0;
-    const canUp=idx>0,canDown=idx<S.orgCategories.length-1;
-    return `<div class="org-cat-item" onclick="openOrgCategory('${cat.id}')"><span class="cat-icon">${cat.icon}</span><span class="cat-name">${escapeHtml(cat.name)}</span><span class="cat-count">${count} 件</span><span class="cat-move" title="上移" onclick="event.stopPropagation();moveOrgCategory('${cat.id}',-1)" ${canUp?'':'style="visibility:hidden"'}>↑</span><span class="cat-move" title="下移" onclick="event.stopPropagation();moveOrgCategory('${cat.id}',1)" ${canDown?'':'style="visibility:hidden"'}>↓</span><span class="cat-del" onclick="event.stopPropagation();deleteOrgCategory('${cat.id}')">×</span><span class="cat-arrow">›</span></div>`
+    return `<div class="org-cat-item" data-id="${cat.id}" onclick="openOrgCategory('${cat.id}')"><span class="cat-handle" title="拖动排序" onclick="event.stopPropagation()">⠿</span><span class="cat-icon">${cat.icon}</span><span class="cat-name">${escapeHtml(cat.name)}</span><span class="cat-count">${count} 件</span><span class="cat-del" onclick="event.stopPropagation();deleteOrgCategory('${cat.id}')">×</span><span class="cat-arrow">›</span></div>`
   }).join('');
 }
-// 分类（品类）上下排序：dir=-1 上移，dir=1 下移
-async function moveOrgCategory(catId,dir){
-  const i=S.orgCategories.findIndex(c=>c.id===catId);if(i<0)return;
-  const j=i+dir;if(j<0||j>=S.orgCategories.length)return;
-  const t=S.orgCategories[i];S.orgCategories[i]=S.orgCategories[j];S.orgCategories[j]=t;
-  await DB.set('orgCategories',S.orgCategories);renderOrgOverview();
-}
+// 分类（品类）拖动排序：按住左侧 ⠿ 手柄上下拖动即可重排，桌面/触屏通用
+let _drag=null;
+(function initOrgCatDrag(){
+  const list=document.getElementById('orgCatList');if(!list)return;
+  list.addEventListener('pointerdown',e=>{
+    const h=e.target.closest('.cat-handle');if(!h)return;
+    const item=h.closest('.org-cat-item');if(!item)return;
+    e.preventDefault();
+    _drag={id:item.dataset.id,item,startY:e.clientY,moved:false,pid:e.pointerId};
+    try{item.setPointerCapture(e.pointerId)}catch(_){}
+    item.classList.add('dragging');
+  });
+  list.addEventListener('pointermove',e=>{
+    if(!_drag)return;
+    const dy=e.clientY-_drag.startY;
+    if(Math.abs(dy)>4)_drag.moved=true;
+    _drag.item.style.transform='translateY('+dy+'px)';
+    list.querySelectorAll('.org-cat-item').forEach(it=>{if(it!==_drag.item)it.classList.remove('drop-before','drop-after')});
+    const others=[...list.querySelectorAll('.org-cat-item')].filter(it=>it!==_drag.item);
+    for(const it of others){const r=it.getBoundingClientRect();if(e.clientY>=r.top&&e.clientY<=r.bottom){it.classList.add(e.clientY<r.top+r.height/2?'drop-before':'drop-after');break}}
+  });
+  const end=async()=>{
+    if(!_drag)return;
+    const {id,item,moved}=_drag;
+    item.style.transform='';item.classList.remove('dragging');
+    const before=list.querySelector('.drop-before'),after=list.querySelector('.drop-after');
+    list.querySelectorAll('.org-cat-item').forEach(it=>it.classList.remove('drop-before','drop-after'));
+    _drag=null;
+    if(!moved){return}
+    const ref=before||after;if(!ref||ref.dataset.id===id){renderOrgOverview();return}
+    const from=S.orgCategories.findIndex(c=>c.id===id);if(from<0){renderOrgOverview();return}
+    const [m]=S.orgCategories.splice(from,1);
+    let refIdx=S.orgCategories.findIndex(c=>c.id===ref.dataset.id);if(refIdx<0)refIdx=0;
+    if(after)refIdx+=1;
+    S.orgCategories.splice(refIdx,0,m);
+    await DB.set('orgCategories',S.orgCategories);renderOrgOverview();showToast('已调整顺序','success');
+  };
+  list.addEventListener('pointerup',end);
+  list.addEventListener('pointercancel',()=>{if(_drag){_drag.item.style.transform='';_drag.item.classList.remove('dragging');list.querySelectorAll('.org-cat-item').forEach(it=>it.classList.remove('drop-before','drop-after'));_drag=null;renderOrgOverview()}});
+})();
 // Layer 2: Location groups
 let orgLocationNames=[];
 function openOrgCategory(catId){
