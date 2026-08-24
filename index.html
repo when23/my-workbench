@@ -309,6 +309,7 @@ img{max-width:100%;display:block}
           <div class="org-detail-header">
             <button class="back-btn" id="orgBackToOverview">‹</button>
             <h2 id="orgLocationTitle"></h2>
+            <button class="btn btn-danger btn-sm" id="orgClearOtherLoc" style="display:none" onclick="clearOrgOther()">🗑 一键清空</button>
           </div>
           <div id="orgLocationGroups"></div>
         </div>
@@ -630,7 +631,7 @@ async function clearOrgOther(){
   if(!confirm('确定清空「其他」分类下的所有物品记录吗？\n此操作不可恢复！'))return;
   S.org=S.org.filter(r=>r.category!=='其他');
   await DB.set('organizing',S.org);
-  showToast('已清空「其他」分类','success');renderOrgItems();renderOrgOverview();
+  showToast('已清空「其他」分类','success');renderOrgItems();renderOrgOverview();renderOrgLocations();
 }
 function renderOrgLocations(){
   const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);if(!cat)return;
@@ -655,6 +656,9 @@ function renderOrgLocations(){
     html=`<div class="outfit-entry" onclick="openOutfitBuilder()"><span class="cat-icon">🧥</span><span class="cat-name">日常穿搭${count>0?` · ${count} 套`:''}</span><span class="cat-arrow">›</span></div>`+html;
   }
   container.innerHTML=html;
+  // 「其他」分类在位置分组视图头部也显示一键清空
+  const locClear=document.getElementById('orgClearOtherLoc');
+  if(locClear)locClear.style.display=(cat.name==='其他')?'inline-flex':'none';
 }
 // Layer 3: Items
 function openOrgLocation(idx){
