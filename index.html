@@ -189,6 +189,12 @@ img{max-width:100%;display:block}
 .install-banner{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 20px;box-shadow:var(--shadow-lg);z-index:1500;display:none;align-items:center;gap:12px;max-width:90vw}
 .install-banner.show{display:flex}
 .install-banner span{font-size:13px;color:var(--text-2)}
+/* 更新提示 / 备份引导 横幅（顶部，固定在 install 横幅之上） */
+.update-banner,.backup-banner{position:fixed;top:0;left:0;right:0;z-index:1600;background:var(--primary);color:#fff;padding:11px 14px;display:none;align-items:center;gap:10px;font-size:13px;box-shadow:var(--shadow-lg)}
+.update-banner.show,.backup-banner.show{display:flex}
+.update-banner span,.backup-banner span{flex:1;line-height:1.4}
+.update-banner .btn,.backup-banner .btn{background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.4);white-space:nowrap}
+.update-banner .btn:hover,.backup-banner .btn:hover{background:rgba(255,255,255,.34)}
 /* ===== Outfit (日常穿搭) ===== */
 .outfit-entry{display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px dashed #f59e0b;border-radius:var(--r);margin-bottom:12px;cursor:pointer;transition:all .15s}
 .outfit-entry:hover{box-shadow:var(--shadow)}
@@ -369,6 +375,16 @@ img{max-width:100%;display:block}
   <span>📱 安装到手机桌面，随时打开使用</span>
   <button class="btn btn-primary" id="installBtn">安装</button>
   <button class="btn btn-ghost btn-sm" id="dismissInstall">关闭</button>
+</div>
+
+<div class="backup-banner" id="backupBanner">
+  <span>⚠️ 数据只存在本机，重装或清缓存可能丢失，建议定期「导出备份」</span>
+  <button class="btn btn-sm" id="backupNowBtn">立即备份</button>
+  <button class="btn btn-sm" id="backupDismiss">知道了</button>
+</div>
+<div class="update-banner" id="updateBanner">
+  <span>🔄 发现新版本，点击刷新以更新</span>
+  <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -948,14 +964,43 @@ document.getElementById('orgExcelInput').addEventListener('change',async e=>{
 function openLightbox(src){document.getElementById('lightboxImg').src=src;document.getElementById('lightbox').classList.add('show')}
 document.getElementById('lightbox').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('show'));
 
-// ===== PWA: Service Worker + Install Prompt =====
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
+// ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
+const APP_VER='13';
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    reg.addEventListener('updatefound',()=>{
+      const nw=reg.installing;
+      if(!nw)return;
+      nw.addEventListener('statechange',()=>{
+        // 已有旧版本在运行、且新版本已安装就绪 → 提示用户在应用内刷新，不再需要删图标重装
+        if(nw.state==='installed' && navigator.serviceWorker.controller){
+          const b=document.getElementById('updateBanner');if(b)b.classList.add('show');
+        }
+      });
+    });
+  }).catch(()=>{});
+}
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();S.deferredPrompt=e;document.getElementById('installBanner').classList.add('show')});
 document.getElementById('installBtn').addEventListener('click',async()=>{if(!S.deferredPrompt)return;S.deferredPrompt.prompt();const{outcome}=await S.deferredPrompt.userChoice;if(outcome==='accepted')showToast('安装成功！从桌面打开即可使用','success');S.deferredPrompt=null;document.getElementById('installBanner').classList.remove('show')});
 document.getElementById('dismissInstall').addEventListener('click',()=>document.getElementById('installBanner').classList.remove('show'));
+// 版本更新横幅：点击刷新即加载新版本（避免删图标重装导致数据丢失）
+document.getElementById('updateReloadBtn').addEventListener('click',()=>location.reload());
+// 备份引导：首次进入 / 版本变更时提示导出备份（数据仅存本机，重装或清缓存会丢）
+function maybeShowBackupHint(){
+  try{ if(localStorage.getItem('backupHintVer')!==APP_VER){const b=document.getElementById('backupBanner');if(b)b.classList.add('show')} }catch(e){}
+}
+document.getElementById('backupNowBtn').addEventListener('click',()=>{
+  document.getElementById('exportBtn').click();
+  try{localStorage.setItem('backupHintVer',APP_VER)}catch(e){}
+  const b=document.getElementById('backupBanner');if(b)b.classList.remove('show');
+});
+document.getElementById('backupDismiss').addEventListener('click',()=>{
+  try{localStorage.setItem('backupHintVer',APP_VER)}catch(e){}
+  const b=document.getElementById('backupBanner');if(b)b.classList.remove('show');
+});
 
 // ===== Init =====
-async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits()}
+async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();maybeShowBackupHint()}
 init();
 </script>
 </body>
