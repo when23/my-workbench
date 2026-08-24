@@ -118,6 +118,8 @@ img{max-width:100%;display:block}
 .org-cat-item .cat-arrow{font-size:18px;color:var(--text-3)}
 .org-cat-item .cat-del{width:22px;height:22px;border-radius:50%;background:var(--danger-bg);color:var(--danger);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 @media (hover:hover) and (pointer:fine){.org-cat-item .cat-del{display:none}.org-cat-item:hover .cat-del{display:flex}}
+.org-cat-item .cat-move{width:22px;height:22px;border-radius:50%;background:var(--border-l);color:var(--text-2);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
+.org-cat-item .cat-move:hover{background:var(--primary-light);color:var(--primary)}
 .org-location-group{background:var(--surface);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:12px}
 .org-location-group:hover{box-shadow:var(--shadow)}
 .org-location-group .loc-icon{font-size:20px}
@@ -546,10 +548,18 @@ function renderOrgOverview(){
   const list=document.getElementById('orgCatList');
   const counts={};S.org.forEach(r=>{counts[r.category]=(counts[r.category]||0)+1});
   if(S.orgCategories.length===0){list.innerHTML='<div class="empty" style="padding:30px 20px"><p>还没有分类<br>点击上方"新增分类"添加</p></div>';return}
-  list.innerHTML=S.orgCategories.map(cat=>{
+  list.innerHTML=S.orgCategories.map((cat,idx)=>{
     const count=counts[cat.name]||0;
-    return `<div class="org-cat-item" onclick="openOrgCategory('${cat.id}')"><span class="cat-icon">${cat.icon}</span><span class="cat-name">${escapeHtml(cat.name)}</span><span class="cat-count">${count} 件</span><span class="cat-del" onclick="event.stopPropagation();deleteOrgCategory('${cat.id}')">×</span><span class="cat-arrow">›</span></div>`
+    const canUp=idx>0,canDown=idx<S.orgCategories.length-1;
+    return `<div class="org-cat-item" onclick="openOrgCategory('${cat.id}')"><span class="cat-icon">${cat.icon}</span><span class="cat-name">${escapeHtml(cat.name)}</span><span class="cat-count">${count} 件</span><span class="cat-move" title="上移" onclick="event.stopPropagation();moveOrgCategory('${cat.id}',-1)" ${canUp?'':'style="visibility:hidden"'}>↑</span><span class="cat-move" title="下移" onclick="event.stopPropagation();moveOrgCategory('${cat.id}',1)" ${canDown?'':'style="visibility:hidden"'}>↓</span><span class="cat-del" onclick="event.stopPropagation();deleteOrgCategory('${cat.id}')">×</span><span class="cat-arrow">›</span></div>`
   }).join('');
+}
+// 分类（品类）上下排序：dir=-1 上移，dir=1 下移
+async function moveOrgCategory(catId,dir){
+  const i=S.orgCategories.findIndex(c=>c.id===catId);if(i<0)return;
+  const j=i+dir;if(j<0||j>=S.orgCategories.length)return;
+  const t=S.orgCategories[i];S.orgCategories[i]=S.orgCategories[j];S.orgCategories[j]=t;
+  await DB.set('orgCategories',S.orgCategories);renderOrgOverview();
 }
 // Layer 2: Location groups
 let orgLocationNames=[];
@@ -689,7 +699,7 @@ function selectEmoji(e){selectedEmoji=e;document.querySelectorAll('.emoji-item')
 document.getElementById('closeAddCat').addEventListener('click',()=>document.getElementById('addCatModal').classList.remove('show'));
 document.getElementById('cancelAddCat').addEventListener('click',()=>document.getElementById('addCatModal').classList.remove('show'));
 document.getElementById('addCatModal').addEventListener('click',e=>{if(e.target===e.currentTarget)document.getElementById('addCatModal').classList.remove('show')});
-document.getElementById('saveAddCat').addEventListener('click',async()=>{const name=document.getElementById('newCatName').value.trim();if(!name){showToast('请输入分类名称','error');return}if(S.orgCategories.some(c=>c.name===name)){showToast('该分类已存在','error');return}S.orgCategories.push({id:'cat-'+genId(),name,icon:selectedEmoji});await DB.set('orgCategories',S.orgCategories);document.getElementById('addCatModal').classList.remove('show');renderOrgOverview();showToast('分类已添加','success')});
+document.getElementById('saveAddCat').addEventListener('click',async()=>{const name=document.getElementById('newCatName').value.trim();if(!name){showToast('请输入分类名称','error');return}if(S.orgCategories.some(c=>c.name===name)){showToast('该分类已存在','error');return}S.orgCategories.unshift({id:'cat-'+genId(),name,icon:selectedEmoji});await DB.set('orgCategories',S.orgCategories);document.getElementById('addCatModal').classList.remove('show');renderOrgOverview();showToast('分类已添加','success')});
 async function deleteOrgCategory(catId){const cat=S.orgCategories.find(c=>c.id===catId);if(!cat)return;const count=S.org.filter(r=>r.category===cat.name).length;if(count>0){if(!confirm(`「${cat.name}」下有 ${count} 条记录，删除分类后这些记录将归入「其他」。确定删除吗？`))return;const otherCat=S.orgCategories.find(c=>c.name==='其他');S.org.forEach(r=>{if(r.category===cat.name)r.category=otherCat?otherCat.name:'其他'});await DB.set('organizing',S.org)}else{if(!confirm(`确定删除「${cat.name}」分类吗？`))return}S.orgCategories=S.orgCategories.filter(c=>c.id!==catId);await DB.set('orgCategories',S.orgCategories);renderOrgOverview();showToast('分类已删除','success')}
 
 // ===== 日常穿搭模块 (Outfit) =====
