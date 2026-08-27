@@ -277,6 +277,7 @@ img{max-width:100%;display:block}
 .phase-daily-list .phase-daily-item .pi-del{color:var(--danger);font-size:18px;cursor:pointer;flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -349,11 +350,12 @@ img{max-width:100%;display:block}
           </div>
           <div class="org-list-section">
             <div class="org-list-header">
-              <h3>我的物品列表</h3>
+              <h3>物品列表</h3>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="btn btn-ghost btn-sm" onclick="downloadOrgTemplate()">📋 下载模板</button>
                 <button class="btn btn-ghost btn-sm" onclick="document.getElementById('orgExcelInput').click()">📥 Excel导入</button>
                 <button class="btn btn-ghost btn-sm" onclick="showAddCatModal()">+ 新增分类</button>
+                <button class="btn btn-ghost btn-sm" onclick="exportOrgExcel()">📤 Excel导出</button>
               </div>
             </div>
             <div class="org-cat-list" id="orgCatList"></div>
@@ -1066,6 +1068,44 @@ document.getElementById('orgExcelInput').addEventListener('change',async e=>{
   e.target.value='';
 });
 
+// ===== Excel Export for Organizing (含图片) =====
+function dataUrlExt(src){const m=String(src).match(/^data:image\/(\w+);base64,/);return m?m[1].toLowerCase():null}
+async function toPngIfNeeded(src){try{const img=new Image();img.src=src;await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth||300;c.height=img.naturalWidth?img.naturalHeight:300;c.getContext('2d').drawImage(img,0,0);return c.toDataURL('image/png')}catch(e){return null}}
+async function exportOrgExcel(){
+  if(typeof ExcelJS==='undefined'){showToast('Excel 组件加载中，请稍后重试','error');return}
+  const recs=S.org||[];
+  if(recs.length===0){showToast('还没有可导出的物品数据','error');return}
+  showToast('正在生成 Excel…','success');
+  try{
+    const wb=new ExcelJS.Workbook();wb.creator='我的工作台';
+    const ws=wb.addWorksheet('物品列表');
+    let maxImg=0;recs.forEach(r=>{const n=(r.images||[]).length;if(n>maxImg)maxImg=n});
+    const headers=['物品名称','描述','分类','存放位置','状态'];
+    for(let i=0;i<maxImg;i++)headers.push('图片'+(i+1));
+    ws.columns=headers.map((h,i)=>({header:h,key:'k'+i,width:i<5?22:16}));
+    const statusMap={none:'无需处理',pending:'待处理',done:'已处理'};
+    let skipped=0;
+    for(const r of recs){
+      const base=[r.title||'',r.text||'',r.category||'',r.location||'',statusMap[r.status||'none']||'无需处理'];
+      const row=ws.addRow(base);row.height=72;
+      const imgs=r.images||[];
+      for(let i=0;i<imgs.length;i++){
+        let src=imgs[i];let ext=dataUrlExt(src);
+        if(!(ext==='png'||ext==='jpeg'||ext==='jpg'||ext==='gif')){src=await toPngIfNeeded(src);ext='png'}
+        if(!src)continue;
+        const m=src.match(/^data:image\/\w+;base64,(.*)$/);if(!m)continue;
+        try{const imageId=wb.addImage({base64:m[1],extension:ext==='jpg'?'jpeg':ext});const col=5+i;ws.addImage(imageId,{tl:{col:col,row:row.number-1},br:{col:col+1,row:row.number}})}catch(e){skipped++}
+      }
+    }
+    ws.getRow(1).font={bold:true};
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='物品列表_'+fmtYMD(new Date())+'.xlsx';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+    showToast('已导出 Excel（含图片）'+(skipped?'，'+skipped+' 张未能嵌入':'')+'','success');
+  }catch(err){console.error(err);showToast('导出失败：'+(err.message||err),'error')}
+}
 // ===== Lightbox =====
 function openLightbox(src){document.getElementById('lightboxImg').src=src;document.getElementById('lightbox').classList.add('show')}
 document.getElementById('lightbox').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('show'));
