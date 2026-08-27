@@ -487,7 +487,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:new Date().toISOString().split('T')[0],boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作'},{id:'b2',name:'学习'},{id:'b3',name:'健康'},{id:'b4',name:'生活'}];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
 const EMOJI_LIST=['📦','📚','👕','💄','🍳','📱','💊','🎮','🧸','⚽','🎵','🖼️','🔧','🌿','🐾','💎','🎨','🛏️','🧹','🗄️','🎒','🧴','🪔','🛋️','🚗','🔑','💝','🏀','🧩','🎸'];
@@ -565,10 +565,11 @@ async function deleteTask(boardId,idx){
     if(modified)await DB.set('daily:'+d,data);
   }
 }
-function shiftDate(days){const d=new Date(S.date+'T00:00:00');d.setDate(d.getDate()+days);S.date=d.toISOString().split('T')[0];document.getElementById('datePicker').value=S.date;loadDaily()}
+function fmtYMD(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day}
+function shiftDate(days){const [y,m,dd]=S.date.split('-').map(Number);const d=new Date(y,m-1,dd);d.setDate(d.getDate()+days);S.date=fmtYMD(d);document.getElementById('datePicker').value=S.date;loadDaily()}
 document.getElementById('prevDay').addEventListener('click',()=>shiftDate(-1));
 document.getElementById('nextDay').addEventListener('click',()=>shiftDate(1));
-document.getElementById('todayBtn').addEventListener('click',()=>{S.date=new Date().toISOString().split('T')[0];document.getElementById('datePicker').value=S.date;loadDaily()});
+document.getElementById('todayBtn').addEventListener('click',()=>{S.date=fmtYMD(new Date());document.getElementById('datePicker').value=S.date;loadDaily()});
 document.getElementById('datePicker').addEventListener('change',e=>{S.date=e.target.value;loadDaily()});
 
 // ===== Inspirations =====
@@ -990,7 +991,7 @@ function closeEditModal(){document.getElementById('editModal').classList.remove(
 document.getElementById('saveEdit').addEventListener('click',async()=>{if(!S.edit)return;const{type,id,images}=S.edit;if(type==='insp'){const text=document.getElementById('edit-text').value.trim();const r=S.insp.find(x=>x.id===id);if(r){r.text=text;r.images=images;await DB.set('inspirations',S.insp)}showToast('已更新','success');renderInsp()}else if(type==='org'){const category=document.getElementById('edit-category').value;const status=document.getElementById('edit-status').value;const title=document.getElementById('edit-title').value.trim();const text=document.getElementById('edit-text').value.trim();const location=document.getElementById('edit-location').value.trim();const r=S.org.find(x=>x.id===id);if(r){r.category=category;r.status=status;r.title=title;r.text=text;r.location=location;r.images=images;await DB.set('organizing',S.org)}showToast('已更新','success');renderOrgItems();renderOrgOverview()}closeEditModal()});
 
 // ===== Export / Import (纯前端，不需要服务器) =====
-document.getElementById('exportBtn').addEventListener('click',async()=>{const keys=await DB.keys();const data={version:'2.0',exportDate:nowISO()};for(const k of keys)data[k]=await DB.get(k);const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`daily-workspace-backup-${new Date().toISOString().split('T')[0]}.json`;a.click();URL.revokeObjectURL(url);showToast('备份已导出','success')});
+document.getElementById('exportBtn').addEventListener('click',async()=>{const keys=await DB.keys();const data={version:'2.0',exportDate:nowISO()};for(const k of keys)data[k]=await DB.get(k);const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`daily-workspace-backup-${fmtYMD(new Date())}.json`;a.click();URL.revokeObjectURL(url);showToast('备份已导出','success')});
 document.getElementById('importBtn').addEventListener('click',()=>document.getElementById('importFile').click());
 document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;if(!confirm('导入将覆盖当前所有数据，确定继续吗？')){e.target.value='';return}try{const text=await file.text();const data=JSON.parse(text);
 // 兼容新旧两种格式
