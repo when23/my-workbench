@@ -1110,7 +1110,8 @@ async function savePhasePlans(){await DB.set('phasePlans',S.phasePlans)}
 function renderPhaseList(){
   const list=document.getElementById('phaseList');if(!list)return;
   if(!S.phasePlans||S.phasePlans.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">🗓️</div><p>还没有阶段计划<br>点击右上角"新建计划"开始</p></div>';return}
-  list.innerHTML=S.phasePlans.map(p=>{
+  const sorted=[...S.phasePlans].sort((a,b)=>((a.progress||0)>=100?1:0)-((b.progress||0)>=100?1:0));
+  list.innerHTML=sorted.map(p=>{
     const itemCount=(p.items||[]).length;
     return `<div class="phase-plan-card" onclick="openPhasePlan('${p.id}')">
       <span class="pp-del" title="删除" onclick="event.stopPropagation();deletePhasePlan('${p.id}')">×</span>
