@@ -1315,7 +1315,7 @@ async function delPhaseDaily(planId,date,itemId){const p=S.phasePlans.find(x=>x.
 document.getElementById('phaseBackList').addEventListener('click',backPhaseList);
 
 // ===== 成长管理（睡眠 / 饮食 / 出行运动）=====
-const GROWTH_MODULES={sleep:{icon:'😴',title:'睡眠模块'},diet:{icon:'🍽️',title:'饮食模块'},out:{icon:'🏃',title:'出行运动模块'}};
+const GROWTH_MODULES={sleep:{icon:'😴',title:'睡眠记录'},diet:{icon:'🍽️',title:'饮食记录'},out:{icon:'🏃',title:'出行运动'}};
 function computeSleepDuration(sleepDate,sleepTime,wakeDate,wakeTime){
   if(!sleepTime||!wakeTime) return null;
   const s=new Date((sleepDate||fmtYMD(new Date()))+'T'+sleepTime);
