@@ -270,6 +270,8 @@ img{max-width:100%;display:block}
 .input-card label:first-child{margin-top:0}
 .input-card input,.input-card textarea,.input-card select{width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg);box-sizing:border-box}
 .input-card textarea{resize:vertical}
+.growth-dur-preview{margin-top:10px;font-size:13px;color:var(--text-3);background:var(--border-l);padding:9px 12px;border-radius:var(--r-s);text-align:center}
+.growth-dur-preview.active{color:var(--primary);background:var(--primary-light);font-weight:600}
 .phase-plan-card .pp-date{font-size:12px;color:var(--text-2);margin-bottom:10px}
 .phase-plan-card .pp-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-3);margin-top:8px}
 .progress-wrap{background:var(--border-l);border-radius:20px;height:8px;overflow:hidden;flex:1}
@@ -1314,6 +1316,22 @@ document.getElementById('phaseBackList').addEventListener('click',backPhaseList)
 
 // ===== 成长管理（睡眠 / 饮食 / 出行运动）=====
 const GROWTH_MODULES={sleep:{icon:'😴',title:'睡眠模块'},diet:{icon:'🍽️',title:'饮食模块'},out:{icon:'🏃',title:'出行运动模块'}};
+function computeSleepDuration(sleepDate,sleepTime,wakeDate,wakeTime){
+  if(!sleepTime||!wakeTime) return null;
+  const s=new Date((sleepDate||fmtYMD(new Date()))+'T'+sleepTime);
+  const w=new Date((wakeDate||fmtYMD(new Date()))+'T'+wakeTime);
+  if(isNaN(s)||isNaN(w)) return null;
+  let diff=(w-s)/3600000;
+  if(diff<0) diff+=24; // 醒来时间早于入睡(如未填醒来日期)按跨天处理
+  return Math.round(diff*10)/10;
+}
+function updateSleepPreview(p){
+  const el=document.getElementById(p+'g-durPreview');if(!el)return;
+  const sd=document.getElementById(p+'g-sleepDate').value,st=document.getElementById(p+'g-sleepTime').value,wd=document.getElementById(p+'g-wakeDate').value,wt=document.getElementById(p+'g-wakeTime').value;
+  const d=computeSleepDuration(sd,st,wd,wt);
+  if(d==null){el.textContent='⏱ 填写入睡和醒来时间后自动计算时长';el.className='growth-dur-preview';return}
+  el.textContent='⏱ 本次睡眠时长：'+d+' 小时';el.className='growth-dur-preview active';
+}
 async function loadGrowth(){S.growthSleep=(await DB.get('growthSleep'))||[];S.growthDiet=(await DB.get('growthDiet'))||[];S.growthOut=(await DB.get('growthOut'))||[]}
 function saveGrowthSleep(){return DB.set('growthSleep',S.growthSleep)}
 function saveGrowthDiet(){return DB.set('growthDiet',S.growthDiet)}
@@ -1351,7 +1369,11 @@ function growthFormHTML(mod,rec,p){
   const dateVal=rec?rec.date:today;
   if(mod==='sleep'){
     const ab=rec?rec.abnormal||[]:[];
-    return `<label>日期</label><input type="date" id="${p}g-date" value="${dateVal}"><label>睡眠时长(小时)</label><input type="number" id="${p}g-dur" step="0.5" min="0" max="24" placeholder="如 10.5" value="${rec&&rec.duration!=null?rec.duration:''}"><label>异常情况(可多选)</label><div class="growth-chips"><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="夜醒" ${ab.includes('夜醒')?'checked':''}>夜醒</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="做梦哭闹" ${ab.includes('做梦哭闹')?'checked':''}>做梦哭闹</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="生病" ${ab.includes('生病')?'checked':''}>生病</label></div><label>备注(可选)</label><textarea id="${p}g-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
+    const sd=rec?rec.sleepDate||rec.date||'':'';
+    const st=rec?rec.sleepTime||'':'';
+    const wd=rec?rec.wakeDate||rec.date||'':'';
+    const wt=rec?rec.wakeTime||'':'';
+    return `<label>入睡日期</label><input type="date" id="${p}g-sleepDate" value="${sd}" onchange="updateSleepPreview('${p}')"><label>入睡时间</label><input type="time" id="${p}g-sleepTime" value="${st}" onchange="updateSleepPreview('${p}')"><label>醒来日期</label><input type="date" id="${p}g-wakeDate" value="${wd}" onchange="updateSleepPreview('${p}')"><label>醒来时间</label><input type="time" id="${p}g-wakeTime" value="${wt}" onchange="updateSleepPreview('${p}')"><div class="growth-dur-preview" id="${p}g-durPreview">⏱ 填写入睡和醒来时间后自动计算时长</div><label>异常情况(可多选)</label><div class="growth-chips"><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="夜醒" ${ab.includes('夜醒')?'checked':''}>夜醒</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="做梦哭闹" ${ab.includes('做梦哭闹')?'checked':''}>做梦哭闹</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="生病" ${ab.includes('生病')?'checked':''}>生病</label></div><label>备注(可选)</label><textarea id="${p}g-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
   }
   if(mod==='diet'){
     const tags=rec?rec.tags||[]:[];
@@ -1364,7 +1386,7 @@ async function submitGrowthAdd(){
   const date=document.getElementById('g-date').value;
   if(!date){showToast('请选择日期','error');return}
   const rec={id:genId(),date,timestamp:nowISO()};
-  if(mod==='sleep'){const dur=document.getElementById('g-dur').value;rec.duration=dur===''?0:Number(dur);rec.abnormal=Array.from(document.querySelectorAll('[name="g-ab"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('g-note').value.trim()}
+  if(mod==='sleep'){const sleepDate=document.getElementById('g-sleepDate').value;const sleepTime=document.getElementById('g-sleepTime').value;const wakeDate=document.getElementById('g-wakeDate').value;const wakeTime=document.getElementById('g-wakeTime').value;if(!sleepDate){showToast('请选择入睡日期','error');return}if(!sleepTime||!wakeTime){showToast('请填写入睡和醒来时间','error');return}const duration=computeSleepDuration(sleepDate,sleepTime,wakeDate,wakeTime)||0;rec.date=sleepDate;rec.sleepDate=sleepDate;rec.sleepTime=sleepTime;rec.wakeDate=wakeDate;rec.wakeTime=wakeTime;rec.duration=duration;rec.abnormal=Array.from(document.querySelectorAll('[name="g-ab"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('g-note').value.trim()}
   else if(mod==='diet'){rec.breakfast=document.getElementById('g-break').value.trim();rec.lunch=document.getElementById('g-lunch').value.trim();rec.dinner=document.getElementById('g-dinner').value.trim();rec.bowelNormal=Number(document.getElementById('g-bn').value)||0;rec.bowelAbnormalType=document.getElementById('g-bt').value;rec.bowelAbnormalCount=Number(document.getElementById('g-bc').value)||0;rec.tags=Array.from(document.querySelectorAll('[name="g-tags"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('g-note').value.trim();if(!rec.breakfast&&!rec.lunch&&!rec.dinner&&!rec.bowelNormal&&!rec.bowelAbnormalCount&&rec.tags.length===0){showToast('请至少填写一项内容','error');return}}
   else{rec.location=document.getElementById('g-loc').value.trim();const ex=document.getElementById('g-ex').value;rec.exerciseHours=ex===''?0:Number(ex);rec.note=document.getElementById('g-note').value.trim();if(!rec.location&&!rec.exerciseHours){showToast('请填写外出地点或运动时长','error');return}}
   if(mod==='sleep')S.growthSleep.unshift(rec);else if(mod==='diet')S.growthDiet.unshift(rec);else S.growthOut.unshift(rec);
@@ -1379,14 +1401,14 @@ function renderGrowthDetail(){
   if(arr.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">'+GROWTH_MODULES[mod].icon+'</div><p>还没有记录<br>在上方添加第一条吧</p></div>';return}
   list.innerHTML=arr.map(r=>{
     let body='';
-    if(mod==='sleep'){const ab=(r.abnormal||[]).map(t=>`<span class="growth-chip ab">${t}</span>`).join('')||'<span class="growth-chip">无异常</span>';body=`<div class="record-text">😴 睡眠 ${r.duration!=null?r.duration:0} 小时</div><div class="growth-chips">${ab}</div>${r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:''}`}
+    if(mod==='sleep'){const ab=(r.abnormal||[]).map(t=>`<span class="growth-chip ab">${t}</span>`).join('')||'<span class="growth-chip">无异常</span>';const timeInfo=(r.sleepTime||r.wakeTime)?`🌙 ${r.sleepTime||'?'} 睡 → ☀️ ${r.wakeTime||'?'} 醒`:'';body=`<div class="record-text">😴 睡眠 ${r.duration!=null?r.duration:0} 小时</div>${timeInfo?`<div class="growth-row">${timeInfo}</div>`:''}<div class="growth-chips">${ab}</div>${r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:''}`}
     else if(mod==='diet'){const meals=[];if(r.breakfast)meals.push('🌅 早餐：'+escapeHtml(r.breakfast));if(r.lunch)meals.push('☀️ 中餐：'+escapeHtml(r.lunch));if(r.dinner)meals.push('🌙 晚餐：'+escapeHtml(r.dinner));const bowel=`<div class="growth-row">💩 正常 ${r.bowelNormal||0} 次${r.bowelAbnormalType&&r.bowelAbnormalType!=='无'&&r.bowelAbnormalCount?` · 异常(${escapeHtml(r.bowelAbnormalType)}) ${r.bowelAbnormalCount} 次`:''}</div>`;const tags=(r.tags||[]).map(t=>`<span class="growth-chip ${t==='过敏'?'ab':''}">${t}</span>`).join('');body=(meals.length?meals.map(m=>`<div class="record-text">${m}</div>`).join(''):'<div class="record-text" style="color:var(--text-3)">当天未记录正餐</div>')+bowel+(tags?`<div class="growth-chips" style="margin-top:6px">${tags}</div>`:'')+(r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:'')}
     else{body=`<div class="record-text">📍 ${r.location?escapeHtml(r.location):'未填地点'} · 🏃 运动 ${r.exerciseHours!=null?r.exerciseHours:0} 小时</div>${r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:''}`}
     return `<div class="record-card"><div class="record-meta"><span class="growth-record-date">${r.date||''}</span><span class="record-time">${fmtDate(r.timestamp)}</span></div>${body}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="editGrowthRecord('${mod}','${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delGrowthRecord('${mod}','${r.id}')">删除</button></div></div>`;
   }).join('');
 }
 async function delGrowthRecord(mod,id){if(!confirm('确定删除这条记录吗？'))return;const arr=growthRecordsOf(mod);const idx=arr.findIndex(r=>r.id===id);if(idx<0)return;arr.splice(idx,1);if(mod==='sleep')S.growthSleep=arr;else if(mod==='diet')S.growthDiet=arr;else S.growthOut=arr;await growthSave(mod);renderGrowthDetail();showToast('已删除','success')}
-function editGrowthRecord(mod,id){const arr=growthRecordsOf(mod);const rec=arr.find(r=>r.id===id);if(!rec)return;openEditModal('编辑记录',growthFormHTML(mod,rec,'edit-'));document.getElementById('saveEdit').onclick=async()=>{const date=document.getElementById('edit-g-date').value;if(!date){showToast('请选择日期','error');return}if(mod==='sleep'){const dur=document.getElementById('edit-g-dur').value;rec.date=date;rec.duration=dur===''?0:Number(dur);rec.abnormal=Array.from(document.querySelectorAll('[name="edit-g-ab"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('edit-g-note').value.trim()}else if(mod==='diet'){rec.date=date;rec.breakfast=document.getElementById('edit-g-break').value.trim();rec.lunch=document.getElementById('edit-g-lunch').value.trim();rec.dinner=document.getElementById('edit-g-dinner').value.trim();rec.bowelNormal=Number(document.getElementById('edit-g-bn').value)||0;rec.bowelAbnormalType=document.getElementById('edit-g-bt').value;rec.bowelAbnormalCount=Number(document.getElementById('edit-g-bc').value)||0;rec.tags=Array.from(document.querySelectorAll('[name="edit-g-tags"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('edit-g-note').value.trim()}else{rec.date=date;rec.location=document.getElementById('edit-g-loc').value.trim();const ex=document.getElementById('edit-g-ex').value;rec.exerciseHours=ex===''?0:Number(ex);rec.note=document.getElementById('edit-g-note').value.trim()}await growthSave(mod);closeEditModal();renderGrowthDetail();showToast('已更新','success')}}
+function editGrowthRecord(mod,id){const arr=growthRecordsOf(mod);const rec=arr.find(r=>r.id===id);if(!rec)return;openEditModal('编辑记录',growthFormHTML(mod,rec,'edit-'));document.getElementById('saveEdit').onclick=async()=>{if(mod==='sleep'){const sleepDate=document.getElementById('edit-g-sleepDate').value;const sleepTime=document.getElementById('edit-g-sleepTime').value;const wakeDate=document.getElementById('edit-g-wakeDate').value;const wakeTime=document.getElementById('edit-g-wakeTime').value;if(!sleepDate){showToast('请选择入睡日期','error');return}const duration=computeSleepDuration(sleepDate,sleepTime,wakeDate,wakeTime);rec.date=sleepDate;rec.sleepDate=sleepDate;rec.sleepTime=sleepTime;rec.wakeDate=wakeDate;rec.wakeTime=wakeTime;rec.duration=duration==null?(rec.duration!=null?rec.duration:0):duration;rec.abnormal=Array.from(document.querySelectorAll('[name="edit-g-ab"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('edit-g-note').value.trim()}else if(mod==='diet'){const date=document.getElementById('edit-g-date').value;if(!date){showToast('请选择日期','error');return}rec.date=date;rec.breakfast=document.getElementById('edit-g-break').value.trim();rec.lunch=document.getElementById('edit-g-lunch').value.trim();rec.dinner=document.getElementById('edit-g-dinner').value.trim();rec.bowelNormal=Number(document.getElementById('edit-g-bn').value)||0;rec.bowelAbnormalType=document.getElementById('edit-g-bt').value;rec.bowelAbnormalCount=Number(document.getElementById('edit-g-bc').value)||0;rec.tags=Array.from(document.querySelectorAll('[name="edit-g-tags"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('edit-g-note').value.trim()}else{const date=document.getElementById('edit-g-date').value;if(!date){showToast('请选择日期','error');return}rec.date=date;rec.location=document.getElementById('edit-g-loc').value.trim();const ex=document.getElementById('edit-g-ex').value;rec.exerciseHours=ex===''?0:Number(ex);rec.note=document.getElementById('edit-g-note').value.trim()}await growthSave(mod);closeEditModal();renderGrowthDetail();showToast('已更新','success')}}
 
 // ===== Init =====
 async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();maybeShowBackupHint()}
