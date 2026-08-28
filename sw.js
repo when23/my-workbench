@@ -1,5 +1,5 @@
 // Service Worker - 网络优先策略，确保刷新能看到最新版本
-const CACHE = 'daily-workspace-v29';
+const CACHE = 'daily-workspace-v30';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
