@@ -1332,6 +1332,13 @@ function updateSleepPreview(p){
   if(d==null){el.textContent='⏱ 填写入睡和醒来时间后自动计算时长';el.className='growth-dur-preview';return}
   el.textContent='⏱ 本次睡眠时长：'+d+' 小时';el.className='growth-dur-preview active';
 }
+function addDays(dateStr,n){const d=new Date(dateStr+'T00:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function onSleepDateChange(p){
+  const sd=document.getElementById(p+'g-sleepDate').value;if(!sd)return;
+  const wdEl=document.getElementById(p+'g-wakeDate');
+  if(!wdEl.value||wdEl.dataset.auto==='1'){wdEl.value=addDays(sd,1);wdEl.dataset.auto='1'}
+  updateSleepPreview(p);
+}
 async function loadGrowth(){S.growthSleep=(await DB.get('growthSleep'))||[];S.growthDiet=(await DB.get('growthDiet'))||[];S.growthOut=(await DB.get('growthOut'))||[]}
 function saveGrowthSleep(){return DB.set('growthSleep',S.growthSleep)}
 function saveGrowthDiet(){return DB.set('growthDiet',S.growthDiet)}
@@ -1369,11 +1376,13 @@ function growthFormHTML(mod,rec,p){
   const dateVal=rec?rec.date:today;
   if(mod==='sleep'){
     const ab=rec?rec.abnormal||[]:[];
-    const sd=rec?rec.sleepDate||rec.date||'':'';
+    const sd=rec?rec.sleepDate||rec.date||'':fmtYMD(new Date());
     const st=rec?rec.sleepTime||'':'';
-    const wd=rec?rec.wakeDate||rec.date||'':'';
+    const hasWake=rec&&rec.wakeDate;
+    const wd=hasWake?rec.wakeDate:addDays(sd,1);
     const wt=rec?rec.wakeTime||'':'';
-    return `<label>入睡日期</label><input type="date" id="${p}g-sleepDate" value="${sd}" onchange="updateSleepPreview('${p}')"><label>入睡时间</label><input type="time" id="${p}g-sleepTime" value="${st}" onchange="updateSleepPreview('${p}')"><label>醒来日期</label><input type="date" id="${p}g-wakeDate" value="${wd}" onchange="updateSleepPreview('${p}')"><label>醒来时间</label><input type="time" id="${p}g-wakeTime" value="${wt}" onchange="updateSleepPreview('${p}')"><div class="growth-dur-preview" id="${p}g-durPreview">⏱ 填写入睡和醒来时间后自动计算时长</div><label>异常情况(可多选)</label><div class="growth-chips"><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="夜醒" ${ab.includes('夜醒')?'checked':''}>夜醒</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="做梦哭闹" ${ab.includes('做梦哭闹')?'checked':''}>做梦哭闹</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="生病" ${ab.includes('生病')?'checked':''}>生病</label></div><label>备注(可选)</label><textarea id="${p}g-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
+    const autoAttr=hasWake?'':'data-auto="1"';
+    return `<label>入睡日期</label><input type="date" id="${p}g-sleepDate" value="${sd}" onchange="onSleepDateChange('${p}')"><label>入睡时间</label><input type="time" id="${p}g-sleepTime" value="${st}" onchange="updateSleepPreview('${p}')"><label>醒来日期</label><input type="date" id="${p}g-wakeDate" value="${wd}" ${autoAttr} onchange="this.dataset.auto='';updateSleepPreview('${p}')"><label>醒来时间</label><input type="time" id="${p}g-wakeTime" value="${wt}" onchange="updateSleepPreview('${p}')"><div class="growth-dur-preview" id="${p}g-durPreview">⏱ 填写入睡和醒来时间后自动计算时长</div><label>异常情况(可多选)</label><div class="growth-chips"><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="夜醒" ${ab.includes('夜醒')?'checked':''}>夜醒</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="做梦哭闹" ${ab.includes('做梦哭闹')?'checked':''}>做梦哭闹</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="生病" ${ab.includes('生病')?'checked':''}>生病</label></div><label>备注(可选)</label><textarea id="${p}g-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
   }
   if(mod==='diet'){
     const tags=rec?rec.tags||[]:[];
