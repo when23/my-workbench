@@ -279,6 +279,7 @@ img{max-width:100%;display:block}
 .growth-filter-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
 .growth-filter-custom{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .growth-filter-custom input[type=date]{border:1px solid var(--border);border-radius:var(--r-s);padding:6px 10px;font-size:14px;background:var(--bg)}
+.growth-filter-range{font-size:12px;color:var(--text-2);text-align:center}
 .phase-plan-card .pp-date{font-size:12px;color:var(--text-2);margin-bottom:10px}
 .phase-plan-card .pp-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-3);margin-top:8px}
 .progress-wrap{background:var(--border-l);border-radius:20px;height:8px;overflow:hidden;flex:1}
@@ -470,6 +471,7 @@ img{max-width:100%;display:block}
               <input type="date" id="growthFilterEnd">
               <button class="btn btn-primary btn-sm" id="growthFilterApply">应用</button>
             </div>
+            <div class="growth-filter-range" id="growthFilterRange"></div>
           </div>
           <div class="growth-modules" id="growthModules"></div>
         </div>
@@ -1405,6 +1407,7 @@ function renderGrowthOverview(){
   const customBox=document.getElementById('growthFilterCustom');
   customBox.style.display=f.type==='custom'?'flex':'none';
   if(f.type==='custom'){document.getElementById('growthFilterStart').value=f.start||'';document.getElementById('growthFilterEnd').value=f.end||''}
+  const rangeEl=document.getElementById('growthFilterRange');if(rangeEl)rangeEl.textContent='📊 统计区间：'+(f.type==='all'?'全部时间':(f.start+' ~ '+f.end));
   const m=document.getElementById('growthModules');if(!m)return;
   m.innerHTML=Object.keys(GROWTH_MODULES).map(mod=>`<div class="growth-module-card" onclick="openGrowthModule('${mod}')"><div class="gm-head"><span class="gm-icon">${GROWTH_MODULES[mod].icon}</span><span class="gm-title">${GROWTH_MODULES[mod].title}</span><span class="gm-arrow">›</span></div><div class="gm-stats">${growthModuleStatsHTML(mod,growthStats(mod))}</div></div>`).join('');
 }
@@ -1423,7 +1426,7 @@ document.getElementById('growthFilterPresets').addEventListener('click',e=>{
   const btn=e.target.closest('[data-ftype]');if(!btn)return;
   const type=btn.dataset.ftype;
   S.growthFilter={type:type,start:'',end:''};
-  if(type==='custom'){document.getElementById('growthFilterCustom').style.display='flex';}
+  if(type==='custom'){const cb=document.getElementById('growthFilterCustom');if(!S.growthFilter.start||!S.growthFilter.end){const t=fmtYMD(new Date());document.getElementById('growthFilterStart').value=addDays(t,-29);document.getElementById('growthFilterEnd').value=t}cb.style.display='flex';}
   else{document.getElementById('growthFilterCustom').style.display='none';growthApplyFilter();renderGrowthOverview();}
 });
 document.getElementById('growthFilterApply').addEventListener('click',()=>{
