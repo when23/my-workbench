@@ -282,6 +282,7 @@ img{max-width:100%;display:block}
 .growth-filter-range{font-size:12px;color:var(--text-2);text-align:center}
 .phase-plan-card .pp-date{font-size:12px;color:var(--text-2);margin-bottom:10px}
 .phase-plan-card .pp-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-3);margin-top:8px}
+.phase-period{font-size:12px;color:var(--text-2);margin-top:3px}
 .progress-wrap{background:var(--border-l);border-radius:20px;height:8px;overflow:hidden;flex:1}
 .progress-fill{height:100%;background:var(--primary);border-radius:20px;transition:width .25s}
 .prog-row{display:flex;align-items:center;gap:10px}
@@ -354,7 +355,9 @@ img{max-width:100%;display:block}
           <div class="org-detail-header">
             <button class="back-btn" id="phaseBackList">‹</button>
             <h2 id="phaseDetailTitle"></h2>
+            <div id="phaseDetailPeriod" class="phase-period"></div>
             <span style="margin-left:auto;display:flex;gap:8px">
+              <button class="btn btn-ghost btn-sm" onclick="changePhasePeriod()">🗓 修改时间段</button>
               <button class="btn btn-ghost btn-sm" onclick="renamePhasePlan()">✏️ 重命名</button>
               <button class="btn btn-danger btn-sm" onclick="deletePhasePlan()">🗑 删除</button>
             </span>
@@ -1237,6 +1240,7 @@ function openPhasePlan(id){
   document.getElementById('phaseListView').style.display='none';
   document.getElementById('phaseDetailView').style.display='block';
   document.getElementById('phaseDetailTitle').textContent=p.name;
+  document.getElementById('phaseDetailPeriod').textContent='📅 执行时间段：'+p.start+' 至 '+p.end;
   if(!S.phaseSelDate)S.phaseSelDate=S.date;
   S.phaseCalMonth=S.phaseSelDate.slice(0,7);
   renderPhaseDetail();
@@ -1320,7 +1324,19 @@ function renamePhasePlan(){
     if(!start||!end){showToast('请选择起止日期','error');return}
     if(start>end){showToast('开始日期不能晚于结束日期','error');return}
     p.name=name;p.start=start;p.end=end;
-    savePhasePlans().then(()=>{closeEditModal();renderPhaseList();renderPhaseDetail();showToast('已保存','success')});
+    savePhasePlans().then(()=>{closeEditModal();renderPhaseList();renderPhaseDetail();document.getElementById('phaseDetailTitle').textContent=p.name;document.getElementById('phaseDetailPeriod').textContent='📅 执行时间段：'+p.start+' 至 '+p.end;showToast('已保存','success')});
+  };
+}
+function changePhasePeriod(){
+  const id=S.phaseCurrentId;const p=S.phasePlans.find(x=>x.id===id);if(!p)return;
+  openEditModal('修改执行时间段',`<label>开始日期</label><input type="date" id="phase-start" value="${p.start}"><label>结束日期</label><input type="date" id="phase-end" value="${p.end}"><p style="font-size:12px;color:var(--text-2);margin-top:8px">修改后，已按日期记录的每日完成情况会继续保留，不会清空。</p>`);
+  document.getElementById('saveEdit').onclick=()=>{
+    const start=document.getElementById('phase-start').value;
+    const end=document.getElementById('phase-end').value;
+    if(!start||!end){showToast('请选择起止日期','error');return}
+    if(start>end){showToast('开始日期不能晚于结束日期','error');return}
+    p.start=start;p.end=end;
+    savePhasePlans().then(()=>{closeEditModal();renderPhaseList();renderPhaseDetail();document.getElementById('phaseDetailPeriod').textContent='📅 执行时间段：'+start+' 至 '+end;showToast('执行时间段已更新','success')});
   };
 }
 async function deletePhasePlan(id){
