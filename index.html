@@ -272,6 +272,13 @@ img{max-width:100%;display:block}
 .input-card textarea{resize:vertical}
 .growth-dur-preview{margin-top:10px;font-size:13px;color:var(--text-3);background:var(--border-l);padding:9px 12px;border-radius:var(--r-s);text-align:center}
 .growth-dur-preview.active{color:var(--primary);background:var(--primary-light);font-weight:600}
+.growth-filter-bar{display:flex;flex-direction:column;gap:8px;margin:12px 0 4px;padding:12px;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm)}
+.growth-filter-presets{display:flex;flex-wrap:wrap;gap:8px}
+.growth-filter-btn{font-size:13px;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;transition:all .15s}
+.growth-filter-btn:hover{border-color:var(--primary)}
+.growth-filter-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.growth-filter-custom{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.growth-filter-custom input[type=date]{border:1px solid var(--border);border-radius:var(--r-s);padding:6px 10px;font-size:14px;background:var(--bg)}
 .phase-plan-card .pp-date{font-size:12px;color:var(--text-2);margin-bottom:10px}
 .phase-plan-card .pp-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-3);margin-top:8px}
 .progress-wrap{background:var(--border-l);border-radius:20px;height:8px;overflow:hidden;flex:1}
@@ -449,12 +456,28 @@ img{max-width:100%;display:block}
             <h3>🌱 成长管理</h3>
             <span style="font-size:12px;color:var(--text-2)">记录小朋友的成长点滴</span>
           </div>
+          <div class="growth-filter-bar">
+            <div class="growth-filter-presets" id="growthFilterPresets">
+              <button class="growth-filter-btn active" data-ftype="all">全部</button>
+              <button class="growth-filter-btn" data-ftype="7d">近7天</button>
+              <button class="growth-filter-btn" data-ftype="30d">近30天</button>
+              <button class="growth-filter-btn" data-ftype="month">本月</button>
+              <button class="growth-filter-btn" data-ftype="custom">自定义</button>
+            </div>
+            <div class="growth-filter-custom" id="growthFilterCustom" style="display:none">
+              <input type="date" id="growthFilterStart">
+              <span style="color:var(--text-2)">至</span>
+              <input type="date" id="growthFilterEnd">
+              <button class="btn btn-primary btn-sm" id="growthFilterApply">应用</button>
+            </div>
+          </div>
           <div class="growth-modules" id="growthModules"></div>
         </div>
         <div id="growthDetailView" style="display:none">
           <div class="org-detail-header">
             <button class="back-btn" id="growthBackList">‹</button>
             <h2 id="growthDetailTitle"></h2>
+            <span id="growthDetailFilterHint" style="font-size:12px;color:var(--text-2);margin-left:auto"></span>
           </div>
           <div class="input-card" id="growthFormCard" style="margin-bottom:14px"></div>
           <div class="record-list" id="growthList"></div>
@@ -532,7 +555,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'}};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作'},{id:'b2',name:'学习'},{id:'b3',name:'健康'},{id:'b4',name:'生活'}];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
 const EMOJI_LIST=['📦','📚','👕','💄','🍳','📱','💊','🎮','🧸','⚽','🎵','🖼️','🔧','🌿','🐾','💎','🎨','🛏️','🧹','🗄️','🎒','🧴','🪔','🛋️','🚗','🔑','💝','🏀','🧩','🎸'];
@@ -1346,10 +1369,28 @@ function saveGrowthOut(){return DB.set('growthOut',S.growthOut)}
 function growthSave(mod){return mod==='sleep'?saveGrowthSleep():mod==='diet'?saveGrowthDiet():saveGrowthOut()}
 function growthRecordsOf(mod){return mod==='sleep'?S.growthSleep:mod==='diet'?S.growthDiet:S.growthOut}
 function growthSort(arr){return [...arr].sort((a,b)=>{if((a.date||'')!==(b.date||''))return (b.date||'').localeCompare(a.date||'');return (b.timestamp||'').localeCompare(a.timestamp||'')})}
+function growthApplyFilter(){
+  const f=S.growthFilter||{type:'all'};const today=fmtYMD(new Date());
+  if(f.type==='all'){f.start='';f.end=''}
+  else if(f.type==='7d'){f.start=addDays(today,-6);f.end=today}
+  else if(f.type==='30d'){f.start=addDays(today,-29);f.end=today}
+  else if(f.type==='month'){const d=new Date();const y=d.getFullYear();const m=d.getMonth()+1;const mm=String(m).padStart(2,'0');f.start=y+'-'+mm+'-01';f.end=y+'-'+mm+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0')}
+}
+function growthInRange(rec){
+  const f=S.growthFilter;if(!f||f.type==='all'||!f.start||!f.end)return true;
+  const d=rec.date;if(!d)return false;return d>=f.start&&d<=f.end;
+}
+function growthFilteredRecords(mod){return growthRecordsOf(mod).filter(growthInRange)}
+function growthFilterLabel(){
+  const f=S.growthFilter;if(!f||f.type==='all')return '全部';
+  if(f.type==='7d')return '近7天';if(f.type==='30d')return '近30天';if(f.type==='month')return '本月';
+  if(f.type==='custom')return (f.start||'?')+' 至 '+(f.end||'?');return '全部';
+}
 function growthStats(mod){
-  if(mod==='sleep'){const arr=S.growthSleep;const count=arr.length;const total=arr.reduce((s,r)=>s+(Number(r.duration)||0),0);const avg=count?(total/count).toFixed(1):'0.0';const nightWake=arr.filter(r=>(r.abnormal||[]).includes('夜醒')).length;const nightmare=arr.filter(r=>(r.abnormal||[]).includes('做梦哭闹')).length;const sick=arr.filter(r=>(r.abnormal||[]).includes('生病')).length;return{count,avg,nightWake,nightmare,sick}}
-  if(mod==='diet'){const arr=S.growthDiet;const mealDays=arr.filter(r=>(r.breakfast||r.lunch||r.dinner)).length;const normalSum=arr.reduce((s,r)=>s+(Number(r.bowelNormal)||0),0);const abArr=arr.filter(r=>r.bowelAbnormalType&&r.bowelAbnormalType!=='无'&&(Number(r.bowelAbnormalCount)||0)>0);const abnormalSum=abArr.reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const diarrhea=abArr.filter(r=>r.bowelAbnormalType==='腹泻').reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const constipation=abArr.filter(r=>r.bowelAbnormalType==='便秘').reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const picky=arr.filter(r=>(r.tags||[]).includes('挑食')).length;const vomit=arr.filter(r=>(r.tags||[]).includes('呕吐')).length;const allergy=arr.filter(r=>(r.tags||[]).includes('过敏')).length;return{mealDays,normalSum,abnormalSum,diarrhea,constipation,picky,vomit,allergy}}
-  const arr=S.growthOut;const dates=new Set(arr.map(r=>r.date).filter(Boolean));const outDays=dates.size;const exHours=arr.reduce((s,r)=>s+(Number(r.exerciseHours)||0),0).toFixed(1);const locCount={};arr.forEach(r=>{if(r.location)locCount[r.location]=(locCount[r.location]||0)+1});const topLocations=Object.entries(locCount).map(([loc,count])=>({loc,count})).sort((a,b)=>b.count-a.count).slice(0,3);return{outDays,exHours,topLocations}
+  const arr=growthFilteredRecords(mod);
+  if(mod==='sleep'){const count=arr.length;const total=arr.reduce((s,r)=>s+(Number(r.duration)||0),0);const avg=count?(total/count).toFixed(1):'0.0';const nightWake=arr.filter(r=>(r.abnormal||[]).includes('夜醒')).length;const nightmare=arr.filter(r=>(r.abnormal||[]).includes('做梦哭闹')).length;const sick=arr.filter(r=>(r.abnormal||[]).includes('生病')).length;return{count,avg,nightWake,nightmare,sick}}
+  if(mod==='diet'){const mealDays=arr.filter(r=>(r.breakfast||r.lunch||r.dinner)).length;const normalSum=arr.reduce((s,r)=>s+(Number(r.bowelNormal)||0),0);const abArr=arr.filter(r=>r.bowelAbnormalType&&r.bowelAbnormalType!=='无'&&(Number(r.bowelAbnormalCount)||0)>0);const abnormalSum=abArr.reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const diarrhea=abArr.filter(r=>r.bowelAbnormalType==='腹泻').reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const constipation=abArr.filter(r=>r.bowelAbnormalType==='便秘').reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const picky=arr.filter(r=>(r.tags||[]).includes('挑食')).length;const vomit=arr.filter(r=>(r.tags||[]).includes('呕吐')).length;const allergy=arr.filter(r=>(r.tags||[]).includes('过敏')).length;return{mealDays,normalSum,abnormalSum,diarrhea,constipation,picky,vomit,allergy}}
+  const dates=new Set(arr.map(r=>r.date).filter(Boolean));const outDays=dates.size;const exHours=arr.reduce((s,r)=>s+(Number(r.exerciseHours)||0),0).toFixed(1);const locCount={};arr.forEach(r=>{if(r.location)locCount[r.location]=(locCount[r.location]||0)+1});const topLocations=Object.entries(locCount).map(([loc,count])=>({loc,count})).sort((a,b)=>b.count-a.count).slice(0,3);return{outDays,exHours,topLocations}
 }
 function growthModuleStatsHTML(mod,st){
   if(mod==='sleep'){return `<div class="gm-stat"><span class="gm-stat-num">${st.count}</span><span class="gm-stat-label">总睡眠记录(条)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.avg}h</span><span class="gm-stat-label">日均睡眠</span></div><div class="growth-chips">${(st.nightWake||st.nightmare||st.sick)?`${st.nightWake?`<span class="growth-chip ab">夜醒 ${st.nightWake}</span>`:''}${st.nightmare?`<span class="growth-chip ab">做梦哭闹 ${st.nightmare}</span>`:''}${st.sick?`<span class="growth-chip ab">生病 ${st.sick}</span>`:''}`:'<span class="growth-chip">暂无异常</span>'}</div>`}
@@ -1358,6 +1399,12 @@ function growthModuleStatsHTML(mod,st){
   return `<div class="gm-stat"><span class="gm-stat-num">${st.outDays}</span><span class="gm-stat-label">户外天数</span></div><div class="gm-stat"><span class="gm-stat-num">${st.exHours}h</span><span class="gm-stat-label">运动时长合计</span></div>${st.outDays?`<div class="growth-row">📍 Top3：${top}</div>`:''}`
 }
 function renderGrowthOverview(){
+  growthApplyFilter();
+  const f=S.growthFilter||{type:'all'};
+  document.querySelectorAll('#growthFilterPresets [data-ftype]').forEach(b=>b.classList.toggle('active',b.dataset.ftype===f.type));
+  const customBox=document.getElementById('growthFilterCustom');
+  customBox.style.display=f.type==='custom'?'flex':'none';
+  if(f.type==='custom'){document.getElementById('growthFilterStart').value=f.start||'';document.getElementById('growthFilterEnd').value=f.end||''}
   const m=document.getElementById('growthModules');if(!m)return;
   m.innerHTML=Object.keys(GROWTH_MODULES).map(mod=>`<div class="growth-module-card" onclick="openGrowthModule('${mod}')"><div class="gm-head"><span class="gm-icon">${GROWTH_MODULES[mod].icon}</span><span class="gm-title">${GROWTH_MODULES[mod].title}</span><span class="gm-arrow">›</span></div><div class="gm-stats">${growthModuleStatsHTML(mod,growthStats(mod))}</div></div>`).join('');
 }
@@ -1366,11 +1413,25 @@ function openGrowthModule(mod){
   document.getElementById('growthOverview').style.display='none';
   document.getElementById('growthDetailView').style.display='block';
   document.getElementById('growthDetailTitle').textContent=GROWTH_MODULES[mod].icon+' '+GROWTH_MODULES[mod].title;
+  document.getElementById('growthDetailFilterHint').textContent='📅 '+growthFilterLabel();
   document.getElementById('growthFormCard').innerHTML=growthFormHTML(mod,null,'')+'<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="submitGrowthAdd()">+ 添加记录</button>';
   renderGrowthDetail();
 }
 function growthBackToList(){S.growthModule=null;document.getElementById('growthDetailView').style.display='none';document.getElementById('growthOverview').style.display='block';renderGrowthOverview()}
 document.getElementById('growthBackList').addEventListener('click',growthBackToList);
+document.getElementById('growthFilterPresets').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-ftype]');if(!btn)return;
+  const type=btn.dataset.ftype;
+  S.growthFilter={type:type,start:'',end:''};
+  if(type==='custom'){document.getElementById('growthFilterCustom').style.display='flex';}
+  else{document.getElementById('growthFilterCustom').style.display='none';growthApplyFilter();renderGrowthOverview();}
+});
+document.getElementById('growthFilterApply').addEventListener('click',()=>{
+  const s=document.getElementById('growthFilterStart').value,en=document.getElementById('growthFilterEnd').value;
+  if(!s||!en){showToast('请选择起止日期','error');return}
+  if(s>en){showToast('开始日期不能晚于结束日期','error');return}
+  S.growthFilter={type:'custom',start:s,end:en};renderGrowthOverview();
+});
 function growthFormHTML(mod,rec,p){
   const today=fmtYMD(new Date());
   const dateVal=rec?rec.date:today;
@@ -1405,9 +1466,9 @@ async function submitGrowthAdd(){
 }
 function renderGrowthDetail(){
   const mod=S.growthModule;if(!mod)return;
-  const arr=growthSort(growthRecordsOf(mod));
+  const arr=growthSort(growthFilteredRecords(mod));
   const list=document.getElementById('growthList');
-  if(arr.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">'+GROWTH_MODULES[mod].icon+'</div><p>还没有记录<br>在上方添加第一条吧</p></div>';return}
+  if(arr.length===0){const allCount=growthRecordsOf(mod).length;list.innerHTML='<div class="empty"><div class="empty-icon">'+GROWTH_MODULES[mod].icon+'</div><p>'+(allCount>0?'所选时间段内暂无记录':'还没有记录')+'<br>'+(allCount>0?'换个时间范围或':'在上方')+'添加记录吧</p></div>';return}
   list.innerHTML=arr.map(r=>{
     let body='';
     if(mod==='sleep'){const ab=(r.abnormal||[]).map(t=>`<span class="growth-chip ab">${t}</span>`).join('')||'<span class="growth-chip">无异常</span>';const timeInfo=(r.sleepTime||r.wakeTime)?`🌙 ${r.sleepTime||'?'} 睡 → ☀️ ${r.wakeTime||'?'} 醒`:'';body=`<div class="record-text">😴 睡眠 ${r.duration!=null?r.duration:0} 小时</div>${timeInfo?`<div class="growth-row">${timeInfo}</div>`:''}<div class="growth-chips">${ab}</div>${r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:''}`}
