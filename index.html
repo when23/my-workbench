@@ -283,9 +283,10 @@ img{max-width:100%;display:block}
 .phase-plan-card .pp-date{font-size:12px;color:var(--text-2);margin-bottom:10px}
 .phase-plan-card .pp-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-3);margin-top:8px}
 .phase-period{font-size:12px;color:var(--text-2);margin-top:3px;white-space:normal}
-.phase-title-block{display:flex;flex-direction:column;min-width:0;flex:1}
-.phase-title-block h2{margin:0}
-.phase-detail-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.phase-header{flex-wrap:wrap}
+.phase-header #phaseDetailTitle{flex:1;min-width:0;margin:0}
+.phase-detail-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.phase-period{flex-basis:100%;margin-top:4px;padding-left:48px}
 .progress-wrap{background:var(--border-l);border-radius:20px;height:8px;overflow:hidden;flex:1}
 .progress-fill{height:100%;background:var(--primary);border-radius:20px;transition:width .25s}
 .prog-row{display:flex;align-items:center;gap:10px}
@@ -355,17 +356,15 @@ img{max-width:100%;display:block}
           <div class="phase-list" id="phaseList"></div>
         </div>
         <div id="phaseDetailView" style="display:none">
-          <div class="org-detail-header">
+          <div class="org-detail-header phase-header">
             <button class="back-btn" id="phaseBackList">‹</button>
-            <div class="phase-title-block">
-              <h2 id="phaseDetailTitle"></h2>
-              <div id="phaseDetailPeriod" class="phase-period"></div>
-            </div>
+            <h2 id="phaseDetailTitle"></h2>
             <span class="phase-detail-actions">
               <button class="btn btn-ghost btn-sm" onclick="changePhasePeriod()">🗓 修改时间段</button>
               <button class="btn btn-ghost btn-sm" onclick="renamePhasePlan()">✏️ 重命名</button>
               <button class="btn btn-danger btn-sm" onclick="deletePhasePlan()">🗑 删除</button>
             </span>
+            <div id="phaseDetailPeriod" class="phase-period"></div>
           </div>
           <div id="phaseDetailBody"></div>
         </div>
