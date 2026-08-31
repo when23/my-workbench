@@ -532,6 +532,66 @@ img{max-width:100%;display:block}
           <div class="record-list" id="growthList"></div>
         </div>
       </div>
+      <div class="tab-content" id="tab-health">
+        <div class="health-section">
+          <h2 class="health-h2">⚖️ 体重记录</h2>
+          <div class="health-weight-form">
+            <input type="date" id="hwDate" class="health-input">
+            <input type="number" id="hwWeight" placeholder="体重 kg" step="0.1" min="0" class="health-input">
+            <input type="text" id="hwNote" placeholder="备注（选填）" class="health-input health-note">
+            <button class="btn btn-primary" onclick="saveWeight()">记录</button>
+          </div>
+          <div class="health-range-bar">
+            <span>趋势：</span>
+            <button class="btn btn-sm health-range-btn active" data-r="week" onclick="setWeightRange('week')">周</button>
+            <button class="btn btn-sm health-range-btn" data-r="month" onclick="setWeightRange('month')">月</button>
+            <button class="btn btn-sm health-range-btn" data-r="year" onclick="setWeightRange('year')">年</button>
+            <button class="btn btn-sm health-range-btn" data-r="custom" onclick="setWeightRange('custom')">自定义</button>
+            <span id="hwCustomWrap" style="display:none">
+              <input type="date" id="hwFrom" class="health-input health-input-sm">
+              <span>至</span>
+              <input type="date" id="hwTo" class="health-input health-input-sm">
+              <button class="btn btn-sm btn-primary" onclick="renderWeightChart()">查看</button>
+            </span>
+          </div>
+          <div class="health-chart-wrap" id="hwChart"></div>
+          <div class="health-weight-list" id="hwList"></div>
+        </div>
+        <div class="health-section">
+          <h2 class="health-h2">⏰ 用药 / 喝水 / 维生素提醒</h2>
+          <div class="health-reminder-notify">
+            <span id="hwNotifyStatus"></span>
+            <button class="btn btn-sm" id="hwNotifyBtn" onclick="enableNotify()">开启浏览器通知</button>
+          </div>
+          <div class="health-reminder-types">
+            <div class="health-rem-type active" data-rt="med" onclick="switchRemType('med')"><span>💊</span>吃药</div>
+            <div class="health-rem-type" data-rt="water" onclick="switchRemType('water')"><span>💧</span>喝水</div>
+            <div class="health-rem-type" data-rt="vitamin" onclick="switchRemType('vitamin')"><span>🍊</span>维生素</div>
+          </div>
+          <div class="health-reminder-form">
+            <input type="text" id="hrName" placeholder="名称（如：降压药）" class="health-input">
+            <input type="time" id="hrTime" class="health-input health-input-sm">
+            <select id="hrRepeat" class="health-input health-input-sm" onchange="onRepeatChange()">
+              <option value="daily">每天</option>
+              <option value="weekday">工作日</option>
+              <option value="weekend">周末</option>
+              <option value="once">仅一次</option>
+              <option value="custom">自定义星期</option>
+            </select>
+            <span id="hrWeekWrap" style="display:none">
+              <label><input type="checkbox" value="1">一</label>
+              <label><input type="checkbox" value="2">二</label>
+              <label><input type="checkbox" value="3">三</label>
+              <label><input type="checkbox" value="4">四</label>
+              <label><input type="checkbox" value="5">五</label>
+              <label><input type="checkbox" value="6">六</label>
+              <label><input type="checkbox" value="0">日</label>
+            </span>
+            <button class="btn btn-primary btn-sm" onclick="addReminder()">+ 添加提醒</button>
+          </div>
+          <div class="health-reminder-list" id="hrList"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -585,67 +645,6 @@ img{max-width:100%;display:block}
       <button class="btn btn-ghost" id="cancelAddCat">取消</button>
       <button class="btn btn-primary" id="saveAddCat">添加</button>
     </div>
-  </div>
-</div>
-
-<div class="tab-content" id="tab-health">
-  <div class="health-section">
-    <h2 class="health-h2">⚖️ 体重记录</h2>
-    <div class="health-weight-form">
-      <input type="date" id="hwDate" class="health-input">
-      <input type="number" id="hwWeight" placeholder="体重 kg" step="0.1" min="0" class="health-input">
-      <input type="text" id="hwNote" placeholder="备注（选填）" class="health-input health-note">
-      <button class="btn btn-primary" onclick="saveWeight()">记录</button>
-    </div>
-    <div class="health-range-bar">
-      <span>趋势：</span>
-      <button class="btn btn-sm health-range-btn active" data-r="week" onclick="setWeightRange('week')">周</button>
-      <button class="btn btn-sm health-range-btn" data-r="month" onclick="setWeightRange('month')">月</button>
-      <button class="btn btn-sm health-range-btn" data-r="year" onclick="setWeightRange('year')">年</button>
-      <button class="btn btn-sm health-range-btn" data-r="custom" onclick="setWeightRange('custom')">自定义</button>
-      <span id="hwCustomWrap" style="display:none">
-        <input type="date" id="hwFrom" class="health-input health-input-sm">
-        <span>至</span>
-        <input type="date" id="hwTo" class="health-input health-input-sm">
-        <button class="btn btn-sm btn-primary" onclick="renderWeightChart()">查看</button>
-      </span>
-    </div>
-    <div class="health-chart-wrap" id="hwChart"></div>
-    <div class="health-weight-list" id="hwList"></div>
-  </div>
-  <div class="health-section">
-    <h2 class="health-h2">⏰ 用药 / 喝水 / 维生素提醒</h2>
-    <div class="health-reminder-notify">
-      <span id="hwNotifyStatus"></span>
-      <button class="btn btn-sm" id="hwNotifyBtn" onclick="enableNotify()">开启浏览器通知</button>
-    </div>
-    <div class="health-reminder-types">
-      <div class="health-rem-type active" data-rt="med" onclick="switchRemType('med')"><span>💊</span>吃药</div>
-      <div class="health-rem-type" data-rt="water" onclick="switchRemType('water')"><span>💧</span>喝水</div>
-      <div class="health-rem-type" data-rt="vitamin" onclick="switchRemType('vitamin')"><span>🍊</span>维生素</div>
-    </div>
-    <div class="health-reminder-form">
-      <input type="text" id="hrName" placeholder="名称（如：降压药）" class="health-input">
-      <input type="time" id="hrTime" class="health-input health-input-sm">
-      <select id="hrRepeat" class="health-input health-input-sm" onchange="onRepeatChange()">
-        <option value="daily">每天</option>
-        <option value="weekday">工作日</option>
-        <option value="weekend">周末</option>
-        <option value="once">仅一次</option>
-        <option value="custom">自定义星期</option>
-      </select>
-      <span id="hrWeekWrap" style="display:none">
-        <label><input type="checkbox" value="1">一</label>
-        <label><input type="checkbox" value="2">二</label>
-        <label><input type="checkbox" value="3">三</label>
-        <label><input type="checkbox" value="4">四</label>
-        <label><input type="checkbox" value="5">五</label>
-        <label><input type="checkbox" value="6">六</label>
-        <label><input type="checkbox" value="0">日</label>
-      </span>
-      <button class="btn btn-primary btn-sm" onclick="addReminder()">+ 添加提醒</button>
-    </div>
-    <div class="health-reminder-list" id="hrList"></div>
   </div>
 </div>
 
