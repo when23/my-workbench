@@ -143,6 +143,11 @@ img{max-width:100%;display:block}
 .org-location-group .loc-name{flex:1;font-size:15px;font-weight:500}
 .org-location-group .loc-count{font-size:13px;color:var(--text-3)}
 .org-location-group .loc-arrow{font-size:18px;color:var(--text-3)}
+.org-location-group .loc-handle{width:16px;flex-shrink:0;color:var(--text-3);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.org-location-group .loc-handle:active{color:var(--primary)}
+.org-location-group.dragging{opacity:.35;background:var(--primary-light);box-shadow:var(--shadow-md)}
+.org-location-group.drop-before{box-shadow:inset 0 3px 0 0 var(--primary)}
+.org-location-group.drop-after{box-shadow:inset 0 -3px 0 0 var(--primary)}
 .record-status{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
 .record-status.none{background:#f3f4f6;color:#6b7280}
 .record-status.pending{background:#fef3c7;color:#92400e}
@@ -922,6 +927,49 @@ let _drag=null;
   list.addEventListener('pointerup',end);
   list.addEventListener('pointercancel',()=>{if(_drag){_drag.item.style.transform='';_drag.item.classList.remove('dragging');list.querySelectorAll('.org-cat-item').forEach(it=>it.classList.remove('drop-before','drop-after'));_drag=null;renderOrgOverview()}});
 })();
+// 位置分组（按存放位置）拖动排序：按住左侧 ⠿ 手柄上下拖动即可重排，桌面/触屏通用
+let orgLocDrag=null;
+(function initOrgLocDrag(){
+  const list=document.getElementById('orgLocationGroups');if(!list)return;
+  list.addEventListener('pointerdown',e=>{
+    const h=e.target.closest('.loc-handle');if(!h)return;
+    const item=h.closest('.org-location-group');if(!item)return;
+    e.preventDefault();
+    orgLocDrag={id:item.dataset.loc,item,startY:e.clientY,moved:false,pid:e.pointerId};
+    try{item.setPointerCapture(e.pointerId)}catch(_){}
+    item.classList.add('dragging');
+  });
+  list.addEventListener('pointermove',e=>{
+    if(!orgLocDrag)return;
+    const dy=e.clientY-orgLocDrag.startY;
+    if(Math.abs(dy)>4)orgLocDrag.moved=true;
+    orgLocDrag.item.style.transform='translateY('+dy+'px)';
+    list.querySelectorAll('.org-location-group').forEach(it=>{if(it!==orgLocDrag.item)it.classList.remove('drop-before','drop-after')});
+    const others=[...list.querySelectorAll('.org-location-group')].filter(it=>it!==orgLocDrag.item);
+    for(const it of others){const r=it.getBoundingClientRect();if(e.clientY>=r.top&&e.clientY<=r.bottom){it.classList.add(e.clientY<r.top+r.height/2?'drop-before':'drop-after');break}}
+  });
+  const end=async()=>{
+    if(!orgLocDrag)return;
+    const {id,item,moved}=orgLocDrag;
+    item.style.transform='';item.classList.remove('dragging');
+    const before=list.querySelector('.drop-before'),after=list.querySelector('.drop-after');
+    list.querySelectorAll('.org-location-group').forEach(it=>it.classList.remove('drop-before','drop-after'));
+    orgLocDrag=null;
+    if(!moved){return}
+    const cat=S.orgCategories.find(c=>c.id===S.orgCurrentCat);
+    if(!cat)return;
+    if(!cat.locOrder)cat.locOrder=[];
+    const ref=before||after;if(!ref||ref.dataset.loc===id){renderOrgLocations();return}
+    const from=cat.locOrder.indexOf(id);if(from<0){renderOrgLocations();return}
+    const [m]=cat.locOrder.splice(from,1);
+    let refIdx=cat.locOrder.indexOf(ref.dataset.loc);if(refIdx<0)refIdx=cat.locOrder.length;
+    if(after)refIdx+=1;
+    cat.locOrder.splice(refIdx,0,m);
+    await DB.set('orgCategories',S.orgCategories);renderOrgLocations();showToast('已调整顺序','success');
+  };
+  list.addEventListener('pointerup',end);
+  list.addEventListener('pointercancel',()=>{if(orgLocDrag){orgLocDrag.item.style.transform='';orgLocDrag.item.classList.remove('dragging');list.querySelectorAll('.org-location-group').forEach(it=>it.classList.remove('drop-before','drop-after'));orgLocDrag=null;renderOrgLocations()}});
+})();
 // Layer 2: Location groups
 let orgLocationNames=[];
 function openOrgCategory(catId){
@@ -965,13 +1013,19 @@ function renderOrgLocations(){
   const locGroups={};
   records.forEach(r=>{const loc=r.location||'未指定位置';if(!locGroups[loc])locGroups[loc]=[];locGroups[loc].push(r)});
   orgLocationNames=Object.keys(locGroups);
+  const oldOrderJSON=JSON.stringify(cat.locOrder||[]);
+  if(cat.locOrder&&cat.locOrder.length){
+    orgLocationNames.sort((a,b)=>{const ia=cat.locOrder.indexOf(a),ib=cat.locOrder.indexOf(b);if(ia<0&&ib<0)return 0;if(ia<0)return 1;if(ib<0)return -1;return ia-ib;});
+  }
+  cat.locOrder=orgLocationNames.slice();
+  if(oldOrderJSON!==JSON.stringify(cat.locOrder))DB.set('orgCategories',S.orgCategories);
   let html='';
   if(orgLocationNames.length===0){
     html=`<div class="empty"><div class="empty-icon">${cat.icon}</div><p>这个分类还没有物品<br>点击下方按钮添加第一件</p></div>`;
   }else{
     html=orgLocationNames.map((loc,i)=>{
       const items=locGroups[loc];const pend=items.filter(r=>r.status==='pending').length;
-      return `<div class="org-location-group" onclick="openOrgLocation(${i})"><span class="loc-icon">📍</span><span class="loc-name">${escapeHtml(loc)}</span><span class="loc-count">${items.length} 件${pend>0?' · '+pend+'待处理':''}</span><span class="loc-arrow">›</span></div>`;
+      return `<div class="org-location-group" data-loc="${escapeHtml(loc)}" onclick="openOrgLocation(${i})"><span class="loc-handle" title="拖动排序" onclick="event.stopPropagation()">⠿</span><span class="loc-icon">📍</span><span class="loc-name">${escapeHtml(loc)}</span><span class="loc-count">${items.length} 件${pend>0?' · '+pend+'待处理':''}</span><span class="loc-arrow">›</span></div>`;
     }).join('');
   }
   html+=`<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="openOrgLocationWithForm()">+ 添加物品</button>`;
