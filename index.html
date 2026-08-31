@@ -58,7 +58,7 @@ img{max-width:100%;display:block}
 .date-nav .today-btn{width:auto;padding:0 14px;font-size:13px;font-weight:500}
 .boards-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:768px){.boards-grid{grid-template-columns:1fr}}
-.board-card{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s}
+.board-card{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s;border-left:4px solid var(--bc,#74C0FC)}
 .board-card:hover{box-shadow:var(--shadow)}
 .board-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .board-name{flex:1;font-size:15px;font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:var(--r-xs);padding:4px 8px;min-width:0}
@@ -71,6 +71,11 @@ img{max-width:100%;display:block}
 .board-drag:hover{color:var(--text)}
 .board-drag:active{cursor:grabbing}
 .board-card.dragging{opacity:.55;box-shadow:var(--shadow-md);outline:2px dashed var(--primary);outline-offset:2px}
+.board-color{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--border);cursor:pointer;flex:none;margin:0 2px;transition:transform .12s}
+.board-color:hover{transform:scale(1.15)}
+.board-color-pop{position:fixed;display:none;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px;box-shadow:var(--shadow-md);z-index:300;flex-wrap:wrap;max-width:184px}
+.bc-swatch{width:24px;height:24px;border-radius:50%;border:2px solid #fff;cursor:pointer;box-shadow:0 0 0 1px var(--border);transition:transform .12s}
+.bc-swatch:hover{transform:scale(1.12)}
 .board-name:hover{border-color:var(--border)}
 .board-name:focus{outline:none;border-color:var(--primary);background:var(--primary-light)}
 .task-list{display:flex;flex-direction:column;gap:4px}
@@ -635,6 +640,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 
+<div class="board-color-pop" id="boardColorPop"></div>
 <div class="toast" id="toast"></div>
 <div class="lightbox" id="lightbox"><img id="lightboxImg" src="" alt=""></div>
 
@@ -674,7 +680,8 @@ const DB={
 };
 
 const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthChartRange:'month',healthRemType:'med',notifyEnabled:false};
-const DEFAULT_BOARDS=[{id:'b1',name:'工作'},{id:'b2',name:'学习'},{id:'b3',name:'健康'},{id:'b4',name:'生活'}];
+const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
+const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
 const EMOJI_LIST=['📦','📚','👕','💄','🍳','📱','💊','🎮','🧸','⚽','🎵','🖼️','🔧','🌿','🐾','💎','🎨','🛏️','🧹','🗄️','🎒','🧴','🪔','🛋️','🚗','🔑','💝','🏀','🧩','🎸'];
 
@@ -694,7 +701,7 @@ function removePendingImg(type,idx){S.pendingImgs[type].splice(idx,1);renderPend
 document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='health'){await loadHealth()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}})});
 
 // ===== Daily Execution =====
-async function loadBoards(){const b=await DB.get('boards');if(b){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}}
+async function loadBoards(){const b=await DB.get('boards');if(b){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}S.boards.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});await saveBoards()}
 async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};await carryOverUncompleted();renderBoards()}
 // 未完成的任务自动顺延到下一天，直到完成
 async function carryOverUncompleted(){
@@ -732,7 +739,7 @@ async function carryOverUncompleted(){
   }
   if(changed)await saveDaily();
 }
-function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card" data-board="${board.id}"><div class="board-header"><span class="board-drag" title="拖动排序" onpointerdown="onBoardDragStart(event,'${board.id}')">⠿</span><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" onclick="deleteBoard('${board.id}')" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('')+'<div class="board-add" onclick="addBoard()">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
+function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card" data-board="${board.id}" style="--bc:${board.color||'#74C0FC'}"><div class="board-header"><span class="board-drag" title="拖动排序" onpointerdown="onBoardDragStart(event,'${board.id}')">⠿</span><span class="board-color" title="选择颜色" onclick="openBoardColor(event,'${board.id}')" style="background:${board.color||'#74C0FC'}"></span><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" onclick="deleteBoard('${board.id}')" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('')+'<div class="board-add" onclick="addBoard()">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
 async function saveBoards(){await DB.set('boards',S.boards)}
 function addBoard(){const id=genId();S.boards.push({id,name:'新板块'});saveBoards();renderBoards();setTimeout(()=>{const inp=document.querySelector('.board-name[data-board="'+id+'"]');if(inp){inp.focus();inp.select()}},0)}
 async function deleteBoard(id){
@@ -774,6 +781,25 @@ function onBoardDragEnd(){
   document.removeEventListener('pointermove',onBoardDragMove);
   document.removeEventListener('pointerup',onBoardDragEnd);
   saveBoards();renderBoards();
+}
+function openBoardColor(e,id){
+  e.stopPropagation();
+  const pop=document.getElementById('boardColorPop');
+  pop.innerHTML=BOARD_COLORS.map(c=>'<button class="bc-swatch" style="background:'+c+'" onclick="setBoardColor(\''+id+'\',\''+c+'\')"></button>').join('');
+  pop.style.display='flex';
+  const r=e.currentTarget.getBoundingClientRect();
+  pop.style.top=(r.bottom+6)+'px';
+  pop.style.left=r.left+'px';
+  setTimeout(()=>document.addEventListener('click',closeBoardColor),0);
+}
+function setBoardColor(id,color){
+  const b=S.boards.find(x=>x.id===id);
+  if(b){b.color=color;saveBoards();renderBoards();}
+  const pop=document.getElementById('boardColorPop');if(pop)pop.style.display='none';
+}
+function closeBoardColor(e){
+  const pop=document.getElementById('boardColorPop');
+  if(pop&&pop.style.display==='flex'&&e&&!pop.contains(e.target)){pop.style.display='none';document.removeEventListener('click',closeBoardColor);}
 }
 async function saveDaily(){const data={};S.boards.forEach(b=>{if(S.daily[b.id]&&S.daily[b.id].length>0)data[b.id]=S.daily[b.id]});await DB.set('daily:'+S.date,data);S.daily=data}
 function addTask(boardId){const input=document.getElementById('add-input-'+boardId);const text=input.value.trim();if(!text)return;if(!S.daily[boardId])S.daily[boardId]=[];S.daily[boardId].push({id:genId(),text,done:false});input.value='';renderBoards();saveDaily()}
