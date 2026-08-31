@@ -288,11 +288,11 @@ img{max-width:100%;display:block}
 .tag-chip.active{color:#fff;border-color:transparent}
 /* ===== 阶段计划 ===== */
 .phase-list{display:flex;flex-direction:column;gap:12px}
-.phase-plan-card{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s;cursor:pointer;position:relative}
+.phase-plan-card{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s;cursor:pointer;position:relative;border-left:4px solid var(--bc,#74C0FC)}
 .phase-plan-card:hover{box-shadow:var(--shadow)}
 .phase-plan-card .pp-del{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:var(--border-l);color:var(--danger);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .phase-plan-card .pp-del:hover{background:var(--danger);color:#fff}
-.phase-plan-card .pp-name{font-size:16px;font-weight:600;margin-bottom:4px}
+.phase-plan-card .pp-name{font-size:16px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px}
 /* ===== 成长管理 ===== */
 .growth-modules{display:flex;flex-direction:column;gap:12px;margin-top:6px}
 .growth-module-card{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s;cursor:pointer}
@@ -800,6 +800,21 @@ function setBoardColor(id,color){
 function closeBoardColor(e){
   const pop=document.getElementById('boardColorPop');
   if(pop&&pop.style.display==='flex'&&e&&!pop.contains(e.target)){pop.style.display='none';document.removeEventListener('click',closeBoardColor);}
+}
+function openPhaseColor(e,id){
+  e.stopPropagation();
+  const pop=document.getElementById('boardColorPop');
+  pop.innerHTML=BOARD_COLORS.map(c=>'<button class="bc-swatch" style="background:'+c+'" onclick="setPhaseColor(\''+id+'\',\''+c+'\')"></button>').join('');
+  pop.style.display='flex';
+  const r=e.currentTarget.getBoundingClientRect();
+  pop.style.top=(r.bottom+6)+'px';
+  pop.style.left=r.left+'px';
+  setTimeout(()=>document.addEventListener('click',closeBoardColor),0);
+}
+function setPhaseColor(id,color){
+  const p=S.phasePlans.find(x=>x.id===id);
+  if(p){p.color=color;savePhasePlans();renderPhaseList();}
+  const pop=document.getElementById('boardColorPop');if(pop)pop.style.display='none';
 }
 async function saveDaily(){const data={};S.boards.forEach(b=>{if(S.daily[b.id]&&S.daily[b.id].length>0)data[b.id]=S.daily[b.id]});await DB.set('daily:'+S.date,data);S.daily=data}
 function addTask(boardId){const input=document.getElementById('add-input-'+boardId);const text=input.value.trim();if(!text)return;if(!S.daily[boardId])S.daily[boardId]=[];S.daily[boardId].push({id:genId(),text,done:false});input.value='';renderBoards();saveDaily()}
@@ -1560,7 +1575,7 @@ document.getElementById('backupDismiss').addEventListener('click',()=>{
 });
 
 // ===== 阶段计划 =====
-async function loadPhasePlans(){S.phasePlans=(await DB.get('phasePlans'))||[]}
+async function loadPhasePlans(){S.phasePlans=(await DB.get('phasePlans'))||[];S.phasePlans.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});await savePhasePlans()}
 async function savePhasePlans(){await DB.set('phasePlans',S.phasePlans)}
 function renderPhaseList(){
   const list=document.getElementById('phaseList');if(!list)return;
@@ -1568,9 +1583,9 @@ function renderPhaseList(){
   const sorted=[...S.phasePlans].sort((a,b)=>((a.progress||0)>=100?1:0)-((b.progress||0)>=100?1:0));
   list.innerHTML=sorted.map(p=>{
     const itemCount=(p.items||[]).length;
-    return `<div class="phase-plan-card" onclick="openPhasePlan('${p.id}')">
+    return `<div class="phase-plan-card" onclick="openPhasePlan('${p.id}')" style="--bc:${p.color||'#74C0FC'}">
       <span class="pp-del" title="删除" onclick="event.stopPropagation();deletePhasePlan('${p.id}')">×</span>
-      <div class="pp-name">${escapeHtml(p.name)}</div>
+      <div class="pp-name"><span class="board-color" title="选择颜色" onclick="event.stopPropagation();openPhaseColor(event,'${p.id}')" style="background:${p.color||'#74C0FC'}"></span>${escapeHtml(p.name)}</div>
       <div class="pp-date">📅 ${p.start} 至 ${p.end}</div>
       <div class="prog-row"><div class="progress-wrap"><div class="progress-fill" style="width:${p.progress||0}%"></div></div><span style="font-size:12px;color:var(--text-2);width:40px;text-align:right">${p.progress||0}%</span></div>
       <div class="pp-meta"><span>${itemCount} 条分解</span><span>› 查看</span></div>
@@ -1652,7 +1667,7 @@ function newPhasePlan(){
     if(!name){showToast('请填写计划名称','error');return}
     if(!start||!end){showToast('请选择起止日期','error');return}
     if(start>end){showToast('开始日期不能晚于结束日期','error');return}
-    S.phasePlans.push({id:genId(),name,start,end,progress:0,items:[],daily:{}});
+    S.phasePlans.push({id:genId(),name,start,end,progress:0,items:[],daily:{},color:BOARD_COLORS[S.phasePlans.length%BOARD_COLORS.length]});
     savePhasePlans().then(()=>{closeEditModal();renderPhaseList();showToast('计划已创建','success')});
   };
 }
