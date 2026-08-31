@@ -260,10 +260,11 @@ img{max-width:100%;display:block}
 .gm-stat-num{font-size:18px;font-weight:700;color:var(--primary)}
 .gm-stat-label{font-size:12px;color:var(--text-2)}
 .growth-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.growth-chip{font-size:12px;padding:3px 9px;border-radius:20px;background:var(--primary-light);color:var(--primary)}
+.growth-chip{font-size:12px;padding:3px 9px;border-radius:20px;background:var(--primary-light);color:var(--primary);flex:0 0 auto;white-space:nowrap}
 .growth-chip.ab{background:#fef2f2;color:var(--danger)}
-.growth-chk{display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:13px;line-height:1;color:var(--text-2);background:var(--border-l);padding:6px 11px;border-radius:20px;white-space:nowrap}
-.growth-chk input{width:15px;height:15px;flex:none;margin:0;accent-color:var(--primary);vertical-align:middle}
+.growth-chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;line-height:1.5;color:var(--text-2);background:var(--border-l);padding:5px 12px;border-radius:18px;white-space:nowrap;flex:0 0 auto;cursor:pointer;overflow:hidden}
+.growth-chk input{width:16px;height:16px;flex:0 0 16px;margin:0;accent-color:var(--primary)}
+.growth-chk span{flex:0 1 auto;min-width:0}
 .ab-add-row{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
 .ab-add-row input{flex:1;min-width:100px}
 .growth-row{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--text-2);margin-top:4px}
@@ -1405,7 +1406,7 @@ async function confirmSleepAbnormalTag(p){
   S.sleepAbnTags.push(t);await DB.set('sleepAbnTags',S.sleepAbnTags);
   const box=document.getElementById(p+'g-abBox');
   const lab=document.createElement('label');lab.className='growth-chk';
-  lab.innerHTML=`<input type="checkbox" name="${p}g-ab" value="${escapeHtml(t)}" checked> ${escapeHtml(t)}`;
+  lab.innerHTML=`<input type="checkbox" name="${p}g-ab" value="${escapeHtml(t)}" checked><span>${escapeHtml(t)}</span>`;
   box.appendChild(lab);
   cancelSleepAbnormalTag(p);showToast('已新增标签：'+t,'success');
 }
@@ -1492,7 +1493,7 @@ function growthFormHTML(mod,rec,p){
     const wd=hasWake?rec.wakeDate:addDays(sd,1);
     const wt=rec?rec.wakeTime||'':'';
     const autoAttr=hasWake?'':'data-auto="1"';
-    return `<label>入睡日期</label><input type="date" id="${p}g-sleepDate" value="${sd}" onchange="onSleepDateChange('${p}')"><label>入睡时间</label><input type="time" id="${p}g-sleepTime" value="${st}" onchange="updateSleepPreview('${p}')"><label>醒来日期</label><input type="date" id="${p}g-wakeDate" value="${wd}" ${autoAttr} onchange="this.dataset.auto='';updateSleepPreview('${p}')"><label>醒来时间</label><input type="time" id="${p}g-wakeTime" value="${wt}" onchange="updateSleepPreview('${p}')"><div class="growth-dur-preview" id="${p}g-durPreview">⏱ 填写入睡和醒来时间后自动计算时长</div><label>异常情况(可多选)</label><div class="growth-chips" id="${p}g-abBox">${S.sleepAbnTags.map(t=>`<label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="${escapeHtml(t)}" ${ab.includes(t)?'checked':''}>${escapeHtml(t)}</label>`).join('')}</div><button type="button" class="btn btn-ghost btn-sm" onclick="addSleepAbnormalTag('${p}')" style="margin-top:8px">＋ 新增标签</button><label>备注(可选)</label><textarea id="${p}g-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
+    return `<label>入睡日期</label><input type="date" id="${p}g-sleepDate" value="${sd}" onchange="onSleepDateChange('${p}')"><label>入睡时间</label><input type="time" id="${p}g-sleepTime" value="${st}" onchange="updateSleepPreview('${p}')"><label>醒来日期</label><input type="date" id="${p}g-wakeDate" value="${wd}" ${autoAttr} onchange="this.dataset.auto='';updateSleepPreview('${p}')"><label>醒来时间</label><input type="time" id="${p}g-wakeTime" value="${wt}" onchange="updateSleepPreview('${p}')"><div class="growth-dur-preview" id="${p}g-durPreview">⏱ 填写入睡和醒来时间后自动计算时长</div><label>异常情况(可多选)</label><div class="growth-chips" id="${p}g-abBox">${S.sleepAbnTags.map(t=>`<label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="${escapeHtml(t)}" ${ab.includes(t)?'checked':''}><span>${escapeHtml(t)}</span></label>`).join('')}</div><button type="button" class="btn btn-ghost btn-sm" onclick="addSleepAbnormalTag('${p}')" style="margin-top:8px">＋ 新增标签</button><label>备注(可选)</label><textarea id="${p}g-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
   }
   if(mod==='diet'){
     const tags=rec?rec.tags||[]:[];
