@@ -259,11 +259,13 @@ img{max-width:100%;display:block}
 .gm-stat{display:flex;flex-direction:column;line-height:1.3}
 .gm-stat-num{font-size:18px;font-weight:700;color:var(--primary)}
 .gm-stat-label{font-size:12px;color:var(--text-2)}
-.growth-chips{display:flex;flex-wrap:wrap;gap:6px}
+.growth-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .growth-chip{font-size:12px;padding:3px 9px;border-radius:20px;background:var(--primary-light);color:var(--primary)}
 .growth-chip.ab{background:#fef2f2;color:var(--danger)}
-.growth-chk{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--text-2);background:var(--border-l);padding:5px 10px;border-radius:20px}
-.growth-chk input{width:14px;height:14px;accent-color:var(--primary)}
+.growth-chk{display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:13px;line-height:1;color:var(--text-2);background:var(--border-l);padding:6px 11px;border-radius:20px;white-space:nowrap}
+.growth-chk input{width:15px;height:15px;flex:none;margin:0;accent-color:var(--primary);vertical-align:middle}
+.ab-add-row{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.ab-add-row input{flex:1;min-width:100px}
 .growth-row{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--text-2);margin-top:4px}
 .growth-record-date{font-weight:600;color:var(--text)}
 .input-card label{display:block;font-size:13px;color:var(--text-2);margin:10px 0 4px}
@@ -567,7 +569,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'}};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[]};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作'},{id:'b2',name:'学习'},{id:'b3',name:'健康'},{id:'b4',name:'生活'}];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
 const EMOJI_LIST=['📦','📚','👕','💄','🍳','📱','💊','🎮','🧸','⚽','🎵','🖼️','🔧','🌿','🐾','💎','🎨','🛏️','🧹','🗄️','🎒','🧴','🪔','🛋️','🚗','🔑','💝','🏀','🧩','🎸'];
@@ -1387,7 +1389,28 @@ function onSleepDateChange(p){
   if(!wdEl.value||wdEl.dataset.auto==='1'){wdEl.value=addDays(sd,1);wdEl.dataset.auto='1'}
   updateSleepPreview(p);
 }
-async function loadGrowth(){S.growthSleep=(await DB.get('growthSleep'))||[];S.growthDiet=(await DB.get('growthDiet'))||[];S.growthOut=(await DB.get('growthOut'))||[]}
+function addSleepAbnormalTag(p){
+  const box=document.getElementById(p+'g-abBox');if(!box||box.parentNode.querySelector('.ab-add-row'))return;
+  const row=document.createElement('div');row.className='ab-add-row';
+  row.innerHTML=`<input type="text" id="${p}g-abNew" placeholder="输入新标签（如：哄睡难）" maxlength="10"><button type="button" class="btn btn-primary btn-sm" onclick="confirmSleepAbnormalTag('${p}')">确认</button><button type="button" class="btn btn-ghost btn-sm" onclick="cancelSleepAbnormalTag('${p}')">取消</button>`;
+  box.parentNode.insertBefore(row,box.nextSibling);
+  const inp=document.getElementById(p+'g-abNew');inp.focus();
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')confirmSleepAbnormalTag(p)});
+}
+async function confirmSleepAbnormalTag(p){
+  const inp=document.getElementById(p+'g-abNew');if(!inp)return;
+  const t=inp.value.trim();
+  if(!t){showToast('请输入标签名','error');return}
+  if(S.sleepAbnTags.includes(t)){showToast('该标签已存在','error');return}
+  S.sleepAbnTags.push(t);await DB.set('sleepAbnTags',S.sleepAbnTags);
+  const box=document.getElementById(p+'g-abBox');
+  const lab=document.createElement('label');lab.className='growth-chk';
+  lab.innerHTML=`<input type="checkbox" name="${p}g-ab" value="${escapeHtml(t)}" checked> ${escapeHtml(t)}`;
+  box.appendChild(lab);
+  cancelSleepAbnormalTag(p);showToast('已新增标签：'+t,'success');
+}
+function cancelSleepAbnormalTag(p){const box=document.getElementById(p+'g-abBox');if(box){const r=box.parentNode.querySelector('.ab-add-row');if(r)r.remove()}}
+async function loadGrowth(){S.growthSleep=(await DB.get('growthSleep'))||[];S.growthDiet=(await DB.get('growthDiet'))||[];S.growthOut=(await DB.get('growthOut'))||[];S.sleepAbnTags=(await DB.get('sleepAbnTags'))||['夜醒','做梦哭闹','生病']}
 function saveGrowthSleep(){return DB.set('growthSleep',S.growthSleep)}
 function saveGrowthDiet(){return DB.set('growthDiet',S.growthDiet)}
 function saveGrowthOut(){return DB.set('growthOut',S.growthOut)}
@@ -1469,7 +1492,7 @@ function growthFormHTML(mod,rec,p){
     const wd=hasWake?rec.wakeDate:addDays(sd,1);
     const wt=rec?rec.wakeTime||'':'';
     const autoAttr=hasWake?'':'data-auto="1"';
-    return `<label>入睡日期</label><input type="date" id="${p}g-sleepDate" value="${sd}" onchange="onSleepDateChange('${p}')"><label>入睡时间</label><input type="time" id="${p}g-sleepTime" value="${st}" onchange="updateSleepPreview('${p}')"><label>醒来日期</label><input type="date" id="${p}g-wakeDate" value="${wd}" ${autoAttr} onchange="this.dataset.auto='';updateSleepPreview('${p}')"><label>醒来时间</label><input type="time" id="${p}g-wakeTime" value="${wt}" onchange="updateSleepPreview('${p}')"><div class="growth-dur-preview" id="${p}g-durPreview">⏱ 填写入睡和醒来时间后自动计算时长</div><label>异常情况(可多选)</label><div class="growth-chips"><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="夜醒" ${ab.includes('夜醒')?'checked':''}>夜醒</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="做梦哭闹" ${ab.includes('做梦哭闹')?'checked':''}>做梦哭闹</label><label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="生病" ${ab.includes('生病')?'checked':''}>生病</label></div><label>备注(可选)</label><textarea id="${p}g-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
+    return `<label>入睡日期</label><input type="date" id="${p}g-sleepDate" value="${sd}" onchange="onSleepDateChange('${p}')"><label>入睡时间</label><input type="time" id="${p}g-sleepTime" value="${st}" onchange="updateSleepPreview('${p}')"><label>醒来日期</label><input type="date" id="${p}g-wakeDate" value="${wd}" ${autoAttr} onchange="this.dataset.auto='';updateSleepPreview('${p}')"><label>醒来时间</label><input type="time" id="${p}g-wakeTime" value="${wt}" onchange="updateSleepPreview('${p}')"><div class="growth-dur-preview" id="${p}g-durPreview">⏱ 填写入睡和醒来时间后自动计算时长</div><label>异常情况(可多选)</label><div class="growth-chips" id="${p}g-abBox">${S.sleepAbnTags.map(t=>`<label class="growth-chk"><input type="checkbox" name="${p}g-ab" value="${escapeHtml(t)}" ${ab.includes(t)?'checked':''}>${escapeHtml(t)}</label>`).join('')}</div><button type="button" class="btn btn-ghost btn-sm" onclick="addSleepAbnormalTag('${p}')" style="margin-top:8px">＋ 新增标签</button><label>备注(可选)</label><textarea id="${p}g-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
   }
   if(mod==='diet'){
     const tags=rec?rec.tags||[]:[];
