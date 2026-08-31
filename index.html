@@ -199,6 +199,15 @@ img{max-width:100%;display:block}
 .health-reminder-types{display:flex;gap:8px;margin-bottom:12px}
 .health-rem-type{display:flex;align-items:center;gap:4px;padding:7px 12px;border-radius:18px;background:var(--border-l);font-size:13px;cursor:pointer}
 .health-rem-type.active{background:var(--primary);color:#fff}
+.health-rem-type.add{background:transparent;border:1.5px dashed var(--border);color:var(--text-2)}
+.health-rem-type.add:hover{border-color:var(--primary);color:var(--primary)}
+.health-rem-type .rem-tag-del{margin-left:2px;font-size:13px;line-height:1;color:var(--text-3);opacity:0;transition:opacity .15s}
+.health-rem-type:hover .rem-tag-del{opacity:1}
+.health-rem-type .rem-tag-del:hover{color:var(--danger)}
+.emoji-pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.emoji-opt{width:38px;height:38px;font-size:20px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--border);border-radius:10px;background:var(--bg);cursor:pointer;transition:all .12s}
+.emoji-opt:hover{border-color:var(--primary)}
+.emoji-opt.active{border-color:var(--primary);background:var(--primary-light)}
 .health-reminder-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .health-reminder-form label{display:inline-flex;align-items:center;gap:2px;font-size:12px;color:var(--text-2)}
 .health-reminder-list{display:flex;flex-direction:column;gap:8px}
@@ -395,7 +404,7 @@ img{max-width:100%;display:block}
         <button class="tab" data-tab="inspiration"><span class="tab-icon">💡</span><span>灵感<br>记录</span></button>
         <button class="tab" data-tab="organize"><span class="tab-icon">📦</span><span>日常<br>整理</span></button>
         <button class="tab" data-tab="growth"><span class="tab-icon">🌱</span><span>成长<br>管理</span></button>
-        <button class="tab" data-tab="health"><span class="tab-icon">❤️</span><span>健康<br>中心</span></button>
+        <button class="tab" data-tab="health"><span class="tab-icon">🩺</span><span>健康<br>中心</span></button>
       </div>
     </div>
     <div class="main-content">
@@ -582,16 +591,12 @@ img{max-width:100%;display:block}
           <div class="health-weight-list" id="hwList"></div>
         </div>
         <div class="health-section">
-          <h2 class="health-h2">⏰ 用药 / 喝水 / 维生素提醒</h2>
+          <h2 class="health-h2">⏰ 健康提醒</h2>
           <div class="health-reminder-notify">
             <span id="hwNotifyStatus"></span>
             <button class="btn btn-sm" id="hwNotifyBtn" onclick="enableNotify()">开启浏览器通知</button>
           </div>
-          <div class="health-reminder-types">
-            <div class="health-rem-type active" data-rt="med" onclick="switchRemType('med')"><span>💊</span>吃药</div>
-            <div class="health-rem-type" data-rt="water" onclick="switchRemType('water')"><span>💧</span>喝水</div>
-            <div class="health-rem-type" data-rt="vitamin" onclick="switchRemType('vitamin')"><span>🍊</span>维生素</div>
-          </div>
+          <div class="health-reminder-types" id="healthRemTypes"></div>
           <div class="health-reminder-form">
             <input type="text" id="hrName" placeholder="名称（如：降压药）" class="health-input">
             <input type="time" id="hrTime" class="health-input health-input-sm">
@@ -689,7 +694,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthChartRange:'month',healthRemType:'med',notifyEnabled:false};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'month',healthRemType:'med',notifyEnabled:false};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
 const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
@@ -1172,12 +1177,17 @@ async function deleteOrgCategory(catId){const cat=S.orgCategories.find(c=>c.id==
 async function loadHealth(){
   S.healthWeight=(await DB.get('healthWeight'))||[];
   S.healthReminders=(await DB.get('healthReminders'))||[];
+  const tags=(await DB.get('healthRemTags'));
+  S.healthRemTags=tags&&tags.length?tags:[...DEFAULT_REM_TAGS];
+  if(!tags)await DB.set('healthRemTags',S.healthRemTags);
+  if(!S.healthRemType||!S.healthRemTags.some(t=>t.id===S.healthRemType))S.healthRemType=S.healthRemTags[0]?S.healthRemTags[0].id:'';
   const d=fmtYMD(new Date());
   document.getElementById('hwDate').value=d;
   document.getElementById('hwFrom').value=addDays(d,-29);
   document.getElementById('hwTo').value=d;
   if(!S.healthChartRange)S.healthChartRange='month';
   setWeightRange(S.healthChartRange,true);
+  renderRemTags();
   renderReminders();
   updateNotifyStatus();
   scheduleReminders();
@@ -1238,7 +1248,7 @@ function drawWeightLine(el,recs){
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block">${grid}<path d="${area}" style="fill:var(--primary-light)" opacity="0.5"/><path d="${line}" fill="none" style="stroke:var(--primary)" stroke-width="2"/>${dots}${xlab}</svg>`;
 }
 function delWeight(date){S.healthWeight=S.healthWeight.filter(x=>x.date!==date);DB.set('healthWeight',S.healthWeight);renderWeightChart();showToast('已删除','success')}
-function switchRemType(t){S.healthRemType=t;document.querySelectorAll('.health-rem-type').forEach(e=>e.classList.toggle('active',e.dataset.rt===t));renderReminders()}
+function switchRemType(t){S.healthRemType=t;renderRemTags();renderReminders()}
 function onRepeatChange(){const r=document.getElementById('hrRepeat').value;document.getElementById('hrWeekWrap').style.display=r==='custom'?'inline-flex':'none'}
 function updateNotifyStatus(){
   const st=document.getElementById('hwNotifyStatus');const btn=document.getElementById('hwNotifyBtn');
@@ -1249,7 +1259,7 @@ function updateNotifyStatus(){
 }
 function enableNotify(){
   if(!('Notification' in window)){showToast('当前浏览器不支持通知','error');return}
-  Notification.requestPermission().then(p=>{if(p==='granted'){showToast('通知已开启','success');try{new Notification('健康中心提醒已启用',{body:'到点会弹出用药/喝水/维生素提醒'})}catch(e){}}else showToast('未授权通知','error');updateNotifyStatus();scheduleReminders()});
+  Notification.requestPermission().then(p=>{if(p==='granted'){showToast('通知已开启','success');try{new Notification('健康中心提醒已启用',{body:'到点会弹出健康提醒'})}catch(e){}}else showToast('未授权通知','error');updateNotifyStatus();scheduleReminders()});
 }
 function remMatchToday(r){
   const now=new Date();const day=now.getDay();
@@ -1281,19 +1291,51 @@ function toggleReminderDone(id){
   if(r.doneDates.includes(d))r.doneDates=r.doneDates.filter(x=>x!==d);else r.doneDates.push(d);
   DB.set('healthReminders',S.healthReminders);renderReminders();
 }
-const REM_ICON={med:'💊',water:'💧',vitamin:'🍊'};
-const REM_NAME={med:'吃药',water:'喝水',vitamin:'维生素'};
+const DEFAULT_REM_TAGS=[{id:'med',name:'吃药',icon:'💊'},{id:'water',name:'喝水',icon:'💧'},{id:'vitamin',name:'维生素',icon:'🍊'}];
 function renderReminders(){
   const list=document.getElementById('hrList');const d=fmtYMD(new Date());
+  const tag=S.healthRemTags.find(t=>t.id===S.healthRemType);
   const items=S.healthReminders.filter(r=>r.type===S.healthRemType);
-  if(items.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">⏰</div><p>还没有'+REM_NAME[S.healthRemType]+'提醒</p></div>';return}
+  const label=tag?tag.name:'健康';
+  if(items.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">⏰</div><p>还没有'+label+'提醒</p></div>';return}
   list.innerHTML=items.map(r=>{
     const doneToday=(r.doneDates||[]).includes(d);
+    const ic=tag?tag.icon:'⏰';
     const wmap={0:'日',1:'一',2:'二',3:'三',4:'四',5:'五',6:'六'};
     const repTxt={daily:'每天',weekday:'工作日',weekend:'周末',once:'仅一次',custom:(r.weekdays||[]).map(w=>wmap[w]).join('')}[r.repeat]||'';
-    return `<div class="health-rem-item ${doneToday?'done':''}"><span class="health-rem-ic">${REM_ICON[r.type]}</span><div class="health-rem-main"><div class="health-rem-name">${escapeHtml(r.name)}</div><div class="health-rem-meta">⏰ ${r.time} · ${repTxt}</div></div><button class="btn btn-sm ${doneToday?'btn-primary':'btn-ghost'}" onclick="toggleReminderDone('${r.id}')">${doneToday?'今日已完成 ✓':'完成'}</button><button class="btn btn-danger btn-sm" onclick="delReminder('${r.id}')">删</button></div>`;
+    return `<div class="health-rem-item ${doneToday?'done':''}"><span class="health-rem-ic">${ic}</span><div class="health-rem-main"><div class="health-rem-name">${escapeHtml(r.name)}</div><div class="health-rem-meta">⏰ ${r.time} · ${repTxt}</div></div><button class="btn btn-sm ${doneToday?'btn-primary':'btn-ghost'}" onclick="toggleReminderDone('${r.id}')">${doneToday?'今日已完成 ✓':'完成'}</button><button class="btn btn-danger btn-sm" onclick="delReminder('${r.id}')">删</button></div>`;
   }).join('');
 }
+function renderRemTags(){
+  const box=document.getElementById('healthRemTypes');if(!box)return;
+  box.innerHTML=S.healthRemTags.map(t=>`<div class="health-rem-type ${S.healthRemType===t.id?'active':''}" data-rt="${t.id}" onclick="switchRemType('${t.id}')"><span>${t.icon}</span>${escapeHtml(t.name)}<span class="rem-tag-del" title="删除标签" onclick="event.stopPropagation();delRemTag('${t.id}')">×</span></div>`).join('')+'<div class="health-rem-type add" onclick="openAddRemTag()">＋</div>';
+}
+let _remTagIcon='💊';
+function openAddRemTag(){
+  const emojis=['💊','💧','🍊','🍎','🥗','🏃','😴','🧘','🦷','🌡️','🩺','💉','🥛','☕','🍚','🍞','🥦','🐟','💪','🚭','📝','⏰','🔔','🌿','☀️','🌙'];
+  _remTagIcon=emojis[0];
+  const body=`<label>标签名称</label><input type="text" id="rem-tag-name" placeholder="如：测血压" maxlength="12"><label>选择图标</label><div class="emoji-pick" id="remEmojiPick">${emojis.map(e=>'<button type="button" class="emoji-opt'+(e===_remTagIcon?' active':'')+'" onclick="selRemTagIcon(this,\''+e+'\')">'+e+'</button>').join('')}</div>`;
+  openEditModal('新增健康提醒标签',body);
+  document.getElementById('saveEdit').onclick=()=>{
+    const name=document.getElementById('rem-tag-name').value.trim();
+    if(!name){showToast('请输入标签名称','error');return;}
+    S.healthRemTags.push({id:genId(),name,icon:_remTagIcon});
+    saveHealthTags().then(()=>{closeEditModal();renderRemTags();if(!S.healthRemType)S.healthRemType=S.healthRemTags[0].id;renderReminders();showToast('标签已添加','success')});
+  };
+}
+function selRemTagIcon(btn,emo){_remTagIcon=emo;document.querySelectorAll('#remEmojiPick .emoji-opt').forEach(b=>b.classList.toggle('active',b===btn));}
+async function delRemTag(id){
+  const tag=S.healthRemTags.find(t=>t.id===id);if(!tag)return;
+  const count=S.healthReminders.filter(r=>r.type===id).length;
+  if(!confirm('删除标签「'+tag.name+'」'+(count>0?('及其下 '+count+' 条提醒'):'')+'？'))return;
+  S.healthRemTags=S.healthRemTags.filter(t=>t.id!==id);
+  if(count>0)S.healthReminders=S.healthReminders.filter(r=>r.type!==id);
+  await saveHealthTags();
+  if(S.healthRemType===id)S.healthRemType=S.healthRemTags.length?S.healthRemTags[0].id:S.healthRemType;
+  await DB.set('healthReminders',S.healthReminders);
+  renderRemTags();renderReminders();scheduleReminders();showToast('标签已删除','success');
+}
+async function saveHealthTags(){await DB.set('healthRemTags',S.healthRemTags)}
 let _remTimers=[];
 function scheduleReminders(){
   _remTimers.forEach(t=>clearTimeout(t));_remTimers=[];
@@ -1314,7 +1356,9 @@ function scheduleReminders(){
   });
 }
 function fireReminder(r){
-  const typeName=REM_NAME[r.type]||'';
+  const tg=S.healthRemTags.find(t=>t.id===r.type);
+  const typeName=tg?tg.name:'';
+  const typeIcon=tg?tg.icon:'⏰';
   showToast('⏰ 该'+typeName+'啦：'+r.name,'success');
   if(!document.getElementById('remModal')){
     const m=document.createElement('div');m.className='modal-overlay';m.id='remModal';
@@ -1322,7 +1366,7 @@ function fireReminder(r){
     document.body.appendChild(m);
   }
   const m=document.getElementById('remModal');
-  document.getElementById('remModalTitle').textContent=REM_ICON[r.type]+' 该'+typeName+'啦';
+  document.getElementById('remModalTitle').textContent=typeIcon+' 该'+typeName+'啦';
   document.getElementById('remModalBody').innerHTML='<p style="font-size:15px">'+escapeHtml(r.name)+'</p><p style="color:var(--text-2);font-size:13px">设定时间：'+r.time+'</p>';
   document.getElementById('remModalDone').onclick=()=>{toggleReminderDone(r.id);closeRemModal()};
   m.classList.add('show');
