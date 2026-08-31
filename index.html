@@ -127,7 +127,7 @@ img{max-width:100%;display:block}
 .org-cat-item:last-child{border-bottom:none}
 .org-cat-item:hover{background:var(--border-l)}
 .org-cat-item .cat-icon{font-size:24px}
-.org-cat-item .cat-name{flex:1;font-size:14px;font-weight:500}
+.org-cat-item .cat-name{flex:1;min-width:0;font-size:14px;font-weight:500;overflow-wrap:anywhere}
 .org-cat-item .cat-count{font-size:13px;color:var(--text-3)}
 .org-cat-item .cat-arrow{font-size:18px;color:var(--text-3)}
 .org-cat-item .cat-del{width:22px;height:22px;border-radius:50%;background:var(--danger-bg);color:var(--danger);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -140,7 +140,7 @@ img{max-width:100%;display:block}
 .org-location-group{background:var(--surface);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:12px}
 .org-location-group:hover{box-shadow:var(--shadow)}
 .org-location-group .loc-icon{font-size:20px}
-.org-location-group .loc-name{flex:1;font-size:15px;font-weight:500}
+.org-location-group .loc-name{flex:1;min-width:0;font-size:15px;font-weight:500;overflow-wrap:anywhere}
 .org-location-group .loc-count{font-size:13px;color:var(--text-3)}
 .org-location-group .loc-arrow{font-size:18px;color:var(--text-3)}
 .org-location-group .loc-handle{width:16px;flex-shrink:0;color:var(--text-3);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -320,7 +320,7 @@ img{max-width:100%;display:block}
 .phase-plan-card:hover{box-shadow:var(--shadow)}
 .phase-plan-card .pp-del{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:var(--border-l);color:var(--danger);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .phase-plan-card .pp-del:hover{background:var(--danger);color:#fff}
-.phase-plan-card .pp-name{font-size:16px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.phase-plan-card .pp-name{font-size:16px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 /* ===== 成长管理 ===== */
 .growth-modules{display:flex;flex-direction:column;gap:12px;margin-top:6px}
 .growth-module-card{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s;cursor:pointer}
@@ -373,7 +373,7 @@ img{max-width:100%;display:block}
 .phase-items{display:flex;flex-direction:column;gap:10px;margin:10px 0}
 .phase-item{background:var(--bg);border-radius:var(--r-s);padding:10px 12px}
 .phase-item .pi-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
-.phase-item .pi-text{font-size:14px;font-weight:500;word-break:break-word}
+.phase-item .pi-text{font-size:14px;font-weight:500;word-break:break-word;min-width:0;overflow-wrap:anywhere}
 .phase-item .pi-del{color:var(--danger);font-size:18px;cursor:pointer;flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
 .phase-section-title{font-size:15px;font-weight:600;margin:18px 0 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .phase-calendar{background:var(--surface);border-radius:var(--r);padding:14px;box-shadow:var(--shadow-sm);margin-bottom:14px}
