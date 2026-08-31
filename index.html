@@ -62,6 +62,11 @@ img{max-width:100%;display:block}
 .board-card:hover{box-shadow:var(--shadow)}
 .board-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .board-name{flex:1;font-size:15px;font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:var(--r-xs);padding:4px 8px;min-width:0}
+.board-name:focus{border-color:var(--border);background:var(--bg)}
+.board-delete{background:transparent;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:0 2px;line-height:1;border-radius:var(--r-xs);flex:none;transition:color .15s}
+.board-delete:hover{color:var(--danger)}
+.board-add{display:flex;align-items:center;justify-content:center;gap:6px;background:var(--surface);border:2px dashed var(--border);border-radius:var(--r);padding:18px;color:var(--text-2);font-size:14px;cursor:pointer;box-shadow:none;transition:border-color .2s,color .2s}
+.board-add:hover{border-color:var(--primary);color:var(--primary)}
 .board-name:hover{border-color:var(--border)}
 .board-name:focus{outline:none;border-color:var(--primary);background:var(--primary-light)}
 .task-list{display:flex;flex-direction:column;gap:4px}
@@ -685,7 +690,7 @@ function removePendingImg(type,idx){S.pendingImgs[type].splice(idx,1);renderPend
 document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='health'){await loadHealth()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}})});
 
 // ===== Daily Execution =====
-async function loadBoards(){const b=await DB.get('boards');if(b&&b.length){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}}
+async function loadBoards(){const b=await DB.get('boards');if(b){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}}
 async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};await carryOverUncompleted();renderBoards()}
 // 未完成的任务自动顺延到下一天，直到完成
 async function carryOverUncompleted(){
@@ -723,8 +728,18 @@ async function carryOverUncompleted(){
   }
   if(changed)await saveDaily();
 }
-function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card"><div class="board-header"><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('');g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
+function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card"><div class="board-header"><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" onclick="deleteBoard('${board.id}')" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('')+'<div class="board-add" onclick="addBoard()">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
 async function saveBoards(){await DB.set('boards',S.boards)}
+function addBoard(){const id=genId();S.boards.push({id,name:'新板块'});saveBoards();renderBoards();setTimeout(()=>{const inp=document.querySelector('.board-name[data-board="'+id+'"]');if(inp){inp.focus();inp.select()}},0)}
+async function deleteBoard(id){
+  if(!confirm('删除该版块及其下所有待办？此操作不可恢复'))return;
+  S.boards=S.boards.filter(b=>b.id!==id);
+  delete S.daily[id];
+  await saveBoards();
+  const keys=(await DB.keys()).filter(x=>x.startsWith('daily:'));
+  for(const k of keys){const d=await DB.get(k);if(d&&d[id]){delete d[id];await DB.set(k,d)}}
+  renderBoards();
+}
 async function saveDaily(){const data={};S.boards.forEach(b=>{if(S.daily[b.id]&&S.daily[b.id].length>0)data[b.id]=S.daily[b.id]});await DB.set('daily:'+S.date,data);S.daily=data}
 function addTask(boardId){const input=document.getElementById('add-input-'+boardId);const text=input.value.trim();if(!text)return;if(!S.daily[boardId])S.daily[boardId]=[];S.daily[boardId].push({id:genId(),text,done:false});input.value='';renderBoards();saveDaily()}
 function toggleTask(boardId,idx){S.daily[boardId][idx].done=!S.daily[boardId][idx].done;renderBoards();saveDaily()}
