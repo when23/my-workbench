@@ -273,6 +273,11 @@ img{max-width:100%;display:block}
 .outfit-group-title.loc-toggle{cursor:pointer;transition:background .15s;border-radius:var(--r-xs)}
 .outfit-group-title.loc-toggle:hover{background:var(--border-l)}
 .outfit-group-title .loc-sel{color:var(--primary);font-weight:600;font-size:12px}
+.outfit-group .outfit-loc-handle{width:16px;flex-shrink:0;color:var(--text-3);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;margin-right:2px}
+.outfit-group .outfit-loc-handle:active{color:var(--primary)}
+.outfit-group.dragging{opacity:.35;background:var(--primary-light);box-shadow:var(--shadow-md);border-radius:var(--r)}
+.outfit-group.drop-before{box-shadow:inset 0 3px 0 0 var(--primary)}
+.outfit-group.drop-after{box-shadow:inset 0 -3px 0 0 var(--primary)}
 .outfit-card{background:var(--surface);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:10px;transition:box-shadow .15s}
 .outfit-card:hover{box-shadow:var(--shadow)}
 .outfit-card-top{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
@@ -970,6 +975,49 @@ let orgLocDrag=null;
   list.addEventListener('pointerup',end);
   list.addEventListener('pointercancel',()=>{if(orgLocDrag){orgLocDrag.item.style.transform='';orgLocDrag.item.classList.remove('dragging');list.querySelectorAll('.org-location-group').forEach(it=>it.classList.remove('drop-before','drop-after'));orgLocDrag=null;renderOrgLocations()}});
 })();
+// 日常穿搭构建器·位置分组拖动排序：按住左侧 ⠿ 手柄上下拖动即可重排，桌面/触屏通用；与衣物分类 locOrder 共享
+let outfitLocDrag=null;
+(function initOutfitLocDrag(){
+  const list=document.getElementById('orgOutfitBuilder');if(!list)return;
+  list.addEventListener('pointerdown',e=>{
+    const h=e.target.closest('.outfit-loc-handle');if(!h)return;
+    const item=h.closest('.outfit-group');if(!item)return;
+    e.preventDefault();
+    outfitLocDrag={id:item.dataset.loc,item,startY:e.clientY,moved:false,pid:e.pointerId};
+    try{item.setPointerCapture(e.pointerId)}catch(_){}
+    item.classList.add('dragging');
+  });
+  list.addEventListener('pointermove',e=>{
+    if(!outfitLocDrag)return;
+    const dy=e.clientY-outfitLocDrag.startY;
+    if(Math.abs(dy)>4)outfitLocDrag.moved=true;
+    outfitLocDrag.item.style.transform='translateY('+dy+'px)';
+    list.querySelectorAll('.outfit-group').forEach(it=>{if(it!==outfitLocDrag.item)it.classList.remove('drop-before','drop-after')});
+    const others=[...list.querySelectorAll('.outfit-group')].filter(it=>it!==outfitLocDrag.item);
+    for(const it of others){const r=it.getBoundingClientRect();if(e.clientY>=r.top&&e.clientY<=r.bottom){it.classList.add(e.clientY<r.top+r.height/2?'drop-before':'drop-after');break}}
+  });
+  const end=async()=>{
+    if(!outfitLocDrag)return;
+    const {id,item,moved}=outfitLocDrag;
+    item.style.transform='';item.classList.remove('dragging');
+    const before=list.querySelector('.drop-before'),after=list.querySelector('.drop-after');
+    list.querySelectorAll('.outfit-group').forEach(it=>it.classList.remove('drop-before','drop-after'));
+    outfitLocDrag=null;
+    if(!moved){return}
+    const cat=S.orgCategories.find(c=>c.name==='衣物');
+    if(!cat)return;
+    if(!cat.locOrder)cat.locOrder=[];
+    const ref=before||after;if(!ref||ref.dataset.loc===id){renderOutfitBuilder();return}
+    const from=cat.locOrder.indexOf(id);if(from<0){renderOutfitBuilder();return}
+    const [m]=cat.locOrder.splice(from,1);
+    let refIdx=cat.locOrder.indexOf(ref.dataset.loc);if(refIdx<0)refIdx=cat.locOrder.length;
+    if(after)refIdx+=1;
+    cat.locOrder.splice(refIdx,0,m);
+    await DB.set('orgCategories',S.orgCategories);renderOutfitBuilder();showToast('已调整顺序','success');
+  };
+  list.addEventListener('pointerup',end);
+  list.addEventListener('pointercancel',()=>{if(outfitLocDrag){outfitLocDrag.item.style.transform='';outfitLocDrag.item.classList.remove('dragging');list.querySelectorAll('.outfit-group').forEach(it=>it.classList.remove('drop-before','drop-after'));outfitLocDrag=null;renderOutfitBuilder()}});
+})();
 // Layer 2: Location groups
 let orgLocationNames=[];
 function openOrgCategory(catId){
@@ -1311,7 +1359,14 @@ function renderOutfitBuilder(){
   const groups={};
   clothes.forEach(r=>{const loc=(r.location&&r.location.trim())||'未指定位置';(groups[loc]=groups[loc]||[]).push(r)});
   let locNames=Object.keys(groups);
-  locNames.sort((a,b)=>{const ua=a==='未指定位置'?1:0,ub=b==='未指定位置'?1:0;if(ua!==ub)return ua-ub;return a.localeCompare(b,'zh')});
+  const cat=S.orgCategories.find(c=>c.name==='衣物');
+  const oldOrderJSON=cat?JSON.stringify(cat.locOrder||[]):'';
+  if(cat&&cat.locOrder&&cat.locOrder.length){
+    locNames.sort((a,b)=>{const ia=cat.locOrder.indexOf(a),ib=cat.locOrder.indexOf(b);if(ia<0&&ib<0)return 0;if(ia<0)return 1;if(ib<0)return -1;return ia-ib;});
+  }else{
+    locNames.sort((a,b)=>{const ua=a==='未指定位置'?1:0,ub=b==='未指定位置'?1:0;if(ua!==ub)return ua-ub;return a.localeCompare(b,'zh')});
+  }
+  if(cat){cat.locOrder=locNames.slice();if(oldOrderJSON!==JSON.stringify(cat.locOrder))DB.set('orgCategories',S.orgCategories);}
   outfitLocNames=locNames;
   list.innerHTML=locNames.map((loc,i)=>{
     const items=groups[loc];
@@ -1322,8 +1377,9 @@ function renderOutfitBuilder(){
       const thumb=r.images&&r.images.length?`<img class="sel-thumb" src="${r.images[0]}" alt="">`:`<div class="sel-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px">👕</div>`;
       return `<div class="outfit-sel ${sel?'selected':''}" onclick="toggleOutfitItem('${r.id}')"><div class="sel-check">${sel?'✓':''}</div>${thumb}<div class="sel-info"><div class="sel-title">${escapeHtml(r.title||'(未命名)')}</div><div class="sel-sub">${escapeHtml((r.text||''))}</div></div></div>`;
     }).join('');
-    return `<div class="outfit-group">
+    return `<div class="outfit-group" data-loc="${escapeHtml(loc)}">
       <div class="outfit-group-title loc-toggle" onclick="toggleOutfitLoc(${i})">
+        <span class="outfit-loc-handle" title="拖动排序" onclick="event.stopPropagation()">⠿</span>
         <span style="font-size:16px">📍</span>
         <span>${escapeHtml(loc)}</span>
         <span style="color:var(--text-3);font-weight:400;font-size:12px">${items.length} 件</span>
