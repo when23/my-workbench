@@ -190,6 +190,10 @@ img{max-width:100%;display:block}
 .health-range-btn.active{background:var(--primary);color:#fff}
 .health-chart-wrap{width:100%;margin-bottom:8px}
 .health-weight-list{display:flex;flex-direction:column;gap:6px}
+.health-weight-list-head{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:14px;font-weight:600;color:var(--text);padding:4px 2px;user-select:none;-webkit-user-select:none}
+.health-weight-list-head:hover{color:var(--primary)}
+.health-weight-list-head .wl-arrow{font-size:14px;transition:transform .15s;color:var(--text-3)}
+.health-weight-list-head.collapsed .wl-arrow{transform:rotate(-90deg)}
 .health-wl-item{display:flex;align-items:center;gap:8px;background:var(--border-l);border-radius:var(--r-s);padding:6px 10px;font-size:13px}
 .health-wl-date{color:var(--text-2);min-width:84px}
 .health-wl-weight{font-weight:600;color:var(--text)}
@@ -588,7 +592,8 @@ img{max-width:100%;display:block}
             </span>
           </div>
           <div class="health-chart-wrap" id="hwChart"></div>
-          <div class="health-weight-list" id="hwList"></div>
+          <div class="health-weight-list-head collapsed" id="hwListHead" onclick="toggleWeightList()"><span>📋 记录明细</span><span class="wl-arrow">▾</span></div>
+          <div class="health-weight-list" id="hwList" style="display:none"></div>
         </div>
         <div class="health-section">
           <h2 class="health-h2">⏰ 健康提醒</h2>
@@ -694,7 +699,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'month',healthRemType:'med',notifyEnabled:false};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
 const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
@@ -1185,8 +1190,9 @@ async function loadHealth(){
   document.getElementById('hwDate').value=d;
   document.getElementById('hwFrom').value=addDays(d,-29);
   document.getElementById('hwTo').value=d;
-  if(!S.healthChartRange)S.healthChartRange='month';
+  if(!S.healthChartRange)S.healthChartRange='week';
   setWeightRange(S.healthChartRange,true);
+  renderWeightChart();
   renderRemTags();
   renderReminders();
   updateNotifyStatus();
@@ -1225,11 +1231,19 @@ function renderWeightChart(){
   const recs=S.healthWeight.filter(x=>x.date>=from&&x.date<=to).sort((a,b)=>a.date.localeCompare(b.date));
   const chart=document.getElementById('hwChart');
   const list=document.getElementById('hwList');
-  if(recs.length===0){chart.innerHTML='<div class="empty"><div class="empty-icon">⚖️</div><p>该范围内还没有体重记录</p></div>';list.innerHTML='';return}
+  if(recs.length===0){chart.innerHTML='<div class="empty"><div class="empty-icon">⚖️</div><p>该范围内还没有体重记录</p></div>';list.innerHTML='';syncWeightListUI();return}
   list.innerHTML=recs.slice().reverse().slice(0,30).map(r=>`<div class="health-wl-item"><span class="health-wl-date">${r.date}</span><span class="health-wl-weight">${r.weight} kg</span>${r.note?`<span class="health-wl-note">${escapeHtml(r.note)}</span>`:''}<button class="btn btn-danger btn-sm" onclick="delWeight('${r.date}')">删</button></div>`).join('');
-  if(recs.length<2){chart.innerHTML='<div class="empty"><div class="empty-icon">📈</div><p>至少记录 2 天体重才能看趋势折线图</p></div>';return}
+  if(recs.length<2){chart.innerHTML='<div class="empty"><div class="empty-icon">📈</div><p>至少记录 2 天体重才能看趋势折线图</p></div>';syncWeightListUI();return}
   drawWeightLine(chart,recs);
+  syncWeightListUI();
 }
+function syncWeightListUI(){
+  const list=document.getElementById('hwList');const head=document.getElementById('hwListHead');
+  if(!list||!head)return;
+  list.style.display=S.healthWeightListOpen?'flex':'none';
+  head.classList.toggle('collapsed',!S.healthWeightListOpen);
+}
+function toggleWeightList(){S.healthWeightListOpen=!S.healthWeightListOpen;syncWeightListUI()}
 function drawWeightLine(el,recs){
   const W=320,H=200,padL=40,padR=12,padT=16,padB=28;
   const ws=recs.map(r=>r.weight);
