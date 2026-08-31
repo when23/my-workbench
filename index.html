@@ -67,6 +67,10 @@ img{max-width:100%;display:block}
 .board-delete:hover{color:var(--danger)}
 .board-add{display:flex;align-items:center;justify-content:center;gap:6px;background:var(--surface);border:2px dashed var(--border);border-radius:var(--r);padding:18px;color:var(--text-2);font-size:14px;cursor:pointer;box-shadow:none;transition:border-color .2s,color .2s}
 .board-add:hover{border-color:var(--primary);color:var(--primary)}
+.board-drag{cursor:grab;color:var(--text-2);font-size:16px;line-height:1;padding:0 6px 0 2px;user-select:none;touch-action:none;flex:none}
+.board-drag:hover{color:var(--text)}
+.board-drag:active{cursor:grabbing}
+.board-card.dragging{opacity:.55;box-shadow:var(--shadow-md);outline:2px dashed var(--primary);outline-offset:2px}
 .board-name:hover{border-color:var(--border)}
 .board-name:focus{outline:none;border-color:var(--primary);background:var(--primary-light)}
 .task-list{display:flex;flex-direction:column;gap:4px}
@@ -728,7 +732,7 @@ async function carryOverUncompleted(){
   }
   if(changed)await saveDaily();
 }
-function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card"><div class="board-header"><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" onclick="deleteBoard('${board.id}')" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('')+'<div class="board-add" onclick="addBoard()">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
+function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card" data-board="${board.id}"><div class="board-header"><span class="board-drag" title="拖动排序" onpointerdown="onBoardDragStart(event,'${board.id}')">⠿</span><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" onclick="deleteBoard('${board.id}')" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('')+'<div class="board-add" onclick="addBoard()">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
 async function saveBoards(){await DB.set('boards',S.boards)}
 function addBoard(){const id=genId();S.boards.push({id,name:'新板块'});saveBoards();renderBoards();setTimeout(()=>{const inp=document.querySelector('.board-name[data-board="'+id+'"]');if(inp){inp.focus();inp.select()}},0)}
 async function deleteBoard(id){
@@ -739,6 +743,37 @@ async function deleteBoard(id){
   const keys=(await DB.keys()).filter(x=>x.startsWith('daily:'));
   for(const k of keys){const d=await DB.get(k);if(d&&d[id]){delete d[id];await DB.set(k,d)}}
   renderBoards();
+}
+let _boardDrag=null;
+function onBoardDragStart(e,id){
+  e.preventDefault();
+  const card=e.currentTarget.closest('.board-card');
+  if(!card)return;
+  _boardDrag={id,card};
+  card.classList.add('dragging');
+  document.addEventListener('pointermove',onBoardDragMove);
+  document.addEventListener('pointerup',onBoardDragEnd);
+}
+function onBoardDragMove(e){
+  if(!_boardDrag)return;
+  const grid=document.getElementById('boardsGrid');
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  const target=el&&el.closest?el.closest('.board-card'):null;
+  if(target&&target!==_boardDrag.card){
+    const rect=target.getBoundingClientRect();
+    const after=(e.clientY-rect.top)>(rect.height/2)||(e.clientX-rect.left)>(rect.width/2);
+    if(after)grid.insertBefore(_boardDrag.card,target.nextSibling);else grid.insertBefore(_boardDrag.card,target);
+    const ids=Array.from(grid.querySelectorAll('.board-card')).map(c=>c.dataset.board);
+    S.boards.sort((a,b)=>ids.indexOf(a.id)-ids.indexOf(b.id));
+  }
+}
+function onBoardDragEnd(){
+  if(!_boardDrag)return;
+  _boardDrag.card.classList.remove('dragging');
+  _boardDrag=null;
+  document.removeEventListener('pointermove',onBoardDragMove);
+  document.removeEventListener('pointerup',onBoardDragEnd);
+  saveBoards();renderBoards();
 }
 async function saveDaily(){const data={};S.boards.forEach(b=>{if(S.daily[b.id]&&S.daily[b.id].length>0)data[b.id]=S.daily[b.id]});await DB.set('daily:'+S.date,data);S.daily=data}
 function addTask(boardId){const input=document.getElementById('add-input-'+boardId);const text=input.value.trim();if(!text)return;if(!S.daily[boardId])S.daily[boardId]=[];S.daily[boardId].push({id:genId(),text,done:false});input.value='';renderBoards();saveDaily()}
