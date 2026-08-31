@@ -159,6 +159,37 @@ img{max-width:100%;display:block}
 .record-text{font-size:14px;color:var(--text-2);white-space:pre-wrap;word-break:break-word}
 .record-location{font-size:12px;color:var(--primary);margin-top:6px;display:flex;align-items:center;gap:4px}
 .record-price{font-size:12px;color:var(--warning,#e8a33d);margin-top:4px;display:inline-flex;align-items:center;gap:3px;font-weight:600}
+/* ===== 健康中心 ===== */
+.health-section{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);margin-bottom:16px}
+.health-h2{font-size:17px;margin:0 0 12px;display:flex;align-items:center;gap:6px}
+.health-weight-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.health-input{border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg)}
+.health-input-sm{width:auto;padding:6px 10px;font-size:13px}
+.health-note{flex:1;min-width:120px}
+.health-range-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--text-2);margin-bottom:12px}
+.health-range-btn{background:var(--border-l);color:var(--text-2);border:none}
+.health-range-btn.active{background:var(--primary);color:#fff}
+.health-chart-wrap{width:100%;margin-bottom:8px}
+.health-weight-list{display:flex;flex-direction:column;gap:6px}
+.health-wl-item{display:flex;align-items:center;gap:8px;background:var(--border-l);border-radius:var(--r-s);padding:6px 10px;font-size:13px}
+.health-wl-date{color:var(--text-2);min-width:84px}
+.health-wl-weight{font-weight:600;color:var(--text)}
+.health-wl-note{flex:1;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.health-wl-item .btn{padding:3px 8px;font-size:12px}
+.health-reminder-notify{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-2);margin-bottom:12px;flex-wrap:wrap}
+.health-reminder-types{display:flex;gap:8px;margin-bottom:12px}
+.health-rem-type{display:flex;align-items:center;gap:4px;padding:7px 12px;border-radius:18px;background:var(--border-l);font-size:13px;cursor:pointer}
+.health-rem-type.active{background:var(--primary);color:#fff}
+.health-reminder-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.health-reminder-form label{display:inline-flex;align-items:center;gap:2px;font-size:12px;color:var(--text-2)}
+.health-reminder-list{display:flex;flex-direction:column;gap:8px}
+.health-rem-item{display:flex;align-items:center;gap:10px;background:var(--border-l);border-radius:var(--r-s);padding:8px 12px}
+.health-rem-item.done{opacity:.6}
+.health-rem-ic{font-size:20px}
+.health-rem-main{flex:1;min-width:0}
+.health-rem-name{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.health-rem-meta{font-size:12px;color:var(--text-2);margin-top:2px}
+.health-rem-item .btn{padding:5px 10px;font-size:12px}
 .record-images{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .record-images img{width:80px;height:80px;object-fit:cover;border-radius:var(--r-xs);cursor:pointer;transition:transform .15s;border:1px solid var(--border-l)}
 .record-images img:hover{transform:scale(1.05)}
@@ -340,6 +371,7 @@ img{max-width:100%;display:block}
         <button class="tab" data-tab="inspiration"><span class="tab-icon">💡</span><span>灵感<br>记录</span></button>
         <button class="tab" data-tab="organize"><span class="tab-icon">📦</span><span>日常<br>整理</span></button>
         <button class="tab" data-tab="growth"><span class="tab-icon">🌱</span><span>成长<br>管理</span></button>
+        <button class="tab" data-tab="health"><span class="tab-icon">❤️</span><span>健康<br>中心</span></button>
       </div>
     </div>
     <div class="main-content">
@@ -556,6 +588,67 @@ img{max-width:100%;display:block}
   </div>
 </div>
 
+<div class="tab-content" id="tab-health">
+  <div class="health-section">
+    <h2 class="health-h2">⚖️ 体重记录</h2>
+    <div class="health-weight-form">
+      <input type="date" id="hwDate" class="health-input">
+      <input type="number" id="hwWeight" placeholder="体重 kg" step="0.1" min="0" class="health-input">
+      <input type="text" id="hwNote" placeholder="备注（选填）" class="health-input health-note">
+      <button class="btn btn-primary" onclick="saveWeight()">记录</button>
+    </div>
+    <div class="health-range-bar">
+      <span>趋势：</span>
+      <button class="btn btn-sm health-range-btn active" data-r="week" onclick="setWeightRange('week')">周</button>
+      <button class="btn btn-sm health-range-btn" data-r="month" onclick="setWeightRange('month')">月</button>
+      <button class="btn btn-sm health-range-btn" data-r="year" onclick="setWeightRange('year')">年</button>
+      <button class="btn btn-sm health-range-btn" data-r="custom" onclick="setWeightRange('custom')">自定义</button>
+      <span id="hwCustomWrap" style="display:none">
+        <input type="date" id="hwFrom" class="health-input health-input-sm">
+        <span>至</span>
+        <input type="date" id="hwTo" class="health-input health-input-sm">
+        <button class="btn btn-sm btn-primary" onclick="renderWeightChart()">查看</button>
+      </span>
+    </div>
+    <div class="health-chart-wrap" id="hwChart"></div>
+    <div class="health-weight-list" id="hwList"></div>
+  </div>
+  <div class="health-section">
+    <h2 class="health-h2">⏰ 用药 / 喝水 / 维生素提醒</h2>
+    <div class="health-reminder-notify">
+      <span id="hwNotifyStatus"></span>
+      <button class="btn btn-sm" id="hwNotifyBtn" onclick="enableNotify()">开启浏览器通知</button>
+    </div>
+    <div class="health-reminder-types">
+      <div class="health-rem-type active" data-rt="med" onclick="switchRemType('med')"><span>💊</span>吃药</div>
+      <div class="health-rem-type" data-rt="water" onclick="switchRemType('water')"><span>💧</span>喝水</div>
+      <div class="health-rem-type" data-rt="vitamin" onclick="switchRemType('vitamin')"><span>🍊</span>维生素</div>
+    </div>
+    <div class="health-reminder-form">
+      <input type="text" id="hrName" placeholder="名称（如：降压药）" class="health-input">
+      <input type="time" id="hrTime" class="health-input health-input-sm">
+      <select id="hrRepeat" class="health-input health-input-sm" onchange="onRepeatChange()">
+        <option value="daily">每天</option>
+        <option value="weekday">工作日</option>
+        <option value="weekend">周末</option>
+        <option value="once">仅一次</option>
+        <option value="custom">自定义星期</option>
+      </select>
+      <span id="hrWeekWrap" style="display:none">
+        <label><input type="checkbox" value="1">一</label>
+        <label><input type="checkbox" value="2">二</label>
+        <label><input type="checkbox" value="3">三</label>
+        <label><input type="checkbox" value="4">四</label>
+        <label><input type="checkbox" value="5">五</label>
+        <label><input type="checkbox" value="6">六</label>
+        <label><input type="checkbox" value="0">日</label>
+      </span>
+      <button class="btn btn-primary btn-sm" onclick="addReminder()">+ 添加提醒</button>
+    </div>
+    <div class="health-reminder-list" id="hrList"></div>
+  </div>
+</div>
+
 <script>
 // ===== IndexedDB: 替代服务器，数据持久化在浏览器 =====
 const DB={
@@ -572,7 +665,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[]};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthChartRange:'month',healthRemType:'med',notifyEnabled:false};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作'},{id:'b2',name:'学习'},{id:'b3',name:'健康'},{id:'b4',name:'生活'}];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
 const EMOJI_LIST=['📦','📚','👕','💄','🍳','📱','💊','🎮','🧸','⚽','🎵','🖼️','🔧','🌿','🐾','💎','🎨','🛏️','🧹','🗄️','🎒','🧴','🪔','🛋️','🚗','🔑','💝','🏀','🧩','🎸'];
@@ -590,7 +683,7 @@ function renderPendingImgs(type){const c=document.getElementById(type==='insp'?'
 function removePendingImg(type,idx){S.pendingImgs[type].splice(idx,1);renderPendingImgs(type)}
 
 // ===== Tab Switching =====
-document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}})});
+document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='health'){await loadHealth()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}})});
 
 // ===== Daily Execution =====
 async function loadBoards(){const b=await DB.get('boards');if(b&&b.length){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}}
@@ -882,6 +975,169 @@ document.getElementById('cancelAddCat').addEventListener('click',()=>document.ge
 document.getElementById('addCatModal').addEventListener('click',e=>{if(e.target===e.currentTarget)document.getElementById('addCatModal').classList.remove('show')});
 document.getElementById('saveAddCat').addEventListener('click',async()=>{const name=document.getElementById('newCatName').value.trim();if(!name){showToast('请输入分类名称','error');return}if(S.orgCategories.some(c=>c.name===name)){showToast('该分类已存在','error');return}S.orgCategories.unshift({id:'cat-'+genId(),name,icon:selectedEmoji});await DB.set('orgCategories',S.orgCategories);document.getElementById('addCatModal').classList.remove('show');renderOrgOverview();showToast('分类已添加','success')});
 async function deleteOrgCategory(catId){const cat=S.orgCategories.find(c=>c.id===catId);if(!cat)return;const count=S.org.filter(r=>r.category===cat.name).length;if(count>0){if(!confirm(`「${cat.name}」下有 ${count} 条记录，删除分类后这些记录将归入「其他」。确定删除吗？`))return;const otherCat=S.orgCategories.find(c=>c.name==='其他');S.org.forEach(r=>{if(r.category===cat.name)r.category=otherCat?otherCat.name:'其他'});await DB.set('organizing',S.org)}else{if(!confirm(`确定删除「${cat.name}」分类吗？`))return}S.orgCategories=S.orgCategories.filter(c=>c.id!==catId);await DB.set('orgCategories',S.orgCategories);renderOrgOverview();showToast('分类已删除','success')}
+
+// ===== 健康中心 =====
+async function loadHealth(){
+  S.healthWeight=(await DB.get('healthWeight'))||[];
+  S.healthReminders=(await DB.get('healthReminders'))||[];
+  const d=fmtYMD(new Date());
+  document.getElementById('hwDate').value=d;
+  document.getElementById('hwFrom').value=addDays(d,-29);
+  document.getElementById('hwTo').value=d;
+  if(!S.healthChartRange)S.healthChartRange='month';
+  setWeightRange(S.healthChartRange,true);
+  renderReminders();
+  updateNotifyStatus();
+  scheduleReminders();
+}
+function saveWeight(){
+  const date=document.getElementById('hwDate').value;
+  const w=document.getElementById('hwWeight').value.trim();
+  if(!date){showToast('请选择日期','error');return}
+  if(!w){showToast('请输入体重','error');return}
+  const weight=Number(w);
+  if(isNaN(weight)||weight<=0){showToast('体重输入有误','error');return}
+  const note=document.getElementById('hwNote').value.trim();
+  const i=S.healthWeight.findIndex(x=>x.date===date);
+  if(i>=0){S.healthWeight[i].weight=weight;S.healthWeight[i].note=note}else S.healthWeight.push({date,weight,note});
+  S.healthWeight.sort((a,b)=>a.date.localeCompare(b.date));
+  DB.set('healthWeight',S.healthWeight);
+  document.getElementById('hwWeight').value='';document.getElementById('hwNote').value='';
+  renderWeightChart();showToast('体重已记录','success');
+}
+function setWeightRange(r,silent){
+  S.healthChartRange=r;
+  document.querySelectorAll('.health-range-btn').forEach(b=>b.classList.toggle('active',b.dataset.r===r));
+  document.getElementById('hwCustomWrap').style.display=r==='custom'?'inline-flex':'none';
+  if(!silent)renderWeightChart();
+}
+function weightRangeDates(){
+  const d=fmtYMD(new Date());
+  if(S.healthChartRange==='week')return [addDays(d,-6),d];
+  if(S.healthChartRange==='month')return [addDays(d,-29),d];
+  if(S.healthChartRange==='year')return [addDays(d,-364),d];
+  return [document.getElementById('hwFrom').value||addDays(d,-29),document.getElementById('hwTo').value||d];
+}
+function renderWeightChart(){
+  const [from,to]=weightRangeDates();
+  const recs=S.healthWeight.filter(x=>x.date>=from&&x.date<=to).sort((a,b)=>a.date.localeCompare(b.date));
+  const chart=document.getElementById('hwChart');
+  const list=document.getElementById('hwList');
+  if(recs.length===0){chart.innerHTML='<div class="empty"><div class="empty-icon">⚖️</div><p>该范围内还没有体重记录</p></div>';list.innerHTML='';return}
+  list.innerHTML=recs.slice().reverse().slice(0,30).map(r=>`<div class="health-wl-item"><span class="health-wl-date">${r.date}</span><span class="health-wl-weight">${r.weight} kg</span>${r.note?`<span class="health-wl-note">${escapeHtml(r.note)}</span>`:''}<button class="btn btn-danger btn-sm" onclick="delWeight('${r.date}')">删</button></div>`).join('');
+  if(recs.length<2){chart.innerHTML='<div class="empty"><div class="empty-icon">📈</div><p>至少记录 2 天体重才能看趋势折线图</p></div>';return}
+  drawWeightLine(chart,recs);
+}
+function drawWeightLine(el,recs){
+  const W=320,H=200,padL=40,padR=12,padT=16,padB=28;
+  const ws=recs.map(r=>r.weight);
+  let min=Math.min(...ws),max=Math.max(...ws);
+  if(min===max){min-=1;max+=1}
+  const span=max-min;const n=recs.length;
+  const x=i=>padL+(W-padL-padR)*(n===1?0.5:i/(n-1));
+  const y=v=>padT+(H-padT-padB)*(1-(v-min)/span);
+  const line=recs.map((r,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(r.weight).toFixed(1)}`).join(' ');
+  const area=`M${x(0).toFixed(1)},${(H-padB).toFixed(1)} `+recs.map((r,i)=>`L${x(i).toFixed(1)},${y(r.weight).toFixed(1)}`).join(' ')+` L${x(n-1).toFixed(1)},${(H-padB).toFixed(1)} Z`;
+  let grid='';
+  for(let g=0;g<=3;g++){const v=min+span*g/3;const yy=y(v);grid+=`<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" style="stroke:var(--border)" stroke-width="1"/><text x="${padL-5}" y="${(yy+3).toFixed(1)}" text-anchor="end" font-size="9" style="fill:var(--text-2)">${v.toFixed(1)}</text>`}
+  const ticks=[0,Math.floor((n-1)/2),n-1].filter((v,i,a)=>a.indexOf(v)===i);
+  const xlab=ticks.map(i=>`<text x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" style="fill:var(--text-2)">${recs[i].date.slice(5)}</text>`).join('');
+  const dots=recs.map((r,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(r.weight).toFixed(1)}" r="3" style="fill:var(--primary)"/>`).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block">${grid}<path d="${area}" style="fill:var(--primary-light)" opacity="0.5"/><path d="${line}" fill="none" style="stroke:var(--primary)" stroke-width="2"/>${dots}${xlab}</svg>`;
+}
+function delWeight(date){S.healthWeight=S.healthWeight.filter(x=>x.date!==date);DB.set('healthWeight',S.healthWeight);renderWeightChart();showToast('已删除','success')}
+function switchRemType(t){S.healthRemType=t;document.querySelectorAll('.health-rem-type').forEach(e=>e.classList.toggle('active',e.dataset.rt===t));renderReminders()}
+function onRepeatChange(){const r=document.getElementById('hrRepeat').value;document.getElementById('hrWeekWrap').style.display=r==='custom'?'inline-flex':'none'}
+function updateNotifyStatus(){
+  const st=document.getElementById('hwNotifyStatus');const btn=document.getElementById('hwNotifyBtn');
+  if(!('Notification' in window)){st.textContent='当前浏览器不支持通知';btn.style.display='none';return}
+  if(Notification.permission==='granted'){st.textContent='✅ 浏览器通知已开启';btn.style.display='none';S.notifyEnabled=true}
+  else if(Notification.permission==='denied'){st.textContent='⛔ 通知权限被拒绝，请在浏览器设置中开启';btn.style.display='none'}
+  else{st.textContent='未开启通知';btn.style.display='inline-block'}
+}
+function enableNotify(){
+  if(!('Notification' in window)){showToast('当前浏览器不支持通知','error');return}
+  Notification.requestPermission().then(p=>{if(p==='granted'){showToast('通知已开启','success');try{new Notification('健康中心提醒已启用',{body:'到点会弹出用药/喝水/维生素提醒'})}catch(e){}}else showToast('未授权通知','error');updateNotifyStatus();scheduleReminders()});
+}
+function remMatchToday(r){
+  const now=new Date();const day=now.getDay();
+  if(r.repeat==='daily')return true;
+  if(r.repeat==='weekday')return day>=1&&day<=5;
+  if(r.repeat==='weekend')return day===0||day===6;
+  if(r.repeat==='once')return !((r.doneDates||[]).includes(fmtYMD(now)));
+  if(r.repeat==='custom')return (r.weekdays||[]).includes(String(day));
+  return false;
+}
+function addReminder(){
+  const name=document.getElementById('hrName').value.trim();
+  const time=document.getElementById('hrTime').value;
+  const repeat=document.getElementById('hrRepeat').value;
+  if(!name){showToast('请输入名称','error');return}
+  if(!time){showToast('请选择时间','error');return}
+  let weekdays=null;
+  if(repeat==='custom'){weekdays=Array.from(document.querySelectorAll('#hrWeekWrap input:checked')).map(c=>c.value);if(weekdays.length===0){showToast('请选择至少一天','error');return}}
+  const r={id:genId(),type:S.healthRemType,name,time,repeat,weekdays,doneDates:[]};
+  S.healthReminders.push(r);DB.set('healthReminders',S.healthReminders);
+  document.getElementById('hrName').value='';document.getElementById('hrTime').value='';
+  document.querySelectorAll('#hrWeekWrap input').forEach(c=>c.checked=false);
+  renderReminders();scheduleReminders();showToast('提醒已添加','success');
+}
+function delReminder(id){S.healthReminders=S.healthReminders.filter(r=>r.id!==id);DB.set('healthReminders',S.healthReminders);renderReminders();showToast('已删除','success')}
+function toggleReminderDone(id){
+  const r=S.healthReminders.find(x=>x.id===id);if(!r)return;const d=fmtYMD(new Date());
+  r.doneDates=r.doneDates||[];
+  if(r.doneDates.includes(d))r.doneDates=r.doneDates.filter(x=>x!==d);else r.doneDates.push(d);
+  DB.set('healthReminders',S.healthReminders);renderReminders();
+}
+const REM_ICON={med:'💊',water:'💧',vitamin:'🍊'};
+const REM_NAME={med:'吃药',water:'喝水',vitamin:'维生素'};
+function renderReminders(){
+  const list=document.getElementById('hrList');const d=fmtYMD(new Date());
+  const items=S.healthReminders.filter(r=>r.type===S.healthRemType);
+  if(items.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">⏰</div><p>还没有'+REM_NAME[S.healthRemType]+'提醒</p></div>';return}
+  list.innerHTML=items.map(r=>{
+    const doneToday=(r.doneDates||[]).includes(d);
+    const wmap={0:'日',1:'一',2:'二',3:'三',4:'四',5:'五',6:'六'};
+    const repTxt={daily:'每天',weekday:'工作日',weekend:'周末',once:'仅一次',custom:(r.weekdays||[]).map(w=>wmap[w]).join('')}[r.repeat]||'';
+    return `<div class="health-rem-item ${doneToday?'done':''}"><span class="health-rem-ic">${REM_ICON[r.type]}</span><div class="health-rem-main"><div class="health-rem-name">${escapeHtml(r.name)}</div><div class="health-rem-meta">⏰ ${r.time} · ${repTxt}</div></div><button class="btn btn-sm ${doneToday?'btn-primary':'btn-ghost'}" onclick="toggleReminderDone('${r.id}')">${doneToday?'今日已完成 ✓':'完成'}</button><button class="btn btn-danger btn-sm" onclick="delReminder('${r.id}')">删</button></div>`;
+  }).join('');
+}
+let _remTimers=[];
+function scheduleReminders(){
+  _remTimers.forEach(t=>clearTimeout(t));_remTimers=[];
+  if(!S.healthReminders||S.healthReminders.length===0)return;
+  const now=new Date();
+  S.healthReminders.forEach(r=>{
+    if(!remMatchToday(r))return;
+    const [hh,mm]=r.time.split(':').map(Number);
+    const target=new Date(now);target.setHours(hh,mm,0,0);
+    let delay=target-now;
+    if(delay<0){
+      if(r.repeat==='once')return;
+      target.setDate(target.getDate()+1);delay=target-now;
+      if(delay<0)return;
+    }
+    if(delay>24*3600*1000)delay=24*3600*1000;
+    _remTimers.push(setTimeout(()=>fireReminder(r),delay));
+  });
+}
+function fireReminder(r){
+  const typeName=REM_NAME[r.type]||'';
+  showToast('⏰ 该'+typeName+'啦：'+r.name,'success');
+  if(!document.getElementById('remModal')){
+    const m=document.createElement('div');m.className='modal-overlay';m.id='remModal';
+    m.innerHTML='<div class="modal"><div class="modal-header"><h3 id="remModalTitle"></h3><button class="modal-close" onclick="closeRemModal()">×</button></div><div class="modal-body" id="remModalBody"></div><div class="modal-actions"><button class="btn btn-ghost" onclick="closeRemModal()">稍后</button><button class="btn btn-primary" id="remModalDone" onclick="closeRemModal()">已完成</button></div></div>';
+    document.body.appendChild(m);
+  }
+  const m=document.getElementById('remModal');
+  document.getElementById('remModalTitle').textContent=REM_ICON[r.type]+' 该'+typeName+'啦';
+  document.getElementById('remModalBody').innerHTML='<p style="font-size:15px">'+escapeHtml(r.name)+'</p><p style="color:var(--text-2);font-size:13px">设定时间：'+r.time+'</p>';
+  document.getElementById('remModalDone').onclick=()=>{toggleReminderDone(r.id);closeRemModal()};
+  m.classList.add('show');
+  if('Notification' in window&&Notification.permission==='granted'){try{new Notification('健康中心 · 该'+typeName+'啦',{body:r.name+'（'+r.time+'）'})}catch(e){}}
+  if(r.repeat!=='once'){const [hh,mm]=r.time.split(':').map(Number);const next=new Date();next.setDate(next.getDate()+1);next.setHours(hh,mm,0,0);const delay=next-new Date();if(delay>0&&delay<25*3600*1000)_remTimers.push(setTimeout(()=>fireReminder(r),delay))}
+}
+function closeRemModal(){const m=document.getElementById('remModal');if(m)m.classList.remove('show')}
 
 // ===== 日常穿搭模块 (Outfit) =====
 const OUTFIT_TAGS=['工作','日常','约会','旅游'];
@@ -1531,7 +1787,7 @@ async function delGrowthRecord(mod,id){if(!confirm('确定删除这条记录吗�
 function editGrowthRecord(mod,id){const arr=growthRecordsOf(mod);const rec=arr.find(r=>r.id===id);if(!rec)return;openEditModal('编辑记录',growthFormHTML(mod,rec,'edit-'));document.getElementById('saveEdit').onclick=async()=>{if(mod==='sleep'){const sleepDate=document.getElementById('edit-g-sleepDate').value;const sleepTime=document.getElementById('edit-g-sleepTime').value;const wakeDate=document.getElementById('edit-g-wakeDate').value;const wakeTime=document.getElementById('edit-g-wakeTime').value;if(!sleepDate){showToast('请选择入睡日期','error');return}const duration=computeSleepDuration(sleepDate,sleepTime,wakeDate,wakeTime);rec.date=sleepDate;rec.sleepDate=sleepDate;rec.sleepTime=sleepTime;rec.wakeDate=wakeDate;rec.wakeTime=wakeTime;rec.duration=duration==null?(rec.duration!=null?rec.duration:0):duration;rec.abnormal=Array.from(document.querySelectorAll('[name="edit-g-ab"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('edit-g-note').value.trim()}else if(mod==='diet'){const date=document.getElementById('edit-g-date').value;if(!date){showToast('请选择日期','error');return}rec.date=date;rec.breakfast=document.getElementById('edit-g-break').value.trim();rec.lunch=document.getElementById('edit-g-lunch').value.trim();rec.dinner=document.getElementById('edit-g-dinner').value.trim();rec.bowelNormal=Number(document.getElementById('edit-g-bn').value)||0;rec.bowelAbnormalType=document.getElementById('edit-g-bt').value;rec.bowelAbnormalCount=Number(document.getElementById('edit-g-bc').value)||0;rec.tags=Array.from(document.querySelectorAll('[name="edit-g-tags"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('edit-g-note').value.trim()}else{const date=document.getElementById('edit-g-date').value;if(!date){showToast('请选择日期','error');return}rec.date=date;rec.location=document.getElementById('edit-g-loc').value.trim();const ex=document.getElementById('edit-g-ex').value;rec.exerciseHours=ex===''?0:Number(ex);rec.note=document.getElementById('edit-g-note').value.trim()}await growthSave(mod);closeEditModal();renderGrowthDetail();showToast('已更新','success')}}
 
 // ===== Init =====
-async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();maybeShowBackupHint()}
+async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();maybeShowBackupHint()}
 init();
 </script>
 </body>
