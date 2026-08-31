@@ -195,6 +195,9 @@ img{max-width:100%;display:block}
 .health-weight-list-head .wl-arrow{font-size:14px;transition:transform .15s;color:var(--text-3)}
 .health-weight-list-head .wl-title{display:flex;align-items:center;gap:6px}
 .health-weight-list-head .wl-stat{margin-left:auto;margin-right:8px;font-size:12px;font-weight:400;color:var(--text-3)}
+.health-weight-list-head .wl-delta{font-weight:600}
+.health-weight-list-head .wl-up{color:var(--danger)}
+.health-weight-list-head .wl-down{color:var(--success)}
 .health-weight-list-head.collapsed .wl-arrow{transform:rotate(-90deg)}
 .health-wl-item{display:flex;align-items:center;gap:8px;background:var(--border-l);border-radius:var(--r-s);padding:6px 10px;font-size:13px}
 .health-wl-date{color:var(--text-2);min-width:84px}
@@ -1234,9 +1237,10 @@ function renderWeightChart(){
   const chart=document.getElementById('hwChart');
   const list=document.getElementById('hwList');
   const rangeLabel={week:'本周',month:'本月',year:'本年',custom:'区间'}[S.healthChartRange]||'区间';
-  let statTxt=recs.length+' 次';
-  if(recs.length>=1){const ws=recs.map(r=>r.weight);const mn=Math.min(...ws),mx=Math.max(...ws);statTxt+=' · '+(mn===mx?mn.toFixed(1):mn.toFixed(1)+'→'+mx.toFixed(1))+'kg'}
-  const st=document.getElementById('hwListStat');if(st)st.textContent=rangeLabel+' '+statTxt;
+  let statHtml=recs.length+' 次';
+  if(recs.length>=1){const ws=recs.map(r=>r.weight);const mn=Math.min(...ws),mx=Math.max(...ws);statHtml+=' · '+(mn===mx?mn.toFixed(1):mn.toFixed(1)+'→'+mx.toFixed(1))+'kg'}
+  if(recs.length>=2){const latest=recs[recs.length-1].weight,prev=recs[recs.length-2].weight;const d=+(latest-prev).toFixed(1);if(d!==0){const up=d>0;statHtml+=' <span class="wl-delta '+(up?'wl-up':'wl-down')+'">'+(up?'▲':'▼')+Math.abs(d).toFixed(1)+'kg</span>'}}
+  const st=document.getElementById('hwListStat');if(st)st.innerHTML=rangeLabel+' '+statHtml;
   if(recs.length===0){chart.innerHTML='<div class="empty"><div class="empty-icon">⚖️</div><p>该范围内还没有体重记录</p></div>';list.innerHTML='';syncWeightListUI();return}
   list.innerHTML=recs.slice().reverse().slice(0,30).map(r=>`<div class="health-wl-item"><span class="health-wl-date">${r.date}</span><span class="health-wl-weight">${r.weight} kg</span>${r.note?`<span class="health-wl-note">${escapeHtml(r.note)}</span>`:''}<button class="btn btn-danger btn-sm" onclick="delWeight('${r.date}')">删</button></div>`).join('');
   if(recs.length<2){chart.innerHTML='<div class="empty"><div class="empty-icon">📈</div><p>至少记录 2 天体重才能看趋势折线图</p></div>';syncWeightListUI();return}
