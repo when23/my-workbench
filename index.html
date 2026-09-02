@@ -376,6 +376,24 @@ img{max-width:100%;display:block}
 .phase-item .pi-text{font-size:14px;font-weight:500;word-break:break-word;min-width:0;overflow-wrap:anywhere}
 .phase-item .pi-del{color:var(--danger);font-size:18px;cursor:pointer;flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
 .phase-section-title{font-size:15px;font-weight:600;margin:18px 0 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.phase-item .pi-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.pi-tag-manage{font-size:12px;color:var(--primary);background:var(--primary-light);border:none;border-radius:14px;padding:4px 10px;cursor:pointer;transition:filter .12s}
+.pi-tag-manage:hover{filter:brightness(.97)}
+.pi-tag-chips{display:flex;gap:4px;flex-wrap:wrap}
+.pi-tag-chip{font-size:12px;background:var(--border-l);color:var(--text-2);padding:2px 8px;border-radius:10px;white-space:nowrap}
+.pi-stat{font-size:12px;color:var(--text-3);margin-top:6px;line-height:1.5;overflow-wrap:anywhere}
+.pi-stat-hint{color:var(--text-3)}
+.phase-section-sub{font-size:13px;font-weight:600;color:var(--text-2);margin:10px 0 6px}
+.phase-daily-checks{margin:2px 0 6px}
+.phase-check-group{margin-bottom:8px}
+.phase-check-item-name{font-size:13px;color:var(--text-2);margin-bottom:4px;overflow-wrap:anywhere}
+.phase-check-chips{display:flex;flex-wrap:wrap}
+.phase-check-chip{display:inline-flex;align-items:center;gap:3px;font-size:13px;padding:5px 12px;border-radius:16px;background:var(--border-l);color:var(--text-2);cursor:pointer;margin:0 6px 6px 0;user-select:none;-webkit-user-select:none;transition:all .12s}
+.phase-check-chip.on{background:var(--primary);color:#fff}
+.tag-edit-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.tag-edit-input{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;min-width:0}
+.tag-add-row{display:flex;gap:8px;align-items:center;margin-top:6px}
+.tag-add-row input{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;min-width:0}
 .phase-calendar{background:var(--surface);border-radius:var(--r);padding:14px;box-shadow:var(--shadow-sm);margin-bottom:14px}
 .phase-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .phase-cal-head .cal-title{font-size:14px;font-weight:600}
@@ -1801,15 +1819,19 @@ function renderPhaseDetail(){
         <div class="pi-top"><span class="pi-text">${escapeHtml(it.text)}</span><span class="pi-del" onclick="delPhaseItem('${p.id}','${it.id}')">×</span></div>
         <div class="prog-row"><div class="progress-wrap"><div class="progress-fill" style="width:${it.progress||0}%"></div></div>
         <div class="prog-num"><input type="number" min="0" max="100" value="${it.progress||0}" onchange="setPhaseItemProgress('${p.id}','${it.id}',this.value)"><span>%</span></div></div>
+        <div class="pi-tags"><button class="pi-tag-manage" onclick="managePhaseTags('${p.id}','${it.id}')">🏷 打卡标签${it.tags&&it.tags.length?('（'+it.tags.length+'）'):''}</button><div class="pi-tag-chips">${(it.tags||[]).map(t=>`<span class="pi-tag-chip">${escapeHtml(t.label)}</span>`).join('')}</div></div>
+        <div class="pi-stat" id="phaseItemStat-${it.id}">${phaseItemStatHTML(p,it)}</div>
       </div>`).join('')}</div>
 
     <div class="phase-section-title">今日完成情况</div>
-    ${renderPhaseCalendarHTML(p)}
+    <div id="phaseCalWrap">${renderPhaseCalendarHTML(p)}</div>
     <div style="font-size:13px;color:var(--text-2);margin-bottom:8px">日期：<strong>${S.phaseSelDate}</strong></div>
     <div class="input-card">
       <textarea id="phaseDailyText" placeholder="填写今天的完成情况..." rows="3"></textarea>
       <div class="input-actions"><button class="btn btn-primary" onclick="addPhaseDaily('${p.id}')">添加记录</button></div>
     </div>
+    <div class="phase-section-sub">🏷 当日打卡（勾选即记录到 ${S.phaseSelDate}）</div>
+    <div class="phase-daily-checks" id="phaseDailyChecks">${renderPhaseDailyChecksHTML(p)}</div>
     <div class="phase-daily-list" id="phaseDailyList">${renderPhaseDailyHTML(p)}</div>
   `;
 }
@@ -1822,7 +1844,7 @@ function renderPhaseCalendarHTML(p){
   for(let i=0;i<startWd;i++)cells+='<div class="phase-cal-day muted"></div>';
   for(let d=1;d<=daysInMonth;d++){
     const ds=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const has=(p.daily&&p.daily[ds]&&p.daily[ds].length>0)?'has':'';
+    const has=hasPhaseDay(p,ds)?'has':'';
     const cls=['phase-cal-day',ds===S.date?'today':'',ds===S.phaseSelDate?'selected':'',has].filter(Boolean).join(' ');
     cells+=`<div class="${cls}" onclick="phaseSelectDate('${ds}')">${d}</div>`;
   }
@@ -1845,7 +1867,7 @@ function newPhasePlan(){
     if(!name){showToast('请填写计划名称','error');return}
     if(!start||!end){showToast('请选择起止日期','error');return}
     if(start>end){showToast('开始日期不能晚于结束日期','error');return}
-    S.phasePlans.push({id:genId(),name,start,end,progress:0,items:[],daily:{},color:BOARD_COLORS[S.phasePlans.length%BOARD_COLORS.length]});
+    S.phasePlans.push({id:genId(),name,start,end,progress:0,items:[],daily:{},itemChecks:{},color:BOARD_COLORS[S.phasePlans.length%BOARD_COLORS.length]});
     savePhasePlans().then(()=>{closeEditModal();renderPhaseList();showToast('计划已创建','success')});
   };
 }
@@ -1885,10 +1907,75 @@ async function deletePhasePlan(id){
 }
 async function setPlanProgress(id,val){const p=S.phasePlans.find(x=>x.id===id);if(!p)return;let v=parseInt(val,10);if(isNaN(v))v=0;v=Math.max(0,Math.min(100,v));p.progress=v;await savePhasePlans();renderPhaseDetail();}
 async function setPhaseItemProgress(planId,itemId,val){const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;const it=(p.items||[]).find(i=>i.id===itemId);if(!it)return;let v=parseInt(val,10);if(isNaN(v))v=0;v=Math.max(0,Math.min(100,v));it.progress=v;await savePhasePlans();renderPhaseDetail();}
-function addPhaseItem(planId){openEditModal('添加分解项',`<label>分解内容</label><input type="text" id="phase-item-text" placeholder="如：完成需求文档" maxlength="60">`);document.getElementById('saveEdit').onclick=async()=>{const text=document.getElementById('phase-item-text').value.trim();if(!text){showToast('请填写内容','error');return}const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;if(!p.items)p.items=[];p.items.push({id:genId(),text,progress:0});await savePhasePlans();closeEditModal();renderPhaseDetail();showToast('已添加','success')};}
+function addPhaseItem(planId){openEditModal('添加分解项',`<label>分解内容</label><input type="text" id="phase-item-text" placeholder="如：完成需求文档" maxlength="60">`);document.getElementById('saveEdit').onclick=async()=>{const text=document.getElementById('phase-item-text').value.trim();if(!text){showToast('请填写内容','error');return}const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;if(!p.items)p.items=[];p.items.push({id:genId(),text,progress:0,tags:[]});await savePhasePlans();closeEditModal();renderPhaseDetail();showToast('已添加','success')};}
 async function delPhaseItem(planId,itemId){if(!confirm('确定删除这条分解项吗？'))return;const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;p.items=p.items.filter(i=>i.id!==itemId);await savePhasePlans();renderPhaseDetail();}
 async function addPhaseDaily(planId){const ta=document.getElementById('phaseDailyText');const text=ta.value.trim();if(!text){showToast('请填写内容','error');return}const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;if(!p.daily)p.daily={};if(!p.daily[S.phaseSelDate])p.daily[S.phaseSelDate]=[];p.daily[S.phaseSelDate].unshift({id:genId(),text,timestamp:nowISO()});ta.value='';await savePhasePlans();renderPhaseDetail();showToast('已记录','success');}
 async function delPhaseDaily(planId,date,itemId){const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;if(!p.daily[date])return;p.daily[date]=p.daily[date].filter(r=>r.id!==itemId);if(p.daily[date].length===0)delete p.daily[date];await savePhasePlans();renderPhaseDetail();}
+// ===== 阶段计划·分解项打卡标签 =====
+function hasPhaseDay(p,ds){
+  if(p.daily&&p.daily[ds]&&p.daily[ds].length>0)return true;
+  if(p.itemChecks){for(const itId in p.itemChecks){const m=p.itemChecks[itId];if(m&&m[ds]&&m[ds].length>0)return true;}}
+  return false;
+}
+function phaseTagDays(p,itemId,tagId){
+  const m=(p.itemChecks&&p.itemChecks[itemId])||{};
+  let n=0;for(const d in m){if((m[d]||[]).indexOf(tagId)>=0)n++;}
+  return n;
+}
+function phaseItemCheckDays(p,itemId){
+  const m=(p.itemChecks&&p.itemChecks[itemId])||{};
+  let n=0;for(const d in m){if((m[d]||[]).length>0)n++;}
+  return n;
+}
+function phaseItemStatHTML(p,it){
+  const tags=it.tags||[];
+  if(!tags.length)return '<span class="pi-stat-hint">＋ 添加打卡标签后，可每日勾选并统计</span>';
+  const total=phaseItemCheckDays(p,it.id);
+  const parts=tags.map(t=>`${escapeHtml(t.label)} ${phaseTagDays(p,it.id,t.id)}天`).join(' · ');
+  return '🏷 累计打卡 '+total+' 天 · '+parts;
+}
+function renderPhaseDailyChecksHTML(p){
+  const items=(p.items||[]).filter(it=>it.tags&&it.tags.length);
+  if(items.length===0)return '<div class="pi-stat-hint">暂无打卡标签，可在上方分解项中点击「🏷 打卡标签」添加</div>';
+  const date=S.phaseSelDate;
+  const done=(p.itemChecks&&p.itemChecks)||{};
+  return items.map(it=>{
+    const arr=(done[it.id]&&done[it.id][date])||[];
+    const chips=it.tags.map(t=>`<span class="phase-check-chip ${arr.indexOf(t.id)>=0?'on':''}" onclick="togglePhaseCheck('${p.id}','${it.id}','${t.id}')">${arr.indexOf(t.id)>=0?'✓ ':''}${escapeHtml(t.label)}</span>`).join('');
+    return `<div class="phase-check-group"><div class="phase-check-item-name">${escapeHtml(it.text)}</div><div class="phase-check-chips">${chips}</div></div>`;
+  }).join('');
+}
+async function togglePhaseCheck(planId,itemId,tagId){
+  const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;
+  if(!p.itemChecks)p.itemChecks={};
+  if(!p.itemChecks[itemId])p.itemChecks[itemId]={};
+  const arr=p.itemChecks[itemId][S.phaseSelDate]||[];
+  const i=arr.indexOf(tagId);
+  if(i>=0)arr.splice(i,1);else arr.push(tagId);
+  if(arr.length)p.itemChecks[itemId][S.phaseSelDate]=arr;else delete p.itemChecks[itemId][S.phaseSelDate];
+  await savePhasePlans();
+  const c=document.getElementById('phaseDailyChecks');if(c)c.innerHTML=renderPhaseDailyChecksHTML(p);
+  const cal=document.getElementById('phaseCalWrap');if(cal)cal.innerHTML=renderPhaseCalendarHTML(p);
+  const st=document.getElementById('phaseItemStat-'+itemId);if(st)st.innerHTML=phaseItemStatHTML(p,p.items.find(x=>x.id===itemId));
+}
+let _editTags=[];
+function managePhaseTags(planId,itemId){
+  const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;
+  const it=(p.items||[]).find(i=>i.id===itemId);if(!it)return;
+  _editTags=(it.tags||[]).map(t=>({id:t.id,label:t.label}));
+  renderTagEditor();
+  document.getElementById('saveEdit').onclick=async()=>{
+    it.tags=_editTags.map(t=>({id:t.id,label:t.label.trim()})).filter(t=>t.label);
+    await savePhasePlans();closeEditModal();renderPhaseDetail();showToast('标签已保存','success');
+  };
+}
+function renderTagEditor(){
+  const body=`<label>打卡标签（可新增 / 修改 / 删除）</label><div id="tagEditList">${_editTags.map((t,i)=>`<div class="tag-edit-row"><input type="text" class="tag-edit-input" value="${escapeHtml(t.label).replace(/"/g,'&quot;')}" data-i="${i}" oninput="onTagEditInput(${i},this.value)"><button class="btn btn-danger btn-sm" onclick="delTagEdit(${i})">删</button></div>`).join('')}</div><div class="tag-add-row"><input type="text" id="tagAddInput" placeholder="新增标签，回车添加" onkeydown="if(event.key==='Enter')addTagEdit()"><button class="btn btn-ghost btn-sm" onclick="addTagEdit()">+ 添加</button></div>`;
+  openEditModal('管理打卡标签',body);
+}
+function onTagEditInput(i,v){if(_editTags[i])_editTags[i].label=v;}
+function addTagEdit(){const inp=document.getElementById('tagAddInput');if(!inp)return;const v=inp.value.trim();if(!v)return;_editTags.push({id:genId(),label:v});renderTagEditor();const ni=document.getElementById('tagAddInput');if(ni)ni.focus();}
+function delTagEdit(i){_editTags.splice(i,1);renderTagEditor();}
 document.getElementById('phaseBackList').addEventListener('click',backPhaseList);
 
 // ===== 成长管理（睡眠 / 饮食 / 出行运动）=====
