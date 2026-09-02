@@ -371,7 +371,7 @@ img{max-width:100%;display:block}
 .prog-row .prog-num{width:58px;flex-shrink:0;display:flex;align-items:center;gap:2px;justify-content:flex-end}
 .prog-row .prog-num input{width:46px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:13px;background:var(--bg);text-align:center}
 .phase-items{display:flex;flex-direction:column;gap:10px;margin:10px 0}
-.phase-item{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--primary);border-radius:var(--r-s);padding:12px 14px;box-shadow:var(--shadow-sm)}
+.phase-item{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--primary);border-radius:var(--r-s);padding:12px 14px;box-shadow:var(--shadow-sm)}
 .phase-item .pi-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .phase-item .pi-text{font-size:14px;font-weight:500;word-break:break-word;min-width:0;overflow-wrap:anywhere}
 .phase-item .pi-del{color:var(--danger);font-size:18px;cursor:pointer;flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
@@ -1818,7 +1818,7 @@ function renderPhaseDetail(){
       <div class="prog-num"><input type="number" min="0" max="100" value="${p.progress||0}" onchange="setPlanProgress('${p.id}',this.value)"><span>%</span></div></div>
 
     <div class="phase-section-title">计划分解 <button class="btn btn-ghost btn-sm" onclick="addPhaseItem('${p.id}')">+ 添加</button></div>
-    <div class="phase-items">${items.length===0?'<div class="empty" style="padding:20px"><p>还没有分解项</p></div>':items.map(it=>`<div class="phase-item">
+    <div class="phase-items">${items.length===0?'<div class="empty" style="padding:20px"><p>还没有分解项</p></div>':items.map(it=>`<div class="phase-item" style="border-left-color:${p.color}">
         <div class="pi-top"><span class="pi-text">${escapeHtml(it.text)}</span><span class="pi-del" onclick="delPhaseItem('${p.id}','${it.id}')">×</span></div>
         <div class="prog-row"><div class="progress-wrap"><div class="progress-fill" style="width:${it.progress||0}%"></div></div>
         <div class="prog-num"><input type="number" min="0" max="100" value="${it.progress||0}" onchange="setPhaseItemProgress('${p.id}','${it.id}',this.value)"><span>%</span></div></div>
