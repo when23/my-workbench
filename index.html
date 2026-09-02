@@ -371,20 +371,23 @@ img{max-width:100%;display:block}
 .prog-row .prog-num{width:58px;flex-shrink:0;display:flex;align-items:center;gap:2px;justify-content:flex-end}
 .prog-row .prog-num input{width:46px;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:13px;background:var(--bg);text-align:center}
 .phase-items{display:flex;flex-direction:column;gap:10px;margin:10px 0}
-.phase-item{background:var(--bg);border-radius:var(--r-s);padding:10px 12px}
+.phase-item{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--primary);border-radius:var(--r-s);padding:12px 14px;box-shadow:var(--shadow-sm)}
 .phase-item .pi-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .phase-item .pi-text{font-size:14px;font-weight:500;word-break:break-word;min-width:0;overflow-wrap:anywhere}
 .phase-item .pi-del{color:var(--danger);font-size:18px;cursor:pointer;flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
-.phase-section-title{font-size:15px;font-weight:600;margin:18px 0 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.phase-section-title{font-size:14px;font-weight:600;margin:20px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-radius:var(--r-s);background:var(--primary-light);color:var(--primary)}
 .phase-item .pi-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
 .pi-tag-manage{font-size:12px;color:var(--primary);background:var(--primary-light);border:none;border-radius:14px;padding:4px 10px;cursor:pointer;transition:filter .12s}
 .pi-tag-manage:hover{filter:brightness(.97)}
 .pi-tag-chips{display:flex;gap:4px;flex-wrap:wrap}
 .pi-tag-chip{font-size:12px;background:var(--border-l);color:var(--text-2);padding:2px 8px;border-radius:10px;white-space:nowrap}
-.pi-stat{font-size:12px;color:var(--text-3);margin-top:6px;line-height:1.5;overflow-wrap:anywhere}
-.pi-stat-hint{color:var(--text-3)}
-.phase-section-sub{font-size:13px;font-weight:600;color:var(--text-2);margin:10px 0 6px}
-.phase-daily-checks{margin:2px 0 6px}
+.pi-stat{font-size:12px;color:var(--text-3);margin-top:8px;line-height:1.5;overflow-wrap:anywhere;display:flex;flex-wrap:wrap}
+.pi-stat-hint{color:var(--text-3);align-self:center}
+.pi-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:10px;background:var(--primary-light);color:var(--primary);margin:0 6px 6px 0;font-weight:500;white-space:nowrap}
+.pi-badge b{font-weight:700}
+.pi-badge-total{background:var(--primary);color:#fff}
+.phase-section-sub{font-size:13px;font-weight:700;color:var(--primary);margin:14px 0 8px;display:flex;align-items:center;gap:6px}
+.phase-daily-checks{margin:2px 0 8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-s);padding:12px 14px}
 .phase-check-group{margin-bottom:8px}
 .phase-check-item-name{font-size:13px;color:var(--text-2);margin-bottom:4px;overflow-wrap:anywhere}
 .phase-check-chips{display:flex;flex-wrap:wrap}
@@ -1931,8 +1934,9 @@ function phaseItemStatHTML(p,it){
   const tags=it.tags||[];
   if(!tags.length)return '<span class="pi-stat-hint">＋ 添加打卡标签后，可每日勾选并统计</span>';
   const total=phaseItemCheckDays(p,it.id);
-  const parts=tags.map(t=>`${escapeHtml(t.label)} ${phaseTagDays(p,it.id,t.id)}天`).join(' · ');
-  return '🏷 累计打卡 '+total+' 天 · '+parts;
+  const totalBadge=`<span class="pi-badge pi-badge-total">累计 ${total}天</span>`;
+  const tagBadges=tags.map(t=>`<span class="pi-badge">${escapeHtml(t.label)} <b>${phaseTagDays(p,it.id,t.id)}天</b></span>`).join('');
+  return totalBadge+tagBadges;
 }
 function renderPhaseDailyChecksHTML(p){
   const items=(p.items||[]).filter(it=>it.tags&&it.tags.length);
