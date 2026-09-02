@@ -1962,9 +1962,12 @@ let _editTags=[];
 function managePhaseTags(planId,itemId){
   const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;
   const it=(p.items||[]).find(i=>i.id===itemId);if(!it)return;
+  S.edit=null;
   _editTags=(it.tags||[]).map(t=>({id:t.id,label:t.label}));
   renderTagEditor();
   document.getElementById('saveEdit').onclick=async()=>{
+    const ai=document.getElementById('tagAddInput');
+    if(ai&&ai.value.trim())_editTags.push({id:genId(),label:ai.value.trim()});
     it.tags=_editTags.map(t=>({id:t.id,label:t.label.trim()})).filter(t=>t.label);
     await savePhasePlans();closeEditModal();renderPhaseDetail();showToast('标签已保存','success');
   };
