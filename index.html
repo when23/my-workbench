@@ -416,6 +416,50 @@ img{max-width:100%;display:block}
 .phase-cal-day.selected.has::after{background:#fff}
 .phase-daily-list .phase-daily-item{background:var(--bg);border-radius:var(--r-s);padding:10px 12px;margin-bottom:8px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .phase-daily-list .phase-daily-item .pi-del{color:var(--danger);font-size:18px;cursor:pointer;flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+/* ===== 出行计划 ===== */
+.trip-list{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+.trip-plan-card{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s;cursor:pointer;position:relative;border-left:4px solid var(--bc,#74C0FC)}
+.trip-plan-card:hover{box-shadow:var(--shadow)}
+.trip-plan-card .tp-del{position:absolute;top:10px;right:10px;color:var(--danger);font-size:18px;cursor:pointer;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.trip-plan-card .tp-del:hover{background:rgba(231,76,60,.1)}
+.trip-plan-card .tp-name{font-size:16px;font-weight:600;word-break:break-word;padding-right:24px}
+.trip-plan-card .tp-meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--text-3)}
+.trip-plan-card .tp-go{margin-top:6px;font-size:12px;color:var(--primary);font-weight:500}
+.trip-sub-tabs{display:flex;gap:8px;margin:14px 0 4px}
+.trip-sub-tab{flex:1;padding:9px 0;text-align:center;border:1px solid var(--border);border-radius:var(--r-s);background:var(--surface);font-size:13px;color:var(--text-2);cursor:pointer;font-weight:500}
+.trip-sub-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.trip-cat-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-s);padding:12px 14px;margin:12px 0;box-shadow:var(--shadow-sm)}
+.trip-cat-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.trip-cat-title{font-size:14px;font-weight:600;color:var(--primary)}
+.trip-cat-count{font-size:12px;color:var(--text-3)}
+.trip-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px dashed var(--border-l)}
+.trip-item:last-child{border-bottom:none}
+.trip-item .cb{flex-shrink:0;width:18px;height:18px;margin-top:1px;cursor:pointer}
+.trip-item .ti-text{flex:1;font-size:14px;word-break:break-word;line-height:1.4}
+.trip-item.done .ti-text{text-decoration:line-through;color:var(--text-3)}
+.trip-item .ti-del{color:var(--danger);font-size:16px;cursor:pointer;flex-shrink:0;width:20px;height:20px;display:flex;align-items:center;justify-content:center;opacity:.6}
+.trip-add-row{display:flex;gap:6px;margin-top:8px}
+.trip-add-row input{flex:1}
+.trip-acct-summary{background:var(--primary-light);color:var(--primary);border-radius:var(--r-s);padding:12px 16px;font-size:15px;font-weight:600;text-align:center;margin:12px 0}
+.trip-acct-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-s);padding:10px 12px;margin:8px 0}
+.trip-acct-cat{font-size:12px;background:var(--primary-light);color:var(--primary);padding:2px 9px;border-radius:10px;white-space:nowrap}
+.trip-acct-main{flex:1;min-width:0}
+.trip-acct-note{font-size:13px;word-break:break-word}
+.trip-acct-date{font-size:11px;color:var(--text-3)}
+.trip-acct-amt{font-weight:700;font-size:15px;white-space:nowrap}
+.trip-acct-del{color:var(--danger);font-size:16px;cursor:pointer;flex-shrink:0;opacity:.6}
+.trip-node-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin:12px 0;box-shadow:var(--shadow-sm)}
+.trip-node-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.trip-node-title{font-size:15px;font-weight:600}
+.trip-node-date{font-size:12px;color:var(--text-3);margin-top:2px}
+.trip-node-mood{font-size:22px;margin:6px 0}
+.trip-node-note{font-size:13px;color:var(--text-2);margin-top:4px;white-space:pre-wrap;word-break:break-word}
+.trip-node-imgs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.trip-node-imgs img{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover;cursor:pointer}
+.trip-node-del{color:var(--danger);font-size:16px;cursor:pointer;flex-shrink:0;opacity:.6}
+.mood-chip{font-size:22px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border);border-radius:10px;cursor:pointer;background:var(--surface)}
+.mood-chip.active{border-color:var(--primary);background:var(--primary-light)}
+.trip-empty-hint{font-size:13px;color:var(--text-3)}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
@@ -439,6 +483,7 @@ img{max-width:100%;display:block}
         <button class="tab" data-tab="organize"><span class="tab-icon">📦</span><span>日常<br>整理</span></button>
         <button class="tab" data-tab="growth"><span class="tab-icon">🌱</span><span>成长<br>管理</span></button>
         <button class="tab" data-tab="health"><span class="tab-icon">🩺</span><span>健康<br>中心</span></button>
+      <button class="tab" data-tab="trip"><span class="tab-icon">🧳</span><span>出行<br>计划</span></button>
       </div>
     </div>
     <div class="main-content">
@@ -473,6 +518,27 @@ img{max-width:100%;display:block}
             <div id="phaseDetailPeriod" class="phase-period"></div>
           </div>
           <div id="phaseDetailBody"></div>
+        </div>
+      </div>
+      <div class="tab-content" id="tab-trip">
+        <div id="tripListView">
+          <div class="org-list-header"><h3>出行计划</h3><button class="btn btn-primary btn-sm" onclick="newTrip()">+ 新建出行</button></div>
+          <div class="trip-list" id="tripList"></div>
+        </div>
+        <div id="tripDetailView" style="display:none">
+          <div class="phase-detail-head">
+            <div class="org-detail-header">
+              <button class="back-btn" id="tripBackList" onclick="backTripList()">‹</button>
+              <h2 id="tripDetailTitle"></h2>
+              <span class="phase-detail-actions"><button class="btn btn-danger btn-sm" onclick="deleteTrip()">🗑 删除</button></span>
+            </div>
+          </div>
+          <div class="trip-sub-tabs">
+            <div class="trip-sub-tab active" id="tripSubList" onclick="setTripSub('list')">📝 出行清单</div>
+            <div class="trip-sub-tab" id="tripSubAcct" onclick="setTripSub('account')">💰 出行记账</div>
+            <div class="trip-sub-tab" id="tripSubTrack" onclick="setTripSub('track')">📍 出行记录</div>
+          </div>
+          <div id="tripSubBody"></div>
         </div>
       </div>
       <div class="tab-content" id="tab-inspiration">
@@ -729,7 +795,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'list',_tripMood:''};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
 const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
@@ -748,7 +814,7 @@ function renderPendingImgs(type){const c=document.getElementById(type==='insp'?'
 function removePendingImg(type,idx){S.pendingImgs[type].splice(idx,1);renderPendingImgs(type)}
 
 // ===== Tab Switching =====
-document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='health'){await loadHealth()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}})});
+document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='health'){await loadHealth()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}if(n==='trip'){await loadTrips();S.tripCurrentId=null;S.tripSub='list';backTripList()}})});
 
 // ===== Daily Execution =====
 async function loadBoards(){const b=await DB.get('boards');if(b){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}S.boards.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});await saveBoards()}
@@ -2153,8 +2219,68 @@ function renderGrowthDetail(){
 async function delGrowthRecord(mod,id){if(!confirm('确定删除这条记录吗？'))return;const arr=growthRecordsOf(mod);const idx=arr.findIndex(r=>r.id===id);if(idx<0)return;arr.splice(idx,1);if(mod==='sleep')S.growthSleep=arr;else if(mod==='diet')S.growthDiet=arr;else S.growthOut=arr;await growthSave(mod);renderGrowthDetail();showToast('已删除','success')}
 function editGrowthRecord(mod,id){const arr=growthRecordsOf(mod);const rec=arr.find(r=>r.id===id);if(!rec)return;openEditModal('编辑记录',growthFormHTML(mod,rec,'edit-'));document.getElementById('saveEdit').onclick=async()=>{if(mod==='sleep'){const sleepDate=document.getElementById('edit-g-sleepDate').value;const sleepTime=document.getElementById('edit-g-sleepTime').value;const wakeDate=document.getElementById('edit-g-wakeDate').value;const wakeTime=document.getElementById('edit-g-wakeTime').value;if(!sleepDate){showToast('请选择入睡日期','error');return}const duration=computeSleepDuration(sleepDate,sleepTime,wakeDate,wakeTime);rec.date=sleepDate;rec.sleepDate=sleepDate;rec.sleepTime=sleepTime;rec.wakeDate=wakeDate;rec.wakeTime=wakeTime;rec.duration=duration==null?(rec.duration!=null?rec.duration:0):duration;rec.abnormal=Array.from(document.querySelectorAll('[name="edit-g-ab"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('edit-g-note').value.trim()}else if(mod==='diet'){const date=document.getElementById('edit-g-date').value;if(!date){showToast('请选择日期','error');return}rec.date=date;rec.breakfast=document.getElementById('edit-g-break').value.trim();rec.lunch=document.getElementById('edit-g-lunch').value.trim();rec.dinner=document.getElementById('edit-g-dinner').value.trim();rec.bowelNormal=Number(document.getElementById('edit-g-bn').value)||0;rec.bowelAbnormalType=document.getElementById('edit-g-bt').value;rec.bowelAbnormalCount=Number(document.getElementById('edit-g-bc').value)||0;rec.tags=Array.from(document.querySelectorAll('[name="edit-g-tags"]')).filter(c=>c.checked).map(c=>c.value);rec.note=document.getElementById('edit-g-note').value.trim()}else{const date=document.getElementById('edit-g-date').value;if(!date){showToast('请选择日期','error');return}rec.date=date;rec.location=document.getElementById('edit-g-loc').value.trim();const ex=document.getElementById('edit-g-ex').value;rec.exerciseHours=ex===''?0:Number(ex);rec.note=document.getElementById('edit-g-note').value.trim()}await growthSave(mod);closeEditModal();renderGrowthDetail();showToast('已更新','success')}}
 
+// ===== 出行计划 =====
+const TRIP_LIST_CATS=['重要物品','衣物','洗漱用品','药品','化妆品','杂物'];
+const TRIP_ACCT_CATS=['交通','住宿','餐饮','门票','购物','其他'];
+const TRIP_MOODS=['😀','😊','😐','😟','😍','🤩','😴','😡'];
+async function loadTrips(){S.trips=(await DB.get('trips'))||[];S.trips.forEach(t=>{if(!t.list)t.list=[];if(!t.accounts)t.accounts=[];if(!t.nodes)t.nodes=[]});await saveTrips()}
+async function saveTrips(){await DB.set('trips',S.trips)}
+function curTrip(){return S.trips.find(x=>x.id===S.tripCurrentId)}
+function renderTripList(){
+  const list=document.getElementById('tripList');if(!list)return;
+  if(!S.trips||S.trips.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">🧳</div><p>还没有出行计划<br>点击右上角"新建出行"开始</p></div>';return}
+  list.innerHTML=S.trips.map(t=>{
+    const items=(t.list||[]).length;
+    const total=(t.accounts||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+    const nodes=(t.nodes||[]).length;
+    return `<div class="trip-plan-card" style="--bc:${BOARD_COLORS[S.trips.indexOf(t)%BOARD_COLORS.length]}" onclick="openTrip('${t.id}')">
+      <span class="tp-del" title="删除" onclick="event.stopPropagation();deleteTripConfirm('${t.id}')">×</span>
+      <div class="tp-name">${escapeHtml(t.name)}</div>
+      <div class="tp-meta"><span>📝 清单 ${items} 项</span><span>💰 记账 ¥${total.toFixed(2)}</span><span>📍 记录 ${nodes} 个</span></div>
+      <div class="tp-go">› 进入</div>
+    </div>`;
+  }).join('');
+}
+function newTrip(){openEditModal('新建出行',`<label>出行名称</label><input type="text" id="tripNameInput" placeholder="如：日本七日游" maxlength="30">`);document.getElementById('saveEdit').onclick=async()=>{const name=document.getElementById('tripNameInput').value.trim();if(!name){showToast('请输入出行名称','error');return}S.trips.unshift({id:genId(),name,createdAt:nowISO(),list:[],accounts:[],nodes:[]});await saveTrips();closeEditModal();renderTripList();showToast('已创建','success')};}
+function openTrip(id){const t=S.trips.find(x=>x.id===id);if(!t)return;S.tripCurrentId=id;document.getElementById('tripListView').style.display='none';document.getElementById('tripDetailView').style.display='block';document.getElementById('tripDetailTitle').textContent=t.name;S.tripSub='list';setTripSub('list')}
+function backTripList(){S.tripCurrentId=null;document.getElementById('tripDetailView').style.display='none';document.getElementById('tripListView').style.display='block';renderTripList()}
+async function deleteTripConfirm(id){const t=S.trips.find(x=>x.id===id);if(!t)return;if(!confirm(`确定删除出行「${t.name}」吗？其清单、记账、记录将一并删除。`))return;S.trips=S.trips.filter(x=>x.id!==id);await saveTrips();renderTripList();showToast('已删除','success')}
+async function deleteTrip(){if(!S.tripCurrentId)return;await deleteTripConfirm(S.tripCurrentId)}
+function setTripSub(sub){S.tripSub=sub;document.getElementById('tripSubList').classList.toggle('active',sub==='list');document.getElementById('tripSubAcct').classList.toggle('active',sub==='account');document.getElementById('tripSubTrack').classList.toggle('active',sub==='track');renderTripSub()}
+function renderTripSub(){const t=curTrip();if(!t)return;const b=document.getElementById('tripSubBody');if(S.tripSub==='list')b.innerHTML=renderTripListHTML(t);else if(S.tripSub==='account')b.innerHTML=renderTripAcctHTML(t);else b.innerHTML=renderTripTrackHTML(t)}
+function renderTripListHTML(t){
+  return TRIP_LIST_CATS.map(cat=>{
+    const items=(t.list||[]).filter(i=>i.cat===cat);
+    const rows=items.map(i=>`<div class="trip-item${i.done?' done':''}"><input type="checkbox" class="cb" ${i.done?'checked':''} onclick="toggleTripItem('${i.id}')"><span class="ti-text" onclick="toggleTripItem('${i.id}')">${escapeHtml(i.text)}</span><span class="ti-del" onclick="delTripItem('${i.id}')">×</span></div>`).join('')||'<div class="trip-empty-hint">暂无，下面添加</div>';
+    return `<div class="trip-cat-block"><div class="trip-cat-head"><span class="trip-cat-title">${cat}</span><span class="trip-cat-count">${items.length} 项</span></div>${rows}<div class="trip-add-row"><input type="text" id="tripAdd-${cat}" placeholder="添加${cat}..." maxlength="40" onkeydown="if(event.key==='Enter')addTripItem('${cat}')"><button class="btn btn-ghost btn-sm" onclick="addTripItem('${cat}')">＋</button></div></div>`;
+  }).join('');
+}
+async function addTripItem(cat){const inp=document.getElementById('tripAdd-'+cat);if(!inp)return;const text=inp.value.trim();if(!text){inp.focus();return}const t=curTrip();if(!t)return;t.list.push({id:genId(),cat,text,done:false});await saveTrips();renderTripSub();}
+async function toggleTripItem(id){const t=curTrip();if(!t)return;const i=t.list.find(x=>x.id===id);if(!i)return;i.done=!i.done;await saveTrips();renderTripSub();}
+async function delTripItem(id){const t=curTrip();if(!t)return;t.list=t.list.filter(x=>x.id!==id);await saveTrips();renderTripSub();}
+function renderTripAcctHTML(t){
+  const total=(t.accounts||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
+  const sorted=[...t.accounts].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const rows=sorted.map(a=>`<div class="trip-acct-item"><span class="trip-acct-cat">${escapeHtml(a.category)}</span><div class="trip-acct-main"><div class="trip-acct-note">${escapeHtml(a.note||'')}</div><div class="trip-acct-date">${a.date||''}</div></div><span class="trip-acct-amt">¥${Number(a.amount||0).toFixed(2)}</span><span class="trip-acct-del" onclick="delTripAccount('${a.id}')">×</span></div>`).join('')||'<div class="trip-empty-hint">还没有记账，点下面"记一笔"</div>';
+  return `<div class="trip-acct-summary">累计花费 ¥${total.toFixed(2)}</div><button class="btn btn-primary" style="width:100%;margin:8px 0" onclick="addTripAccount()">＋ 记一笔</button>${rows}`;
+}
+async function addTripAccount(){const t=curTrip();if(!t)return;const cats=TRIP_ACCT_CATS.map(c=>`<option value="${c}">${c}</option>`).join('');openEditModal('记一笔',`<label>日期</label><input type="date" id="tripAcctDate" value="${S.date}"><label>分类</label><select id="tripAcctCat">${cats}</select><label>金额（元）</label><input type="number" id="tripAcctAmt" step="0.01" min="0" placeholder="0.00"><label>备注（选填）</label><input type="text" id="tripAcctNote" maxlength="40" placeholder="如：地铁票">`);document.getElementById('saveEdit').onclick=async()=>{const date=document.getElementById('tripAcctDate').value;const category=document.getElementById('tripAcctCat').value;const amtRaw=document.getElementById('tripAcctAmt').value.trim();const amount=amtRaw===''?'0':Number(amtRaw);const note=document.getElementById('tripAcctNote').value.trim();if(isNaN(amount)||amount<0){showToast('金额无效','error');return}t.accounts.push({id:genId(),date,category,amount,note});await saveTrips();closeEditModal();renderTripSub();showToast('已记录','success')};}
+async function delTripAccount(id){const t=curTrip();if(!t)return;t.accounts=t.accounts.filter(x=>x.id!==id);await saveTrips();renderTripSub();}
+function renderTripTrackHTML(t){
+  const nodes=(t.nodes||[]);
+  const rows=nodes.map(n=>`<div class="trip-node-card"><div class="trip-node-head"><div><div class="trip-node-title">${escapeHtml(n.title)}</div><div class="trip-node-date">${n.date||''}</div></div><span class="trip-node-del" onclick="delTripNode('${n.id}')">×</span></div>${n.mood?`<div class="trip-node-mood">${n.mood}</div>`:''}${n.note?`<div class="trip-node-note">${escapeHtml(n.note)}</div>`:''}${n.images&&n.images.length?`<div class="trip-node-imgs">${n.images.map(src=>`<img src="${src}" onclick="openLightbox('${src}')" alt="">`).join('')}</div>`:''}</div>`).join('')||'<div class="trip-empty-hint">还没有轨迹节点，点下面"添加节点"</div>';
+  return `<button class="btn btn-primary" style="width:100%;margin:8px 0" onclick="addTripNode()">＋ 添加节点</button>${rows}`;
+}
+function addTripNode(){const t=curTrip();if(!t)return;S.pendingImgs.trip=[];S._tripMood='';const moods=TRIP_MOODS.map(m=>`<span class="mood-chip" data-m="${m}" onclick="setTripMood('${m}')">${m}</span>`).join('');openEditModal('添加轨迹节点',`<label>节点名称</label><input type="text" id="tripNodeTitle" placeholder="如：抵达东京" maxlength="40"><label>日期</label><input type="date" id="tripNodeDate" value="${S.date}"><label>心情</label><div class="tag-chips" id="tripNodeMoods">${moods}</div><label>备注</label><textarea id="tripNodeNote" rows="3" placeholder="记录此刻的心情与事..."></textarea><label>图片</label><div class="image-preview" id="tripNodeImgs"></div><label class="upload-btn" style="display:inline-flex;margin-top:8px">📷 添加图片<input type="file" accept="image/*" multiple id="tripNodeFile"></label>`);
+  document.getElementById('tripNodeFile').addEventListener('change',async e=>{const files=Array.from(e.target.files);for(const f of files){if(f.type.startsWith('image/'))S.pendingImgs.trip.push(await compressImage(f))}renderTripNodeImgs();e.target.value=''});
+  document.getElementById('saveEdit').onclick=async()=>{const title=document.getElementById('tripNodeTitle').value.trim();const date=document.getElementById('tripNodeDate').value;const note=document.getElementById('tripNodeNote').value.trim();if(!title){showToast('请输入节点名称','error');return}t.nodes.push({id:genId(),title,date,mood:S._tripMood||'',note,images:[...(S.pendingImgs.trip)]});await saveTrips();closeEditModal();S.pendingImgs.trip=[];renderTripSub();showToast('已添加','success')};}
+function setTripMood(m){S._tripMood=m;document.querySelectorAll('#tripNodeMoods .mood-chip').forEach(c=>c.classList.toggle('active',c.dataset.m===m))}
+function renderTripNodeImgs(){const c=document.getElementById('tripNodeImgs');if(!c)return;c.innerHTML=S.pendingImgs.trip.map((src,i)=>`<div class="image-preview-item"><img src="${src}" alt=""><div class="remove-img" onclick="removeTripNodeImg(${i})">×</div></div>`).join('')}
+function removeTripNodeImg(idx){S.pendingImgs.trip.splice(idx,1);renderTripNodeImgs()}
+async function delTripNode(id){const t=curTrip();if(!t)return;t.nodes=t.nodes.filter(x=>x.id!==id);await saveTrips();renderTripSub();}
+
 // ===== Init =====
-async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();maybeShowBackupHint()}
+async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();maybeShowBackupHint()}
 init();
 </script>
 </body>
