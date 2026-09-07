@@ -526,10 +526,10 @@ img{max-width:100%;display:block}
       </div>
       <div class="tab-content" id="tab-trip">
         <div id="tripListView">
-          <div class="org-list-header"><h3>出行计划</h3><button class="btn btn-primary btn-sm" onclick="newTrip()">+ 新建出行</button></div>
+          <div class="org-list-header"><h3>出行计划</h3></div>
           <div class="trip-section-head">📝 出行清单 <span class="trip-section-sub2">通用模板 · 建一次可反复勾选复用</span></div>
           <div id="tripGlobalList"></div>
-          <div class="trip-section-head">🧳 我的出行</div>
+          <div class="trip-section-head">🧳 我的出行<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="newTrip()">+ 新建出行</button></div>
           <div class="trip-list" id="tripList"></div>
         </div>
         <div id="tripDetailView" style="display:none">
@@ -2235,7 +2235,7 @@ async function saveTrips(){await DB.set('trips',S.trips)}
 function curTrip(){return S.trips.find(x=>x.id===S.tripCurrentId)}
 function renderTripList(){
   const list=document.getElementById('tripList');if(!list)return;
-  if(!S.trips||S.trips.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">🧳</div><p>还没有出行计划<br>点击右上角"新建出行"开始</p></div>';return}
+  if(!S.trips||S.trips.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">🧳</div><p>还没有出行计划<br>点击"新建出行"开始</p></div>';return}
   list.innerHTML=S.trips.map(t=>{
     const total=(t.accounts||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
     const nodes=(t.nodes||[]).length;
