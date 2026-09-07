@@ -429,6 +429,8 @@ img{max-width:100%;display:block}
 .trip-sub-tab{flex:1;padding:9px 0;text-align:center;border:1px solid var(--border);border-radius:var(--r-s);background:var(--surface);font-size:13px;color:var(--text-2);cursor:pointer;font-weight:500}
 .trip-sub-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
 .trip-cat-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-s);padding:12px 14px;margin:12px 0;box-shadow:var(--shadow-sm)}
+.trip-cat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.trip-cat-row .trip-cat-block{margin:0}
 .trip-cat-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .trip-cat-title{font-size:14px;font-weight:600;color:var(--primary)}
 .trip-cat-count{font-size:12px;color:var(--text-3)}
@@ -2225,6 +2227,7 @@ function editGrowthRecord(mod,id){const arr=growthRecordsOf(mod);const rec=arr.f
 
 // ===== 出行计划 =====
 const TRIP_LIST_CATS=['重要物品','衣物','洗漱用品','药品','化妆品','杂物'];
+const TRIP_LIST_PAIRS=[['重要物品','药品'],['衣物','化妆品'],['洗漱用品','杂物']];
 const TRIP_ACCT_CATS=['交通','住宿','餐饮','门票','购物','其他'];
 const TRIP_MOODS=['😀','😊','😐','😟','😍','🤩','😴','😡'];
 async function loadTrips(){S.trips=(await DB.get('trips'))||[];S.trips.forEach(t=>{if(!t.list)t.list=[];if(!t.accounts)t.accounts=[];if(!t.nodes)t.nodes=[]});await saveTrips()}
@@ -2284,7 +2287,10 @@ async function delTripNode(id){const t=curTrip();if(!t)return;t.nodes=t.nodes.fi
 // ===== 出行清单（全局通用，常驻模块首页上方，可反复复用） =====
 async function loadChecklist(){S.tripChecklist=(await DB.get('tripChecklist'))||[];if(S.tripChecklist.length===0&&S.trips.some(t=>(t.list||[]).length)){const seen=new Set();S.trips.forEach(t=>{(t.list||[]).forEach(it=>{const k=it.cat+'|'+it.text;if(!seen.has(k)){seen.add(k);S.tripChecklist.push({id:genId(),cat:it.cat,text:it.text,done:false})}});t.list=[]});await saveTrips()}await saveChecklist()}
 async function saveChecklist(){await DB.set('tripChecklist',S.tripChecklist)}
-function renderTripChecklist(){const c=document.getElementById('tripGlobalList');if(!c)return;c.innerHTML=TRIP_LIST_CATS.map(cat=>{const items=S.tripChecklist.filter(i=>i.cat===cat);const rows=items.map(i=>`<div class="trip-item${i.done?' done':''}"><input type="checkbox" class="cb" ${i.done?'checked':''} onclick="toggleChecklistItem('${i.id}')"><span class="ti-text" onclick="toggleChecklistItem('${i.id}')">${escapeHtml(i.text)}</span><span class="ti-del" onclick="delChecklistItem('${i.id}')">×</span></div>`).join('')||'<div class="trip-empty-hint">暂无，下面添加</div>';return `<div class="trip-cat-block"><div class="trip-cat-head"><span class="trip-cat-title">${cat}</span><span class="trip-cat-count">${items.length} 项</span></div>${rows}<div class="trip-add-row"><input type="text" id="chkAdd-${cat}" placeholder="添加${cat}..." maxlength="40" onkeydown="if(event.key==='Enter')addChecklistItem('${cat}')"><button class="btn btn-ghost btn-sm" onclick="addChecklistItem('${cat}')">＋</button></div></div>`;}).join('')}
+function renderTripChecklist(){const c=document.getElementById('tripGlobalList');if(!c)return;
+  const catHtml=cat=>{const items=S.tripChecklist.filter(i=>i.cat===cat);const rows=items.map(i=>`<div class="trip-item${i.done?' done':''}"><input type="checkbox" class="cb" ${i.done?'checked':''} onclick="toggleChecklistItem('${i.id}')"><span class="ti-text" onclick="toggleChecklistItem('${i.id}')">${escapeHtml(i.text)}</span><span class="ti-del" onclick="delChecklistItem('${i.id}')">×</span></div>`).join('')||'<div class="trip-empty-hint">暂无，下面添加</div>';return `<div class="trip-cat-block"><div class="trip-cat-head"><span class="trip-cat-title">${cat}</span><span class="trip-cat-count">${items.length} 项</span></div>${rows}<div class="trip-add-row"><input type="text" id="chkAdd-${cat}" placeholder="添加${cat}..." maxlength="40" onkeydown="if(event.key==='Enter')addChecklistItem('${cat}')"><button class="btn btn-ghost btn-sm" onclick="addChecklistItem('${cat}')">＋</button></div></div>`};
+  c.innerHTML=TRIP_LIST_PAIRS.map(pair=>`<div class="trip-cat-row">${catHtml(pair[0])}${catHtml(pair[1])}</div>`).join('');
+}
 function addChecklistItem(cat){const inp=document.getElementById('chkAdd-'+cat);if(!inp)return;const text=inp.value.trim();if(!text){inp.focus();return}S.tripChecklist.push({id:genId(),cat,text,done:false});saveChecklist();renderTripChecklist()}
 async function toggleChecklistItem(id){const i=S.tripChecklist.find(x=>x.id===id);if(!i)return;i.done=!i.done;await saveChecklist();renderTripChecklist()}
 async function delChecklistItem(id){S.tripChecklist=S.tripChecklist.filter(x=>x.id!==id);await saveChecklist();renderTripChecklist()}
