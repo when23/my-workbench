@@ -397,8 +397,18 @@ img{max-width:100%;display:block}
 .phase-check-chips{display:flex;flex-wrap:wrap}
 .phase-check-chip{display:inline-flex;align-items:center;gap:3px;font-size:13px;padding:5px 12px;border-radius:16px;background:var(--border-l);color:var(--text-2);cursor:pointer;margin:0 6px 6px 0;user-select:none;-webkit-user-select:none;transition:all .12s}
 .phase-check-chip.on{background:var(--primary);color:#fff}
+.phase-check-chip.count{background:var(--border-l)}
+.phase-check-chip.count.on{background:var(--primary-light);color:var(--primary);font-weight:600}
+.phase-check-chip.count.reached{background:var(--primary);color:#fff}
+.phase-check-chip.count b{font-weight:700}
+.chip-minus{margin-left:4px;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.12);color:inherit;font-size:14px;line-height:1;cursor:pointer;flex-shrink:0}
+.phase-check-chip.count.reached .chip-minus{background:rgba(255,255,255,.3)}
 .tag-edit-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 .tag-edit-input{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;min-width:0}
+.tag-edit-hint{font-size:12px;color:var(--text-3);margin:2px 0 12px;line-height:1.5}
+.tag-edit-mode{border:1px solid var(--border);border-radius:8px;padding:7px 8px;font-size:13px;background:var(--surface);color:var(--text);flex-shrink:0}
+.tag-edit-target{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;width:72px;flex-shrink:0;text-align:center}
+.tag-edit-target:disabled{background:var(--border-l);color:var(--text-3);opacity:.6}
 .tag-add-row{display:flex;gap:8px;align-items:center;margin-top:6px}
 .tag-add-row input{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;min-width:0}
 .phase-calendar{background:var(--surface);border-radius:var(--r);padding:14px;box-shadow:var(--shadow-sm);margin-bottom:14px}
@@ -1850,7 +1860,8 @@ document.getElementById('backupDismiss').addEventListener('click',()=>{
 });
 
 // ===== 阶段计划 =====
-async function loadPhasePlans(){S.phasePlans=(await DB.get('phasePlans'))||[];S.phasePlans.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});await savePhasePlans()}
+async function loadPhasePlans(){S.phasePlans=(await DB.get('phasePlans'))||[];S.phasePlans.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});migratePhaseItemChecks();await savePhasePlans()}
+function migratePhaseItemChecks(){for(const p of (S.phasePlans||[])){if(!p.itemChecks)continue;for(const itId in p.itemChecks){const byDate=p.itemChecks[itId];for(const d in byDate){const v=byDate[d];if(Array.isArray(v)){const o={};for(const tid of v)o[tid]=true;byDate[d]=o;}}}}}
 async function savePhasePlans(){await DB.set('phasePlans',S.phasePlans)}
 function renderPhaseList(){
   const list=document.getElementById('phaseList');if(!list)return;
@@ -1994,17 +2005,22 @@ async function delPhaseDaily(planId,date,itemId){const p=S.phasePlans.find(x=>x.
 // ===== 阶段计划·分解项打卡标签 =====
 function hasPhaseDay(p,ds){
   if(p.daily&&p.daily[ds]&&p.daily[ds].length>0)return true;
-  if(p.itemChecks){for(const itId in p.itemChecks){const m=p.itemChecks[itId];if(m&&m[ds]&&m[ds].length>0)return true;}}
+  if(p.itemChecks){for(const itId in p.itemChecks){const m=p.itemChecks[itId];if(m&&m[ds]&&Object.keys(m[ds]).length>0)return true;}}
   return false;
 }
 function phaseTagDays(p,itemId,tagId){
   const m=(p.itemChecks&&p.itemChecks[itemId])||{};
-  let n=0;for(const d in m){if((m[d]||[]).indexOf(tagId)>=0)n++;}
+  let n=0;for(const d in m){if(m[d]&&m[d][tagId])n++;}
   return n;
+}
+function phaseTagCountSum(p,itemId,tagId){
+  const m=(p.itemChecks&&p.itemChecks[itemId])||{};
+  let s=0;for(const d in m){const v=m[d]&&m[d][tagId];if(typeof v==='number')s+=v;}
+  return s;
 }
 function phaseItemCheckDays(p,itemId){
   const m=(p.itemChecks&&p.itemChecks[itemId])||{};
-  let n=0;for(const d in m){if((m[d]||[]).length>0)n++;}
+  let n=0;for(const d in m){if(m[d]&&Object.keys(m[d]).length>0)n++;}
   return n;
 }
 function phaseItemStatHTML(p,it){
@@ -2012,7 +2028,16 @@ function phaseItemStatHTML(p,it){
   if(!tags.length)return '<span class="pi-stat-hint">＋ 添加打卡标签后，可每日勾选并统计</span>';
   const total=phaseItemCheckDays(p,it.id);
   const totalBadge=`<span class="pi-badge pi-badge-total">累计 ${total}天</span>`;
-  const tagBadges=tags.map(t=>`<span class="pi-badge">${escapeHtml(t.label)} <b>${phaseTagDays(p,it.id,t.id)}天</b></span>`).join('');
+  const tagBadges=tags.map(t=>{
+    const mode=t.mode||'once';
+    if(mode==='count'){
+      const dayMap=(p.itemChecks&&p.itemChecks[it.id]&&p.itemChecks[it.id][S.phaseSelDate])||{};
+      const tn=(typeof dayMap[t.id]==='number')?dayMap[t.id]:0;
+      const sum=phaseTagCountSum(p,it.id,t.id);
+      return `<span class="pi-badge pi-badge-count">${escapeHtml(t.label)} 今日 <b>${tn}</b> · 累计 <b>${sum}</b>次</span>`;
+    }
+    return `<span class="pi-badge">${escapeHtml(t.label)} <b>${phaseTagDays(p,it.id,t.id)}天</b></span>`;
+  }).join('');
   return totalBadge+tagBadges;
 }
 function renderPhaseDailyChecksHTML(p){
@@ -2021,19 +2046,42 @@ function renderPhaseDailyChecksHTML(p){
   const date=S.phaseSelDate;
   const done=(p.itemChecks&&p.itemChecks)||{};
   return items.map(it=>{
-    const arr=(done[it.id]&&done[it.id][date])||[];
-    const chips=it.tags.map(t=>`<span class="phase-check-chip ${arr.indexOf(t.id)>=0?'on':''}" onclick="togglePhaseCheck('${p.id}','${it.id}','${t.id}')">${arr.indexOf(t.id)>=0?'✓ ':''}${escapeHtml(t.label)}</span>`).join('');
+    const dayMap=(done[it.id]&&done[it.id][date])||{};
+    const chips=it.tags.map(t=>{
+      const mode=t.mode||'once';
+      if(mode==='count'){
+        const n=(typeof dayMap[t.id]==='number')?dayMap[t.id]:0;
+        const target=t.target||0;
+        const reached=target>0&&n>=target;
+        const txt=target>0?`${escapeHtml(t.label)} <b>${n}/${target}</b>`:`${escapeHtml(t.label)} <b>×${n}</b>`;
+        const minus=n>0?`<span class="chip-minus" onclick="event.stopPropagation();togglePhaseCheck('${p.id}','${it.id}','${t.id}',-1)">−</span>`:'';
+        return `<span class="phase-check-chip count ${n>0?'on':''} ${reached?'reached':''}" onclick="togglePhaseCheck('${p.id}','${it.id}','${t.id}',1)">${txt}${minus}</span>`;
+      }
+      const on=!!dayMap[t.id];
+      return `<span class="phase-check-chip ${on?'on':''}" onclick="togglePhaseCheck('${p.id}','${it.id}','${t.id}')">${on?'✓ ':''}${escapeHtml(t.label)}</span>`;
+    }).join('');
     return `<div class="phase-check-group"><div class="phase-check-item-name">${escapeHtml(it.text)}</div><div class="phase-check-chips">${chips}</div></div>`;
   }).join('');
 }
-async function togglePhaseCheck(planId,itemId,tagId){
+async function togglePhaseCheck(planId,itemId,tagId,delta){
   const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;
   if(!p.itemChecks)p.itemChecks={};
   if(!p.itemChecks[itemId])p.itemChecks[itemId]={};
-  const arr=p.itemChecks[itemId][S.phaseSelDate]||[];
-  const i=arr.indexOf(tagId);
-  if(i>=0)arr.splice(i,1);else arr.push(tagId);
-  if(arr.length)p.itemChecks[itemId][S.phaseSelDate]=arr;else delete p.itemChecks[itemId][S.phaseSelDate];
+  const it=(p.items||[]).find(i=>i.id===itemId);
+  const tag=((it&&it.tags)||[]).find(t=>t.id===tagId)||{};
+  const mode=tag.mode||'once';
+  const date=S.phaseSelDate;
+  const m=p.itemChecks[itemId];
+  if(!m[date])m[date]={};
+  const cur=m[date][tagId];
+  if(mode==='count'){
+    let n=(typeof cur==='number')?cur:0;
+    n+=(delta||1);
+    if(n<=0)delete m[date][tagId];else m[date][tagId]=n;
+  }else{
+    if(cur)delete m[date][tagId];else m[date][tagId]=true;
+  }
+  if(Object.keys(m[date]).length===0)delete m[date];
   await savePhasePlans();
   const c=document.getElementById('phaseDailyChecks');if(c)c.innerHTML=renderPhaseDailyChecksHTML(p);
   const cal=document.getElementById('phaseCalWrap');if(cal)cal.innerHTML=renderPhaseCalendarHTML(p);
@@ -2044,21 +2092,35 @@ function managePhaseTags(planId,itemId){
   const p=S.phasePlans.find(x=>x.id===planId);if(!p)return;
   const it=(p.items||[]).find(i=>i.id===itemId);if(!it)return;
   S.edit=null;
-  _editTags=(it.tags||[]).map(t=>({id:t.id,label:t.label}));
+  _editTags=(it.tags||[]).map(t=>({id:t.id,label:t.label,mode:t.mode||'once',target:t.target||0}));
   renderTagEditor();
   document.getElementById('saveEdit').onclick=async()=>{
     const ai=document.getElementById('tagAddInput');
     if(ai&&ai.value.trim())_editTags.push({id:genId(),label:ai.value.trim()});
-    it.tags=_editTags.map(t=>({id:t.id,label:t.label.trim()})).filter(t=>t.label);
+    it.tags=_editTags.map(t=>({id:t.id,label:t.label.trim(),mode:t.mode||'once',target:(t.mode==='count')?(parseInt(t.target,10)||0):0})).filter(t=>t.label);
     await savePhasePlans();closeEditModal();renderPhaseDetail();showToast('标签已保存','success');
   };
 }
 function renderTagEditor(){
-  const body=`<label>打卡标签（可新增 / 修改 / 删除）</label><div id="tagEditList">${_editTags.map((t,i)=>`<div class="tag-edit-row"><input type="text" class="tag-edit-input" value="${escapeHtml(t.label).replace(/"/g,'&quot;')}" data-i="${i}" oninput="onTagEditInput(${i},this.value)"><button class="btn btn-danger btn-sm" onclick="delTagEdit(${i})">删</button></div>`).join('')}</div><div class="tag-add-row"><input type="text" id="tagAddInput" placeholder="新增标签，回车添加" onkeydown="if(event.key==='Enter')addTagEdit()"><button class="btn btn-ghost btn-sm" onclick="addTagEdit()">+ 添加</button></div>`;
+  const rows=_editTags.map((t,i)=>{
+    const isCount=(t.mode||'once')==='count';
+    return `<div class="tag-edit-row">
+      <input type="text" class="tag-edit-input" value="${escapeHtml(t.label).replace(/"/g,'&quot;')}" data-i="${i}" oninput="onTagEditInput(${i},this.value)">
+      <select class="tag-edit-mode" onchange="onTagEditMode(${i},this.value)">
+        <option value="once" ${!isCount?'selected':''}>一次性</option>
+        <option value="count" ${isCount?'selected':''}>计次</option>
+      </select>
+      <input type="number" class="tag-edit-target" min="1" placeholder="目标" value="${isCount?(t.target||''):''}" ${isCount?'':'disabled'} oninput="onTagEditTarget(${i},this.value)">
+      <button class="btn btn-danger btn-sm" onclick="delTagEdit(${i})">删</button>
+    </div>`;
+  }).join('');
+  const body=`<label>打卡标签（可新增 / 修改 / 删除）</label><div class="tag-edit-hint">「一次性」当天只能勾一次；「计次」可多次打卡，可设每日目标次数（如喝水 8 次）</div><div id="tagEditList">${rows}</div><div class="tag-add-row"><input type="text" id="tagAddInput" placeholder="新增标签，回车添加" onkeydown="if(event.key==='Enter')addTagEdit()"><button class="btn btn-ghost btn-sm" onclick="addTagEdit()">+ 添加</button></div>`;
   openEditModal('管理打卡标签',body);
 }
 function onTagEditInput(i,v){if(_editTags[i])_editTags[i].label=v;}
-function addTagEdit(){const inp=document.getElementById('tagAddInput');if(!inp)return;const v=inp.value.trim();if(!v)return;_editTags.push({id:genId(),label:v});renderTagEditor();const ni=document.getElementById('tagAddInput');if(ni)ni.focus();}
+function onTagEditMode(i,v){if(_editTags[i]){_editTags[i].mode=v;if(v==='count'&&!_editTags[i].target)_editTags[i].target=0;}renderTagEditor();}
+function onTagEditTarget(i,v){if(_editTags[i])_editTags[i].target=parseInt(v,10)||0;}
+function addTagEdit(){const inp=document.getElementById('tagAddInput');if(!inp)return;const v=inp.value.trim();if(!v)return;_editTags.push({id:genId(),label:v,mode:'once',target:0});renderTagEditor();const ni=document.getElementById('tagAddInput');if(ni)ni.focus();}
 function delTagEdit(i){_editTags.splice(i,1);renderTagEditor();}
 document.getElementById('phaseBackList').addEventListener('click',backPhaseList);
 
