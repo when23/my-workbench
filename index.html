@@ -403,12 +403,11 @@ img{max-width:100%;display:block}
 .phase-check-chip.count b{font-weight:700}
 .chip-minus{margin-left:4px;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.12);color:inherit;font-size:14px;line-height:1;cursor:pointer;flex-shrink:0}
 .phase-check-chip.count.reached .chip-minus{background:rgba(255,255,255,.3)}
-.tag-edit-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-.tag-edit-input{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;min-width:0}
+.tag-edit-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.tag-edit-input{flex:1 1 140px;min-width:0;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px}
 .tag-edit-hint{font-size:12px;color:var(--text-3);margin:2px 0 12px;line-height:1.5}
 .tag-edit-mode{border:1px solid var(--border);border-radius:8px;padding:7px 8px;font-size:13px;background:var(--surface);color:var(--text);flex-shrink:0}
 .tag-edit-target{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;width:72px;flex-shrink:0;text-align:center}
-.tag-edit-target:disabled{background:var(--border-l);color:var(--text-3);opacity:.6}
 .tag-add-row{display:flex;gap:8px;align-items:center;margin-top:6px}
 .tag-add-row input{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;min-width:0}
 .phase-calendar{background:var(--surface);border-radius:var(--r);padding:14px;box-shadow:var(--shadow-sm);margin-bottom:14px}
@@ -2128,13 +2127,14 @@ function managePhaseTags(planId,itemId){
 function renderTagEditor(){
   const rows=_editTags.map((t,i)=>{
     const isCount=(t.mode||'once')==='count';
+    const targetInput=isCount?`<input type="number" class="tag-edit-target" min="1" placeholder="目标" value="${t.target||''}" oninput="onTagEditTarget(${i},this.value)">`:'';
     return `<div class="tag-edit-row">
       <input type="text" class="tag-edit-input" value="${escapeHtml(t.label).replace(/"/g,'&quot;')}" data-i="${i}" oninput="onTagEditInput(${i},this.value)">
       <select class="tag-edit-mode" onchange="onTagEditMode(${i},this.value)">
         <option value="once" ${!isCount?'selected':''}>一次性</option>
         <option value="count" ${isCount?'selected':''}>计次</option>
       </select>
-      <input type="number" class="tag-edit-target" min="1" placeholder="目标" value="${isCount?(t.target||''):''}" ${isCount?'':'disabled'} oninput="onTagEditTarget(${i},this.value)">
+      ${targetInput}
       <button class="btn btn-danger btn-sm" onclick="delTagEdit(${i})">删</button>
     </div>`;
   }).join('');
