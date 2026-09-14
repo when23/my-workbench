@@ -2433,7 +2433,7 @@ function toggleTripChecklist(){_tripChkCollapsed=!_tripChkCollapsed;applyTripChk
 function applyTripChkCollapse(){const c=document.getElementById('tripGlobalList');if(c)c.style.display=_tripChkCollapsed?'none':'block';const ch=document.getElementById('tripChkChevron');if(ch)ch.textContent=_tripChkCollapsed?'▸':'▾';}
 
 // ===== 足迹地图 =====
-const FP_GEO_URL='https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json';
+const FP_GEO_URL='china.json';
 const FP_PRIMARY='#6366f1',FP_GEO_BG='#eef1f5',FP_GEO_BORDER='#cfd6e0',FP_EMPH='#dfe4ee',FP_CITY='#ff6b6b';
 let _fpChart=null,_fpGeo=null,_fpAdding=false,_fpProvinceCenters={};
 async function loadFootprints(){S.footprints=(await DB.get('footprints'))||{provinces:{},cities:[]};if(!S.footprints.provinces)S.footprints.provinces={};if(!S.footprints.cities)S.footprints.cities=[]}
@@ -2446,7 +2446,7 @@ async function ensureChinaGeo(){
   if(typeof echarts==='undefined'){showToast('地图组件需联网加载一次','error');return null}
   if(echarts.getMap&&echarts.getMap('china')){_fpGeo=echarts.getMap('china').geoJson;return _fpGeo}
   try{const res=await fetch(FP_GEO_URL);const geo=await res.json();echarts.registerMap('china',geo);_fpGeo=geo;_fpProvinceCenters={};(geo.features||[]).forEach(f=>{const c=geoCenter(f.geometry);if(c)_fpProvinceCenters[f.properties&&f.properties.name]=c});return geo}
-  catch(e){showToast('地图数据加载失败，请联网后重试','error');return null}
+  catch(e){showToast('地图数据加载失败，请刷新重试','error');return null}
 }
 function geoCenter(geom){if(!geom)return null;let minX=180,minY=90,maxX=-180,maxY=-90;const walk=coords=>{if(typeof coords[0]==='number'){const x=coords[0],y=coords[1];if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y}else coords.forEach(walk)};walk(geom.coordinates);if(minX>maxX)return null;return[(minX+maxX)/2,(minY+maxY)/2]}
 async function initFootprintMap(){
