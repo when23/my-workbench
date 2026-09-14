@@ -482,6 +482,8 @@ img{max-width:100%;display:block}
 .trip-empty-hint{font-size:13px;color:var(--text-3)}
 .trip-section-head{font-size:15px;font-weight:600;color:var(--primary);margin:18px 0 10px;padding:8px 12px;background:var(--primary-light);border-radius:var(--r-s);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .trip-section-sub2{font-size:11px;font-weight:400;color:var(--text-3)}
+.trip-collapsible{cursor:pointer;user-select:none}
+.trip-chevron{margin-left:auto;font-size:14px;color:var(--primary);transition:transform .2s}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
@@ -545,7 +547,7 @@ img{max-width:100%;display:block}
       <div class="tab-content" id="tab-trip">
         <div id="tripListView">
           <div class="org-list-header"><h3>出行计划</h3></div>
-          <div class="trip-section-head">📝 出行清单 <span class="trip-section-sub2">通用模板 · 建一次可反复勾选复用</span></div>
+          <div class="trip-section-head trip-collapsible" onclick="toggleTripChecklist()">📝 出行清单 <span class="trip-section-sub2">通用模板 · 建一次可反复勾选复用</span><span class="trip-chevron" id="tripChkChevron">▸</span></div>
           <div id="tripGlobalList"></div>
           <div class="trip-section-head">🧳 我的出行<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="newTrip()">+ 新建出行</button></div>
           <div class="trip-list" id="tripList"></div>
@@ -2383,10 +2385,14 @@ async function saveChecklist(){await DB.set('tripChecklist',S.tripChecklist)}
 function renderTripChecklist(){const c=document.getElementById('tripGlobalList');if(!c)return;
   const catHtml=cat=>{const items=S.tripChecklist.filter(i=>i.cat===cat);const rows=items.map(i=>`<div class="trip-item${i.done?' done':''}"><input type="checkbox" class="cb" ${i.done?'checked':''} onclick="toggleChecklistItem('${i.id}')"><span class="ti-text" onclick="toggleChecklistItem('${i.id}')">${escapeHtml(i.text)}</span><span class="ti-del" onclick="delChecklistItem('${i.id}')">×</span></div>`).join('')||'<div class="trip-empty-hint">暂无，下面添加</div>';return `<div class="trip-cat-block"><div class="trip-cat-head"><span class="trip-cat-title">${cat}</span><span class="trip-cat-count">${items.length} 项</span></div>${rows}<div class="trip-add-row"><input type="text" id="chkAdd-${cat}" placeholder="添加${cat}..." maxlength="40" onkeydown="if(event.key==='Enter')addChecklistItem('${cat}')"><button class="btn btn-ghost btn-sm" onclick="addChecklistItem('${cat}')">＋</button></div></div>`};
   c.innerHTML=TRIP_LIST_PAIRS.map(pair=>`<div class="trip-cat-row">${catHtml(pair[0])}${catHtml(pair[1])}</div>`).join('');
+  applyTripChkCollapse();
 }
 function addChecklistItem(cat){const inp=document.getElementById('chkAdd-'+cat);if(!inp)return;const text=inp.value.trim();if(!text){inp.focus();return}S.tripChecklist.push({id:genId(),cat,text,done:false});saveChecklist();renderTripChecklist()}
 async function toggleChecklistItem(id){const i=S.tripChecklist.find(x=>x.id===id);if(!i)return;i.done=!i.done;await saveChecklist();renderTripChecklist()}
 async function delChecklistItem(id){S.tripChecklist=S.tripChecklist.filter(x=>x.id!==id);await saveChecklist();renderTripChecklist()}
+let _tripChkCollapsed=true;
+function toggleTripChecklist(){_tripChkCollapsed=!_tripChkCollapsed;applyTripChkCollapse()}
+function applyTripChkCollapse(){const c=document.getElementById('tripGlobalList');if(c)c.style.display=_tripChkCollapsed?'none':'block';const ch=document.getElementById('tripChkChevron');if(ch)ch.textContent=_tripChkCollapsed?'▸':'▾';}
 
 // ===== Init =====
 async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();maybeShowBackupHint()}
