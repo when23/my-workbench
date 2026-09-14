@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>个人工作台</title>
+<script defer src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#f7f8fa;--surface:#fff;--primary:#6366f1;--primary-hover:#4f46e5;--primary-light:#eef2ff;--text:#1f2937;--text-2:#6b7280;--text-3:#9ca3af;--border:#e5e7eb;--border-l:#f3f4f6;--success:#10b981;--danger:#ef4444;--danger-bg:#fef2f2;--shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);--shadow-lg:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.05);--r:12px;--r-s:8px;--r-xs:6px}
@@ -430,6 +431,23 @@ img{max-width:100%;display:block}
 .phase-daily-list .phase-daily-item{background:var(--bg);border-radius:var(--r-s);padding:10px 12px;margin-bottom:8px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .phase-daily-list .phase-daily-item .pi-del{color:var(--danger);font-size:18px;cursor:pointer;flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
 /* ===== 出行计划 ===== */
+/* ===== 足迹地图 ===== */
+.fp-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:10px 0;font-size:13px}
+.fp-hint{color:var(--text-3)}
+.fp-stat{color:var(--primary);font-weight:600}
+.fp-map{width:100%;height:60vh;min-height:360px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-sm);overflow:hidden}
+.fp-map-loading{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-3);font-size:14px;text-align:center;padding:20px}
+.fp-list-head{font-size:14px;font-weight:600;margin:18px 0 8px;color:var(--text-2)}
+.fp-city-list{display:flex;flex-direction:column;gap:8px}
+.fp-city-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-s);padding:10px 12px;cursor:pointer}
+.fp-city-item:hover{border-color:var(--primary)}
+.fp-city-dot{width:10px;height:10px;border-radius:50%;background:var(--danger);flex-shrink:0}
+.fp-city-main{flex:1;min-width:0}
+.fp-city-name{font-weight:600;font-size:14px}
+.fp-city-sub{font-size:12px;color:var(--text-3)}
+.fp-city-trip{font-size:12px;color:var(--primary)}
+.fp-city-del{color:var(--danger);font-size:16px;opacity:.6;flex-shrink:0}
+.fp-city-del:hover{opacity:1}
 .trip-list{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
 .trip-plan-card{background:var(--surface);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s;cursor:pointer;position:relative;border-left:4px solid var(--bc,#74C0FC)}
 .trip-plan-card:hover{box-shadow:var(--shadow)}
@@ -549,7 +567,7 @@ img{max-width:100%;display:block}
           <div class="org-list-header"><h3>出行计划</h3></div>
           <div class="trip-section-head trip-collapsible" onclick="toggleTripChecklist()">📝 出行清单 <span class="trip-section-sub2">通用模板 · 建一次可反复勾选复用</span><span class="trip-chevron" id="tripChkChevron">▸</span></div>
           <div id="tripGlobalList"></div>
-          <div class="trip-section-head">🧳 我的出行<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="newTrip()">+ 新建出行</button></div>
+          <div class="trip-section-head">🧳 我的出行<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="openFootprint()">🗺️ 足迹地图</button><button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="newTrip()">+ 新建出行</button></div>
           <div class="trip-list" id="tripList"></div>
         </div>
         <div id="tripDetailView" style="display:none">
@@ -565,6 +583,25 @@ img{max-width:100%;display:block}
             <div class="trip-sub-tab" id="tripSubTrack" onclick="setTripSub('track')">📍 出行记录</div>
           </div>
           <div id="tripSubBody"></div>
+        </div>
+        <div id="footprintView" style="display:none">
+          <div class="phase-detail-head">
+            <div class="org-detail-header">
+              <button class="back-btn" onclick="backTripList()">‹</button>
+              <h2>🗺️ 足迹地图</h2>
+              <span class="phase-detail-actions">
+                <button class="btn btn-ghost btn-sm" onclick="clearAllFootprints()">清空</button>
+                <button class="btn btn-primary btn-sm" id="fpAddBtn" onclick="toggleAddCity()">＋ 添加城市</button>
+              </span>
+            </div>
+          </div>
+          <div class="fp-toolbar">
+            <span id="fpHint" class="fp-hint">点击省份可标记/编辑 · 点击圆点可编辑城市</span>
+            <span id="fpStat" class="fp-stat"></span>
+          </div>
+          <div id="fpMap" class="fp-map"></div>
+          <div class="fp-list-head">已记录城市</div>
+          <div id="fpCityList" class="fp-city-list"></div>
         </div>
       </div>
       <div class="tab-content" id="tab-inspiration">
@@ -821,7 +858,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[]};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],footprints:{provinces:{},cities:[]}};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
 const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
@@ -840,7 +877,7 @@ function renderPendingImgs(type){const c=document.getElementById(type==='insp'?'
 function removePendingImg(type,idx){S.pendingImgs[type].splice(idx,1);renderPendingImgs(type)}
 
 // ===== Tab Switching =====
-document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='health'){await loadHealth()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}if(n==='trip'){await loadTrips();await loadChecklist();S.tripCurrentId=null;S.tripSub='account';backTripList()}})});
+document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='health'){await loadHealth()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}if(n==='trip'){await loadTrips();await loadChecklist();await loadFootprints();S.tripCurrentId=null;S.tripSub='account';backTripList()}})});
 
 // ===== Daily Execution =====
 async function loadBoards(){const b=await DB.get('boards');if(b){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}S.boards.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});await saveBoards()}
@@ -2342,8 +2379,9 @@ function renderTripList(){
 }
 function newTrip(){openEditModal('新建出行',`<label>出行名称</label><input type="text" id="tripNameInput" placeholder="如：日本七日游" maxlength="30">`);document.getElementById('saveEdit').onclick=async()=>{const name=document.getElementById('tripNameInput').value.trim();if(!name){showToast('请输入出行名称','error');return}S.trips.unshift({id:genId(),name,createdAt:nowISO(),list:[],accounts:[],nodes:[]});await saveTrips();closeEditModal();renderTripList();showToast('已创建','success')};}
 function openTrip(id){const t=S.trips.find(x=>x.id===id);if(!t)return;S.tripCurrentId=id;document.getElementById('tripListView').style.display='none';document.getElementById('tripDetailView').style.display='block';document.getElementById('tripDetailTitle').textContent=t.name;S.tripSub='account';setTripSub('account')}
-function backTripList(){S.tripCurrentId=null;document.getElementById('tripDetailView').style.display='none';document.getElementById('tripListView').style.display='block';renderTripList();renderTripChecklist()}
-async function deleteTripConfirm(id){const t=S.trips.find(x=>x.id===id);if(!t)return;if(!confirm(`确定删除出行「${t.name}」吗？其记账、记录将一并删除。`))return;S.trips=S.trips.filter(x=>x.id!==id);await saveTrips();renderTripList();showToast('已删除','success')}
+function backTripList(){S.tripCurrentId=null;document.getElementById('tripDetailView').style.display='none';document.getElementById('footprintView').style.display='none';document.getElementById('tripListView').style.display='block';renderTripList();renderTripChecklist()}
+async function deleteTripConfirm(id){const t=S.trips.find(x=>x.id===id);if(!t)return;if(!confirm(`确定删除出行「${t.name}」吗？其记账、记录将一并删除。`))return;S.trips=S.trips.filter(x=>x.id!==id);if(S.footprints){Object.keys(S.footprints.provinces).forEach(k=>{const p=S.footprints.provinces[k];if(p&&p.tripId&&!S.trips.find(x=>x.id===p.tripId))p.tripId=null});(S.footprints.cities||[]).forEach(c=>{if(c.tripId&&!S.trips.find(x=>x.id===c.tripId))c.tripId=null});await saveFootprints()}
+await saveTrips();renderTripList();showToast('已删除','success')}
 async function deleteTrip(){if(!S.tripCurrentId)return;await deleteTripConfirm(S.tripCurrentId)}
 function setTripSub(sub){S.tripSub=sub;document.getElementById('tripSubAcct').classList.toggle('active',sub==='account');document.getElementById('tripSubTrack').classList.toggle('active',sub==='track');renderTripSub()}
 function renderTripSub(){const t=curTrip();if(!t)return;const b=document.getElementById('tripSubBody');if(S.tripSub==='account')b.innerHTML=renderTripAcctHTML(t);else b.innerHTML=renderTripTrackHTML(t)}
@@ -2394,8 +2432,102 @@ let _tripChkCollapsed=true;
 function toggleTripChecklist(){_tripChkCollapsed=!_tripChkCollapsed;applyTripChkCollapse()}
 function applyTripChkCollapse(){const c=document.getElementById('tripGlobalList');if(c)c.style.display=_tripChkCollapsed?'none':'block';const ch=document.getElementById('tripChkChevron');if(ch)ch.textContent=_tripChkCollapsed?'▸':'▾';}
 
+// ===== 足迹地图 =====
+const FP_GEO_URL='https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json';
+const FP_PRIMARY='#6366f1',FP_GEO_BG='#eef1f5',FP_GEO_BORDER='#cfd6e0',FP_EMPH='#dfe4ee',FP_CITY='#ff6b6b';
+let _fpChart=null,_fpGeo=null,_fpAdding=false,_fpProvinceCenters={};
+async function loadFootprints(){S.footprints=(await DB.get('footprints'))||{provinces:{},cities:[]};if(!S.footprints.provinces)S.footprints.provinces={};if(!S.footprints.cities)S.footprints.cities=[]}
+async function saveFootprints(){await DB.set('footprints',S.footprints)}
+function openFootprint(){document.getElementById('tripListView').style.display='none';document.getElementById('tripDetailView').style.display='none';document.getElementById('footprintView').style.display='block';initFootprintMap()}
+function tripName(id){const t=S.trips.find(x=>x.id===id);return t?t.name:''}
+function tripOptions(sel){return '<option value="">不关联</option>'+S.trips.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}
+async function ensureChinaGeo(){
+  if(_fpGeo)return _fpGeo;
+  if(typeof echarts==='undefined'){showToast('地图组件需联网加载一次','error');return null}
+  if(echarts.getMap&&echarts.getMap('china')){_fpGeo=echarts.getMap('china').geoJson;return _fpGeo}
+  try{const res=await fetch(FP_GEO_URL);const geo=await res.json();echarts.registerMap('china',geo);_fpGeo=geo;_fpProvinceCenters={};(geo.features||[]).forEach(f=>{const c=geoCenter(f.geometry);if(c)_fpProvinceCenters[f.properties&&f.properties.name]=c});return geo}
+  catch(e){showToast('地图数据加载失败，请联网后重试','error');return null}
+}
+function geoCenter(geom){if(!geom)return null;let minX=180,minY=90,maxX=-180,maxY=-90;const walk=coords=>{if(typeof coords[0]==='number'){const x=coords[0],y=coords[1];if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y}else coords.forEach(walk)};walk(geom.coordinates);if(minX>maxX)return null;return[(minX+maxX)/2,(minY+maxY)/2]}
+async function initFootprintMap(){
+  const box=document.getElementById('fpMap');
+  if(typeof echarts==='undefined'){box.innerHTML='<div class="fp-map-loading">地图组件加载中…若长时间未显示，请联网刷新一次</div>';return}
+  box.innerHTML='<div class="fp-map-loading">地图加载中…</div>';
+  const geo=await ensureChinaGeo();if(!geo)return;
+  if(!_fpChart){_fpChart=echarts.init(box);bindFpEvents(_fpChart);window.addEventListener('resize',()=>_fpChart&&_fpChart.resize())}
+  renderFootprint();
+}
+function fpOption(){
+  const fps=S.footprints;
+  const visited=Object.keys(fps.provinces).filter(k=>fps.provinces[k]&&fps.provinces[k].visited);
+  const regions=visited.map(name=>({name,itemStyle:{areaColor:FP_PRIMARY}}));
+  const cityData=fps.cities.map(c=>({name:c.name,value:[c.lng,c.lat],id:c.id}));
+  return{backgroundColor:'transparent',
+    tooltip:{trigger:'item',formatter:p=>{
+      if(p.seriesType==='effectScatter'){const c=fps.cities.find(x=>x.id===p.data.id);if(!c)return c.name;const trip=c.tripId?tripName(c.tripId):'';return`<b>${escapeHtml(c.name)}</b><br>${escapeHtml(c.province||'')}${c.note?'<br>'+escapeHtml(c.note):''}${trip?'<br>关联：'+escapeHtml(trip):''}`}
+      const pv=fps.provinces[p.name];const vis=pv&&pv.visited;return`<b>${p.name}</b><br>${vis?'已去过'+(pv.note?'：'+escapeHtml(pv.note):'') : '未标记（点击可标记）'}`}},
+    geo:{map:'china',roam:true,zoom:1.15,scaleLimit:{min:1,max:8},itemStyle:{areaColor:FP_GEO_BG,borderColor:FP_GEO_BORDER,borderWidth:0.8},emphasis:{itemStyle:{areaColor:FP_EMPH},label:{show:false}},regions},
+    series:[{type:'effectScatter',coordinateSystem:'geo',data:cityData,symbolSize:9,showEffectOn:'render',rippleEffect:{scale:3,brushType:'stroke'},itemStyle:{color:FP_CITY},zlevel:2}]
+  };
+}
+function renderFootprint(){if(_fpChart)_fpChart.setOption(fpOption(),true);renderCityList();updateFpStat()}
+function bindFpEvents(chart){
+  chart.on('click',p=>{
+    if(_fpAdding){
+      if(p.componentType==='geo'){const ev=p.event;const pt=ev&&ev.offsetX!=null?[ev.offsetX,ev.offsetY]:null;let coord=pt?chart.convertFromPixel({geoIndex:0},pt):null;if(!coord&&_fpProvinceCenters[p.name])coord=_fpProvinceCenters[p.name];openAddCity(p.name,coord?coord[0]:null,coord?coord[1]:null);return}
+      showToast('请点击地图上的省份区域来定位','error');return;
+    }
+    if(p.seriesType==='effectScatter'||p.seriesType==='scatter'){openCityEditor(p.data.id);return}
+    if(p.componentType==='geo'){openProvinceEditor(p.name);return}
+  });
+}
+function toggleAddCity(){_fpAdding=!_fpAdding;const h=document.getElementById('fpHint');const btn=document.getElementById('fpAddBtn');
+  if(_fpAdding){if(h){h.textContent='添加模式：点击地图选择城市位置（再点一次取消）';h.style.color=FP_PRIMARY}if(btn)btn.textContent='取消添加';showToast('点击地图添加城市','success')}
+  else{cancelAddCity()}}
+function cancelAddCity(){_fpAdding=false;const h=document.getElementById('fpHint');const btn=document.getElementById('fpAddBtn');if(h){h.textContent='点击省份可标记/编辑 · 点击圆点可编辑城市';h.style.color=''}if(btn)btn.textContent='＋ 添加城市'}
+function openAddCity(name,lng,lat){
+  _fpAdding=false;cancelAddCity();
+  if(lng==null||lat==null){const c=_fpProvinceCenters[name];if(c){lng=c[0];lat=c[1]}else{lng=116.4;lat=39.9}}
+  name=name||'';
+  openEditModal('添加城市 · '+(name||'未知区域'),`<label>城市名称</label><input type="text" id="fpCityName" placeholder="如：北京" maxlength="20"><label>所属省份/地区</label><input type="text" id="fpCityProv" value="${escapeHtml(name)}" readonly style="background:var(--border-l);color:var(--text-2)"><label>备注（选填）</label><textarea id="fpCityNote" rows="2" placeholder="好玩的、想记的…"></textarea><label>关联出行（选填）</label><select id="fpCityTrip">${tripOptions('')}</select>`);
+  document.getElementById('saveEdit').onclick=async()=>{
+    const cname=document.getElementById('fpCityName').value.trim();if(!cname){showToast('请输入城市名称','error');return}
+    S.footprints.cities.push({id:genId(),name:cname,lng,lat,province:name,note:document.getElementById('fpCityNote').value.trim(),tripId:document.getElementById('fpCityTrip').value||null});
+    const pv=S.footprints.provinces[name];if(!pv||!pv.visited)S.footprints.provinces[name]={visited:true,note:pv?pv.note||'':'',tripId:pv?pv.tripId||null:null};
+    await saveFootprints();closeEditModal();renderFootprint();showToast('已添加','success');
+  };
+}
+function openProvinceEditor(name){
+  const pv=S.footprints.provinces[name]||{visited:false,note:'',tripId:null};
+  const tripOpts=tripOptions(pv.tripId||'');
+  const tripLink=pv.tripId?`<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%" onclick="goTripFromFootprint('${pv.tripId}')">前往关联出行：${escapeHtml(tripName(pv.tripId))}</button>`:'';
+  openEditModal('省份 · '+name,`<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="fpProvVis" ${pv.visited?'checked':''} style="width:auto">标记为去过</label><label>备注（选填）</label><textarea id="fpProvNote" rows="2">${escapeHtml(pv.note||'')}</textarea><label>关联出行（选填）</label><select id="fpProvTrip">${tripOpts}</select>${tripLink}`);
+  document.getElementById('saveEdit').onclick=async()=>{
+    const visited=document.getElementById('fpProvVis').checked;const note=document.getElementById('fpProvNote').value.trim();const tripId=document.getElementById('fpProvTrip').value||null;
+    if(visited)S.footprints.provinces[name]={visited:true,note,tripId};else delete S.footprints.provinces[name];
+    await saveFootprints();closeEditModal();renderFootprint();
+  };
+}
+function openCityEditor(id){
+  const c=S.footprints.cities.find(x=>x.id===id);if(!c)return;
+  const tripOpts=tripOptions(c.tripId||'');
+  const tripLink=c.tripId?`<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%" onclick="goTripFromFootprint('${c.tripId}')">前往关联出行：${escapeHtml(tripName(c.tripId))}</button>`:'';
+  openEditModal('编辑城市 · '+c.name,`<label>城市名称</label><input type="text" id="fpCityName" value="${escapeHtml(c.name).replace(/"/g,'&quot;')}" maxlength="20"><label>所属省份/地区</label><input type="text" id="fpCityProv" value="${escapeHtml(c.province||'')}" readonly style="background:var(--border-l);color:var(--text-2)"><label>备注（选填）</label><textarea id="fpCityNote" rows="2">${escapeHtml(c.note||'')}</textarea><label>关联出行（选填）</label><select id="fpCityTrip">${tripOpts}</select>${tripLink}`);
+  document.getElementById('saveEdit').onclick=async()=>{
+    const nm=document.getElementById('fpCityName').value.trim();if(!nm){showToast('请输入城市名称','error');return}
+    c.name=nm;c.note=document.getElementById('fpCityNote').value.trim();c.tripId=document.getElementById('fpCityTrip').value||null;
+    await saveFootprints();closeEditModal();renderFootprint();showToast('已更新','success');
+  };
+}
+function goTripFromFootprint(id){closeEditModal();document.getElementById('footprintView').style.display='none';openTrip(id)}
+function renderCityList(){const list=document.getElementById('fpCityList');if(!list)return;const cities=S.footprints.cities;
+  list.innerHTML=cities.length?cities.map(c=>`<div class="fp-city-item" onclick="openCityEditor('${c.id}')"><span class="fp-city-dot"></span><div class="fp-city-main"><div class="fp-city-name">${escapeHtml(c.name)}</div><div class="fp-city-sub">${escapeHtml(c.province||'')}${c.tripId?' · <span class="fp-city-trip">'+escapeHtml(tripName(c.tripId))+'</span>':''}</div></div><span class="fp-city-del" onclick="event.stopPropagation();delCity('${c.id}')">×</span></div>`).join(''):'<div class="trip-empty-hint">还没有记录城市，点“＋ 添加城市”并在地图打点</div>';}
+function updateFpStat(){const el=document.getElementById('fpStat');if(!el)return;const np=Object.keys(S.footprints.provinces).filter(k=>S.footprints.provinces[k]&&S.footprints.provinces[k].visited).length;el.textContent=`已点亮 ${np} 省 · ${S.footprints.cities.length} 城市`}
+async function delCity(id){if(!confirm('删除该城市标记？'))return;S.footprints.cities=S.footprints.cities.filter(x=>x.id!==id);await saveFootprints();renderFootprint();showToast('已删除','success')}
+async function clearAllFootprints(){if(!confirm('清空所有足迹（省份与城市）？此操作不可恢复。'))return;S.footprints={provinces:{},cities:[]};await saveFootprints();renderFootprint();showToast('已清空','success')}
+
 // ===== Init =====
-async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();maybeShowBackupHint()}
+async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint()}
 init();
 </script>
 </body>
