@@ -1,5 +1,5 @@
 // Service Worker - 网络优先策略，确保刷新能看到最新版本
-const CACHE = 'daily-workspace-v72';
+const CACHE = 'daily-workspace-v73';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
@@ -18,8 +18,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  // 跨域 CDN（ECharts / 中国地图 GeoJSON）走缓存优先，保证首次联网加载后可离线使用
-  const CDN_HOSTS = ['cdn.jsdelivr.net', 'geo.datav.aliyun.com'];
+  // 跨域 CDN（ECharts）走缓存优先，保证首次联网加载后可离线使用（中国地图 GeoJSON 已改为本地同源文件）
+  const CDN_HOSTS = ['cdn.jsdelivr.net'];
   try {
     const u = new URL(e.request.url);
     if (CDN_HOSTS.includes(u.host)) {
