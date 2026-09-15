@@ -507,6 +507,31 @@ img{max-width:100%;display:block}
 .trip-cat-del:hover{opacity:1}
 .trip-add-cat-row{display:flex;gap:6px;margin:6px 0 12px}
 .trip-add-cat-row input{flex:1;min-width:0}
+/* ===== 成长日历 ===== */
+.growth-calendar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin:14px 0;box-shadow:var(--shadow-sm)}
+.gc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.gc-title{font-size:15px;font-weight:600;color:var(--text-1)}
+.gc-week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.gc-week span{text-align:center;font-size:12px;color:var(--text-3)}
+.gc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.gc-cell{position:relative;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:1px solid var(--border-l);border-radius:8px;background:var(--bg,#f6f7f9);cursor:pointer;font-size:13px;color:var(--text-2);transition:background .15s,border-color .15s}
+.gc-cell:hover{border-color:var(--primary)}
+.gc-cell.gc-empty{background:transparent;border-color:transparent;cursor:default}
+.gc-cell.gc-today{border-color:var(--primary);font-weight:700;color:var(--primary)}
+.gc-cell.gc-has{background:var(--primary-light)}
+.gc-num{line-height:1}
+.gc-dots{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:100%}
+.gc-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.gc-dot.sleep{background:#6366f1}.gc-dot.diet{background:#22c55e}.gc-dot.out{background:#f59e0b}.gc-dot.diary{background:#ec4899}
+.gc-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--text-3)}
+.gc-legend span{display:flex;align-items:center;gap:5px}
+.gc-legend i{width:8px;height:8px;border-radius:50%}
+.gc-stars{display:flex;gap:6px;font-size:26px;cursor:pointer;user-select:none}
+.gc-star{color:var(--border);transition:color .1s}
+.gc-star.on{color:#f5b50a}
+.gc-others{margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-l)}
+.gc-others-title{font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.gc-other-row{font-size:13px;color:var(--text-2);margin:3px 0;word-break:break-word}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
@@ -722,6 +747,7 @@ img{max-width:100%;display:block}
             <div class="growth-filter-range" id="growthFilterRange"></div>
           </div>
           <div class="growth-modules" id="growthModules"></div>
+          <div id="growthCalendar" class="growth-calendar"></div>
         </div>
         <div id="growthDetailView" style="display:none">
           <div class="org-detail-header">
@@ -863,7 +889,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthDiary:[],growthCalMonth:'',growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
 const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
@@ -2243,11 +2269,12 @@ async function confirmSleepAbnormalTag(p){
   cancelSleepAbnormalTag(p);showToast('已新增标签：'+t,'success');
 }
 function cancelSleepAbnormalTag(p){const box=document.getElementById(p+'g-abBox');if(box){const r=box.parentNode.querySelector('.ab-add-row');if(r)r.remove()}}
-async function loadGrowth(){S.growthSleep=(await DB.get('growthSleep'))||[];S.growthDiet=(await DB.get('growthDiet'))||[];S.growthOut=(await DB.get('growthOut'))||[];S.sleepAbnTags=(await DB.get('sleepAbnTags'))||['夜醒','做梦哭闹','生病']}
+async function loadGrowth(){S.growthSleep=(await DB.get('growthSleep'))||[];S.growthDiet=(await DB.get('growthDiet'))||[];S.growthOut=(await DB.get('growthOut'))||[];S.growthDiary=(await DB.get('growthDiary'))||[];S.sleepAbnTags=(await DB.get('sleepAbnTags'))||['夜醒','做梦哭闹','生病']}
 function saveGrowthSleep(){return DB.set('growthSleep',S.growthSleep)}
 function saveGrowthDiet(){return DB.set('growthDiet',S.growthDiet)}
 function saveGrowthOut(){return DB.set('growthOut',S.growthOut)}
 function growthSave(mod){return mod==='sleep'?saveGrowthSleep():mod==='diet'?saveGrowthDiet():saveGrowthOut()}
+function saveGrowthDiary(){return DB.set('growthDiary',S.growthDiary)}
 function growthRecordsOf(mod){return mod==='sleep'?S.growthSleep:mod==='diet'?S.growthDiet:S.growthOut}
 function growthSort(arr){return [...arr].sort((a,b)=>{if((a.date||'')!==(b.date||''))return (b.date||'').localeCompare(a.date||'');return (b.timestamp||'').localeCompare(a.timestamp||'')})}
 function growthApplyFilter(){
@@ -2289,6 +2316,7 @@ function renderGrowthOverview(){
   const rangeEl=document.getElementById('growthFilterRange');if(rangeEl)rangeEl.textContent='📊 统计区间：'+(f.type==='all'?'全部时间':(f.start+' ~ '+f.end));
   const m=document.getElementById('growthModules');if(!m)return;
   m.innerHTML=Object.keys(GROWTH_MODULES).map(mod=>`<div class="growth-module-card" onclick="openGrowthModule('${mod}')"><div class="gm-head"><span class="gm-icon">${GROWTH_MODULES[mod].icon}</span><span class="gm-title">${GROWTH_MODULES[mod].title}</span><span class="gm-arrow">›</span></div><div class="gm-stats">${growthModuleStatsHTML(mod,growthStats(mod))}</div></div>`).join('');
+  renderGrowthCalendar();
 }
 function openGrowthModule(mod){
   S.growthModule=mod;
@@ -2300,6 +2328,37 @@ function openGrowthModule(mod){
   renderGrowthDetail();
 }
 function growthBackToList(){S.growthModule=null;document.getElementById('growthDetailView').style.display='none';document.getElementById('growthOverview').style.display='block';renderGrowthOverview()}
+// ===== 成长日历 =====
+function growthDayRecords(dateStr){return{sleep:S.growthSleep.filter(r=>r.date===dateStr),diet:S.growthDiet.filter(r=>r.date===dateStr),out:S.growthOut.filter(r=>r.date===dateStr)}}
+function growthDiaryOf(dateStr){return S.growthDiary.find(x=>x.date===dateStr)}
+function renderGrowthCalendar(){
+  const box=document.getElementById('growthCalendar');if(!box)return;
+  if(!S.growthCalMonth){const t=new Date();S.growthCalMonth=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`}
+  const [yy,mm]=S.growthCalMonth.split('-').map(Number);
+  const first=new Date(yy,mm-1,1);
+  const startDow=(first.getDay()+6)%7;
+  const days=new Date(yy,mm,0).getDate();
+  const todayStr=fmtYMD(new Date());
+  let cells='';
+  for(let i=0;i<startDow;i++)cells+='<div class="gc-cell gc-empty"></div>';
+  for(let d=1;d<=days;d++){const ds=`${S.growthCalMonth}-${String(d).padStart(2,'0')}`;
+    const hasSleep=S.growthSleep.some(r=>r.date===ds),hasDiet=S.growthDiet.some(r=>r.date===ds),hasOut=S.growthOut.some(r=>r.date===ds);
+    const diary=growthDiaryOf(ds);
+    const dots=`${hasSleep?'<i class="gc-dot sleep"></i>':''}${hasDiet?'<i class="gc-dot diet"></i>':''}${hasOut?'<i class="gc-dot out"></i>':''}${diary?'<i class="gc-dot diary"></i>':''}`;
+    cells+=`<div class="gc-cell${ds===todayStr?' gc-today':''}${diary?' gc-has':''}" onclick="openGrowthDay('${ds}')"><span class="gc-num">${d}</span><span class="gc-dots">${dots}</span></div>`}
+  const tail=(7-((startDow+days)%7))%7;for(let i=0;i<tail;i++)cells+='<div class="gc-cell gc-empty"></div>';
+  box.innerHTML=`<div class="gc-head"><button class="btn btn-ghost btn-sm" onclick="growthCalGo(-1)">‹</button><span class="gc-title">${yy}年${mm}月</span><button class="btn btn-ghost btn-sm" onclick="growthCalGo(1)">›</button></div><div class="gc-week">${['一','二','三','四','五','六','日'].map(w=>`<span>${w}</span>`).join('')}</div><div class="gc-grid">${cells}</div><div class="gc-legend"><span><i style="background:#6366f1"></i>睡眠</span><span><i style="background:#22c55e"></i>饮食</span><span><i style="background:#f59e0b"></i>出行运动</span><span><i style="background:#ec4899"></i>成长日记</span></div>`;
+}
+function growthCalGo(delta){const [yy,mm]=S.growthCalMonth.split('-').map(Number);const d=new Date(yy,mm-1+delta,1);S.growthCalMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;renderGrowthCalendar()}
+function openGrowthDay(dateStr){
+  const diary=growthDiaryOf(dateStr)||{date:dateStr,rating:0,note:''};
+  const o=growthDayRecords(dateStr);
+  const recLine=(label,icon,arr,sum)=>arr.length?`<div class="gc-other-row"><b>${icon} ${label}</b>：${arr.map(sum).join('；')}</div>`:'';
+  const otherHTML=(o.sleep.length||o.diet.length||o.out.length)?`<div class="gc-others"><div class="gc-others-title">当日其他记录</div>${recLine('睡眠','😴',o.sleep,r=>`${r.duration!=null?r.duration:0}h`+(r.abnormal&&r.abnormal.length?`(${r.abnormal.join('/')})`:''))}${recLine('饮食','🍱',o.diet,r=>`${[r.breakfast&&'早',r.lunch&&'中',r.dinner&&'晚'].filter(Boolean).join('')||'—'}${r.bowelAbnormalType&&r.bowelAbnormalType!=='无'?` · ${r.bowelAbnormalType}`:''}}${recLine('出行运动','🏃',o.out,r=>`${r.location||''}${r.exerciseHours?` ${r.exerciseHours}h`:''}`)}</div>`:'';
+  openEditModal('成长日历 · '+dateStr,`<label>今日状态（1-5 星，再点已选星可取消）</label><div class="gc-stars" id="gcStars" data-rating="${diary.rating||0}">${[1,2,3,4,5].map(n=>`<span class="gc-star ${n<=(diary.rating||0)?'on':''}" onclick="gcSetRating(${n})">★</span>`).join('')}</div><label>记录（选填）</label><textarea id="gcNote" rows="3" placeholder="今天成长的小点滴...">${escapeHtml(diary.note||'')}</textarea>${otherHTML}`);
+  document.getElementById('saveEdit').onclick=async()=>{const rating=Number(document.getElementById('gcStars').dataset.rating||0);const note=document.getElementById('gcNote').value.trim();let rec=growthDiaryOf(dateStr);if(!rating&&!note){if(rec)S.growthDiary=S.growthDiary.filter(x=>x.date!==dateStr);await saveGrowthDiary();closeEditModal();renderGrowthCalendar();showToast('已清空当日日记','success');return}if(!rec){rec={id:genId(),date:dateStr};S.growthDiary.push(rec)}rec.rating=rating;rec.note=note;await saveGrowthDiary();closeEditModal();renderGrowthCalendar();showToast('已保存','success')};
+}
+function gcSetRating(n){const box=document.getElementById('gcStars');if(!box)return;const cur=Number(box.dataset.rating||0);const v=cur===n?0:n;box.dataset.rating=v;box.querySelectorAll('.gc-star').forEach((s,i)=>s.classList.toggle('on',(i+1)<=v))}
 document.getElementById('growthBackList').addEventListener('click',growthBackToList);
 document.getElementById('growthFilterPresets').addEventListener('click',e=>{
   const btn=e.target.closest('[data-ftype]');if(!btn)return;
