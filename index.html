@@ -2350,11 +2350,16 @@ function renderGrowthCalendar(){
   box.innerHTML=`<div class="gc-head"><button class="btn btn-ghost btn-sm" onclick="growthCalGo(-1)">‹</button><span class="gc-title">${yy}年${mm}月</span><button class="btn btn-ghost btn-sm" onclick="growthCalGo(1)">›</button></div><div class="gc-week">${['一','二','三','四','五','六','日'].map(w=>`<span>${w}</span>`).join('')}</div><div class="gc-grid">${cells}</div><div class="gc-legend"><span><i style="background:#6366f1"></i>睡眠</span><span><i style="background:#22c55e"></i>饮食</span><span><i style="background:#f59e0b"></i>出行运动</span><span><i style="background:#ec4899"></i>成长日记</span></div>`;
 }
 function growthCalGo(delta){const [yy,mm]=S.growthCalMonth.split('-').map(Number);const d=new Date(yy,mm-1+delta,1);S.growthCalMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;renderGrowthCalendar()}
+// 成长日记：当日其他记录汇总（用普通字符串拼接，避免深层嵌套模板导致的解析问题）
+function fpSleepSum(r){return (r.duration!=null?r.duration:0)+'h'+(r.abnormal&&r.abnormal.length?('('+r.abnormal.join('/')+')'):'')}
+function fpDietSum(r){const meals=[r.breakfast&&'早',r.lunch&&'中',r.dinner&&'晚'].filter(Boolean).join('')||'—';return meals+(r.bowelAbnormalType&&r.bowelAbnormalType!=='无'?(' · '+r.bowelAbnormalType):'')}
+function fpOutSum(r){return (r.location||'')+(r.exerciseHours?(' '+r.exerciseHours+'h'):'')}
+function gcRecLine(label,icon,arr,sum){return arr.length?('<div class="gc-other-row"><b>'+icon+' '+label+'</b>：'+arr.map(sum).join('；')+'</div>'):''}
+function buildOtherHTML(o){if(!(o.sleep.length||o.diet.length||o.out.length))return '';return '<div class="gc-others"><div class="gc-others-title">当日其他记录</div>'+gcRecLine('睡眠','😴',o.sleep,fpSleepSum)+gcRecLine('饮食','🍱',o.diet,fpDietSum)+gcRecLine('出行运动','🏃',o.out,fpOutSum)+'</div>'}
 function openGrowthDay(dateStr){
   const diary=growthDiaryOf(dateStr)||{date:dateStr,rating:0,note:''};
   const o=growthDayRecords(dateStr);
-  const recLine=(label,icon,arr,sum)=>arr.length?`<div class="gc-other-row"><b>${icon} ${label}</b>：${arr.map(sum).join('；')}</div>`:'';
-  const otherHTML=(o.sleep.length||o.diet.length||o.out.length)?`<div class="gc-others"><div class="gc-others-title">当日其他记录</div>${recLine('睡眠','😴',o.sleep,r=>`${r.duration!=null?r.duration:0}h`+(r.abnormal&&r.abnormal.length?`(${r.abnormal.join('/')})`:''))}${recLine('饮食','🍱',o.diet,r=>`${[r.breakfast&&'早',r.lunch&&'中',r.dinner&&'晚'].filter(Boolean).join('')||'—'}${r.bowelAbnormalType&&r.bowelAbnormalType!=='无'?` · ${r.bowelAbnormalType}`:''}}${recLine('出行运动','🏃',o.out,r=>`${r.location||''}${r.exerciseHours?` ${r.exerciseHours}h`:''}`)}</div>`:'';
+  const otherHTML=buildOtherHTML(o);
   openEditModal('成长日历 · '+dateStr,`<label>今日状态（1-5 星，再点已选星可取消）</label><div class="gc-stars" id="gcStars" data-rating="${diary.rating||0}">${[1,2,3,4,5].map(n=>`<span class="gc-star ${n<=(diary.rating||0)?'on':''}" onclick="gcSetRating(${n})">★</span>`).join('')}</div><label>记录（选填）</label><textarea id="gcNote" rows="3" placeholder="今天成长的小点滴...">${escapeHtml(diary.note||'')}</textarea>${otherHTML}`);
   document.getElementById('saveEdit').onclick=async()=>{const rating=Number(document.getElementById('gcStars').dataset.rating||0);const note=document.getElementById('gcNote').value.trim();let rec=growthDiaryOf(dateStr);if(!rating&&!note){if(rec)S.growthDiary=S.growthDiary.filter(x=>x.date!==dateStr);await saveGrowthDiary();closeEditModal();renderGrowthCalendar();showToast('已清空当日日记','success');return}if(!rec){rec={id:genId(),date:dateStr};S.growthDiary.push(rec)}rec.rating=rating;rec.note=note;await saveGrowthDiary();closeEditModal();renderGrowthCalendar();showToast('已保存','success')};
 }
