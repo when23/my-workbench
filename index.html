@@ -1012,6 +1012,9 @@ async function syncFromCloud(){
   if(!CLOUD.enabled)return false;
   CLOUD.syncing=true;updateCloudStatus();
   let changed=false;
+  // 安全网：云端请求若长时间不返回（网络抖动/SDK 卡死），强制结束"同步中"并回退本地，
+  // 避免页面/指示器永久卡在同步中。真正的同步仍可能在后台稍后完成。
+  const watchdog=setTimeout(()=>{if(CLOUD.syncing){CLOUD.syncing=false;updateCloudStatus();console.warn('云同步超时保护：强制结束"同步中"状态')}},60000);
   try{
     const map=await cloudGetAll(1000);
     const sig=Object.keys(map).sort().map(k=>k+'='+((map[k]!==null&&map[k]!==undefined)?JSON.stringify(map[k]).length:-1)).join('|');
@@ -1024,7 +1027,7 @@ async function syncFromCloud(){
     }else{CLOUD.synced=true}
     CLOUD.lastCloudSig=sig
   }catch(e){console.warn('云端同步失败',e)}
-  CLOUD.syncing=false;updateCloudStatus();
+  finally{clearTimeout(watchdog);CLOUD.syncing=false;updateCloudStatus()}
   return changed
 }
 // 用户是否正在编辑（输入或弹窗打开），避免自动刷新打断
@@ -2862,7 +2865,12 @@ async function delCity(id){if(!confirm('删除该城市标记？'))return;S.foot
 async function clearAllFootprints(){if(!confirm('清空所有足迹（省份与城市）？此操作不可恢复。'))return;S.footprints={provinces:{},cities:[]};await saveFootprints();renderFootprint();showToast('已清空','success')}
 
 // ===== Init =====
-async function init(){await DB.init();document.getElementById('datePicker').value=S.date;if(CLOUD.on){await initCloudIfNeeded()}if(CLOUD.enabled){await syncFromCloud()}await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint();updateCloudStatus()}
+async function init(){await DB.init();document.getElementById('datePicker').value=S.date;
+  // 关键：先渲染本地数据，保证页面立即可见，绝不被云同步阻塞
+  await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint();updateCloudStatus();
+  // 云端同步放后台执行（不 await），完成后再按需刷新；若卡死有超时保护，不影响页面
+  if(CLOUD.on){initCloudIfNeeded().then(async()=>{if(CLOUD.enabled){try{const changed=await syncFromCloud();if(changed)await reloadAll()}catch(e){console.warn('后台云同步异常',e);updateCloudStatus()}}}).catch(e=>{console.warn('云初始化异常',e);updateCloudStatus()})}
+}
 init();
 startCloudPolling();
 document.getElementById('cloudBtn').addEventListener('click',openCloudModal);
