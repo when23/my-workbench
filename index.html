@@ -924,7 +924,9 @@ const CLOUD={
   cloud:null,        // cloud.Cloud 实例
   enabled:false,
   synced:false,      // 是否已与云端做过一次全量合并
-  syncing:false
+  syncing:false,
+  lastWriteError:0,  // 最近一次云端写入失败时间戳（用于界面提示）
+  lastCloudSig:''    // 云端数据签名，用于判断是否有变更
 };
 function loadScriptSrc(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('加载失败: '+src));document.head.appendChild(s)})}
 async function initCloudIfNeeded(){
@@ -946,24 +948,55 @@ async function cloudGet(key){const r=await cloudCol().doc(key).get();const list=
 async function cloudSet(key,val){await cloudCol().doc(key).set({_id:key,v:val})}
 async function cloudDel(key){try{await cloudCol().doc(key).remove()}catch(e){}}
 async function cloudGetAll(limit){const r=await cloudCol().limit(limit||1000).get();return (r&&r.data)||[]}
-// 与云端做一次双向合并：云端键覆盖本地，本地独有键上传云端（按 key 合并，冲突时云端优先）
+// 与云端做一次双向合并：云端键覆盖本地，本地独有键上传云端；返回是否有变更（用于决定是否刷新界面）
 async function syncFromCloud(){
-  if(!CLOUD.enabled)return;
+  if(!CLOUD.enabled)return false;
   CLOUD.syncing=true;updateCloudStatus();
+  let changed=false;
   try{
     const docs=await cloudGetAll(1000);
-    const cloudMap={};docs.forEach(d=>{cloudMap[d._id]=d.v;DB._localSet(d._id,d.v)});
-    const localKeys=await DB._localKeys();
-    for(const k of localKeys){if(!(k in cloudMap)){try{await cloudSet(k,await DB._localGet(k))}catch(e){}}}
-    CLOUD.synced=true
+    const sig=docs.map(d=>d._id+'='+(d.v?JSON.stringify(d.v).length:-1)).join('|');
+    if(sig!==CLOUD.lastCloudSig){
+      changed=true;
+      const cloudMap={};docs.forEach(d=>{cloudMap[d._id]=d.v});
+      const localKeys=await DB._localKeys();
+      for(const k of localKeys){if(!(k in cloudMap)){try{await cloudSet(k,await DB._localGet(k))}catch(e){}}}
+      for(const d of docs){await DB._localSet(d._id,d.v)}
+      CLOUD.synced=true
+    }else{CLOUD.synced=true}
+    CLOUD.lastCloudSig=sig
   }catch(e){console.warn('云端同步失败',e)}
-  CLOUD.syncing=false;updateCloudStatus()
+  CLOUD.syncing=false;updateCloudStatus();
+  return changed
+}
+// 用户是否正在编辑（输入或弹窗打开），避免自动刷新打断
+function isUserEditing(){
+  const a=document.activeElement;
+  if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable))return true;
+  if(document.querySelector('.modal-overlay.show'))return true;
+  return false
+}
+// 周期性自动拉取云端变更（实时同步的核心）
+function startCloudPolling(){
+  setInterval(async()=>{
+    if(CLOUD.enabled&&!CLOUD.syncing&&document.visibilityState==='visible'){
+      const changed=await syncFromCloud();
+      if(changed&&!isUserEditing()){await reloadAll()}
+    }
+  },20000)
 }
 function updateCloudStatus(){
   const btn=document.getElementById('cloudBtn');
-  if(btn){btn.textContent=CLOUD.syncing?'☁ 同步中…':CLOUD.enabled?'☁ 已同步':'☁ 云同步';btn.classList.toggle('cloud-on',CLOUD.enabled)}
+  if(btn){
+    let txt,cls=false;
+    if(CLOUD.syncing){txt='☁ 同步中…'}
+    else if(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<60000){txt='☁ 同步异常';cls=true}
+    else if(CLOUD.enabled){txt='☁ 已同步';cls=true}
+    else{txt='☁ 云同步'}
+    btn.textContent=txt;btn.classList.toggle('cloud-on',cls)
+  }
   const st=document.getElementById('cloudStatusText');
-  if(st)st.textContent=CLOUD.enabled?('状态：已连接'+(CLOUD.syncing?'（同步中）':'')):'状态：未连接（仅本地存储）'
+  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<60000?'写入异常，请检查域名/规则/集合':'已连接'))):'状态：未连接（仅本地存储）'
 }
 async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
 function openCloudModal(){
@@ -1003,11 +1036,11 @@ const DB={
   },
   async set(key,val){
     await this._localSet(key,val);
-    if(CLOUD.enabled){try{await cloudSet(key,val)}catch(e){console.warn('云端写入失败',e)}}
+    if(CLOUD.enabled){try{await cloudSet(key,val)}catch(e){if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败，请检查域名/规则/集合','error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)}}
   },
   async del(key){
     await this._localDel(key);
-    if(CLOUD.enabled){try{await cloudDel(key)}catch(e){console.warn('云端删除失败',e)}}
+    if(CLOUD.enabled){try{await cloudDel(key)}catch(e){if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端删除失败，请检查域名/规则/集合','error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端删除失败',e)}}
   },
   async keys(){return this._localKeys()},
   _localGet(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
@@ -2773,6 +2806,7 @@ async function clearAllFootprints(){if(!confirm('清空所有足迹（省份与�
 // ===== Init =====
 async function init(){await DB.init();document.getElementById('datePicker').value=S.date;if(CLOUD.on){await initCloudIfNeeded()}if(CLOUD.enabled){await syncFromCloud()}await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint();updateCloudStatus()}
 init();
+startCloudPolling();
 document.getElementById('cloudBtn').addEventListener('click',openCloudModal);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&CLOUD.enabled&&!CLOUD.syncing){syncFromCloud().then(()=>reloadAll())}});
 window.addEventListener('online',()=>{if(CLOUD.enabled&&!CLOUD.syncing){syncFromCloud().then(()=>reloadAll())}});
