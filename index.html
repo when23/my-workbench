@@ -944,6 +944,9 @@ async function initCloudIfNeeded(){
   }
 }
 function cloudCol(){return CLOUD.cloud.database().collection('kv')}
+// 提取云端 SDK 返回的可读错误信息
+function cloudErrMsg(e){if(!e)return '';if(e.errMsg)return String(e.errMsg);if(e.message)return String(e.message);try{return JSON.stringify(e)}catch(_){return String(e)}}
+let cloudLastErr='';
 async function cloudGet(key){const r=await cloudCol().doc(key).get();const list=(r&&r.data)||[];return list.length?list[0].v:null}
 async function cloudSet(key,val){await cloudCol().doc(key).set({_id:key,v:val})}
 async function cloudDel(key){try{await cloudCol().doc(key).remove()}catch(e){}}
@@ -996,7 +999,7 @@ function updateCloudStatus(){
     btn.textContent=txt;btn.classList.toggle('cloud-on',cls)
   }
   const st=document.getElementById('cloudStatusText');
-  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<60000?'写入异常，请检查域名/规则/集合':'已连接'))):'状态：未连接（仅本地存储）'
+  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<60000?('写入异常：'+(cloudLastErr.slice(0,120)||'请检查域名/规则/集合')):'已连接'))):'状态：未连接（仅本地存储）'
 }
 async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
 function openCloudModal(){
@@ -1036,11 +1039,11 @@ const DB={
   },
   async set(key,val){
     await this._localSet(key,val);
-    if(CLOUD.enabled){try{await cloudSet(key,val)}catch(e){if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败，请检查域名/规则/集合','error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)}}
+    if(CLOUD.enabled){try{await cloudSet(key,val);cloudLastErr=''}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)}}
   },
   async del(key){
     await this._localDel(key);
-    if(CLOUD.enabled){try{await cloudDel(key)}catch(e){if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端删除失败，请检查域名/规则/集合','error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端删除失败',e)}}
+    if(CLOUD.enabled){try{await cloudDel(key);cloudLastErr=''}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端删除失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端删除失败',e)}}
   },
   async keys(){return this._localKeys()},
   _localGet(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
