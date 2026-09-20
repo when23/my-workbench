@@ -948,7 +948,12 @@ function cloudCol(){return CLOUD.cloud.database().collection('kv')}
 function cloudErrMsg(e){if(!e)return '';if(e.errMsg)return String(e.errMsg);if(e.message)return String(e.message);try{return JSON.stringify(e)}catch(_){return String(e)}}
 let cloudLastErr='';
 async function cloudGet(key){const r=await cloudCol().doc(key).get();const list=(r&&r.data)||[];return list.length?list[0].v:null}
-async function cloudSet(key,val){await cloudCol().doc(key).set({_id:key,v:val})}
+async function cloudSet(key,val){
+  // 云端 set 的 data 不允许为空对象：若值 undefined/null，剥离 _id 后会变成 {}，服务端报
+  // "parameter.data should be object instead of undefined"。故空值直接删云端文档而不是空写。
+  if(val===undefined||val===null){try{await cloudCol().doc(key).remove()}catch(_){}return}
+  try{await cloudCol().doc(key).set({v:val})}catch(e){console.warn('cloudSet 失败 key='+key+' typeofVal='+(typeof val),e);throw e}
+}
 async function cloudDel(key){try{await cloudCol().doc(key).remove()}catch(e){}}
 async function cloudGetAll(limit){const r=await cloudCol().limit(limit||1000).get();return (r&&r.data)||[]}
 // 与云端做一次双向合并：云端键覆盖本地，本地独有键上传云端；返回是否有变更（用于决定是否刷新界面）
