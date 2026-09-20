@@ -28,6 +28,7 @@ img{max-width:100%;display:block}
 .header h1{font-size:20px;font-weight:700;display:flex;align-items:center;gap:8px}
 .header-logo{width:32px;height:32px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px}
 .header-actions{display:flex;gap:8px}
+.btn.cloud-on{color:var(--primary);border-color:var(--primary)}
 @media(max-width:480px){.header h1{font-size:16px}.header-logo{width:28px;height:28px;font-size:15px;border-radius:6px}.btn{padding:6px 10px;font-size:12px}.health-rem-type{padding:6px 10px;font-size:12px}.health-reminder-types{gap:6px}}
 .btn{padding:8px 14px;border-radius:var(--r-s);font-size:13px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .btn-ghost{color:var(--text-2);background:var(--surface);border:1px solid var(--border)}
@@ -551,6 +552,7 @@ img{max-width:100%;display:block}
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
+      <button class="btn btn-ghost" id="cloudBtn">☁ 云同步</button>
       <input type="file" id="importFile" accept=".json" style="display:none">
     </div>
   </div>
@@ -868,6 +870,27 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 
+<div class="modal-overlay" id="cloudModal">
+  <div class="modal">
+    <div class="modal-header"><h3>☁ 云同步设置</h3><button class="modal-close" onclick="closeCloudModal()">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px">把工作台数据同步到「微信云开发」环境，实现电脑与手机共享。当前为方案 A：数据存于你的云开发环境（建议仅放低敏感内容；后续可加口令保护）。</p>
+      <label>云开发环境 ID</label>
+      <input type="text" id="cloudEnvInput" placeholder="如：my-env-1a2b3c" autocomplete="off" spellcheck="false">
+      <label>小程序 AppID（资源方）</label>
+      <input type="text" id="cloudAppidInput" placeholder="如：wx1234567890abcdef" autocomplete="off" spellcheck="false">
+      <p style="font-size:12px;color:var(--text-3);margin:6px 0 12px;line-height:1.6">在微信开发者工具「环境设置」拿环境 ID，「项目设置/详情」拿 AppID。并在云开发控制台：①开启「未登录模式」；②把 <code>https://when23.github.io</code> 加入 Web 安全域名；③新建集合 <code>kv</code> 并将安全规则设为允许读写（read/write 均为 true）。</p>
+      <div id="cloudStatusText" style="font-size:13px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="saveCloudSettings()">保存并连接</button>
+        <button class="btn btn-ghost" onclick="doCloudSync()">立即同步</button>
+        <button class="btn btn-ghost" onclick="disconnectCloud()">断开</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <div class="board-color-pop" id="boardColorPop"></div>
 <div class="toast" id="toast"></div>
 <div class="lightbox" id="lightbox"><img id="lightboxImg" src="" alt=""></div>
@@ -892,7 +915,80 @@ img{max-width:100%;display:block}
 </div>
 
 <script>
-// ===== IndexedDB: 替代服务器，数据持久化在浏览器 =====
+// ===== 存储层：IndexedDB 本地缓存 + 云端同步（云端优先，本地兜底） =====
+// 云同步使用「微信云开发 Web SDK」(@wxcloud/cloud-sdk，本地同源 cloud.js，挂载 window.cloud)
+const CLOUD={
+  env:localStorage.getItem('cloudEnv')||'',
+  appid:localStorage.getItem('cloudAppid')||'',
+  on:localStorage.getItem('cloudOn')==='1',
+  cloud:null,        // cloud.Cloud 实例
+  enabled:false,
+  synced:false,      // 是否已与云端做过一次全量合并
+  syncing:false
+};
+function loadScriptSrc(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('加载失败: '+src));document.head.appendChild(s)})}
+async function initCloudIfNeeded(){
+  if(!CLOUD.on||!CLOUD.env){CLOUD.enabled=false;return}
+  try{
+    if(typeof window.cloud==='undefined'){await loadScriptSrc('cloud.js')}
+    if(typeof window.cloud==='undefined')throw new Error('cloud.js 未加载')
+    const inst=new window.cloud.Cloud({identityless:true,resourceAppid:CLOUD.appid||undefined,resourceEnv:CLOUD.env});
+    await inst.init();
+    CLOUD.cloud=inst;CLOUD.enabled=true;
+    updateCloudStatus();showToast('云同步已连接','success')
+  }catch(e){
+    console.error('云同步初始化失败',e);CLOUD.enabled=false;CLOUD.synced=false;updateCloudStatus();
+    showToast('云同步连接失败，已使用本地数据','error')
+  }
+}
+function cloudCol(){return CLOUD.cloud.database().collection('kv')}
+async function cloudGet(key){const r=await cloudCol().doc(key).get();const list=(r&&r.data)||[];return list.length?list[0].v:null}
+async function cloudSet(key,val){await cloudCol().doc(key).set({_id:key,v:val})}
+async function cloudDel(key){try{await cloudCol().doc(key).remove()}catch(e){}}
+async function cloudGetAll(limit){const r=await cloudCol().limit(limit||1000).get();return (r&&r.data)||[]}
+// 与云端做一次双向合并：云端键覆盖本地，本地独有键上传云端（按 key 合并，冲突时云端优先）
+async function syncFromCloud(){
+  if(!CLOUD.enabled)return;
+  CLOUD.syncing=true;updateCloudStatus();
+  try{
+    const docs=await cloudGetAll(1000);
+    const cloudMap={};docs.forEach(d=>{cloudMap[d._id]=d.v;DB._localSet(d._id,d.v)});
+    const localKeys=await DB._localKeys();
+    for(const k of localKeys){if(!(k in cloudMap)){try{await cloudSet(k,await DB._localGet(k))}catch(e){}}}
+    CLOUD.synced=true
+  }catch(e){console.warn('云端同步失败',e)}
+  CLOUD.syncing=false;updateCloudStatus()
+}
+function updateCloudStatus(){
+  const btn=document.getElementById('cloudBtn');
+  if(btn){btn.textContent=CLOUD.syncing?'☁ 同步中…':CLOUD.enabled?'☁ 已同步':'☁ 云同步';btn.classList.toggle('cloud-on',CLOUD.enabled)}
+  const st=document.getElementById('cloudStatusText');
+  if(st)st.textContent=CLOUD.enabled?('状态：已连接'+(CLOUD.syncing?'（同步中）':'')):'状态：未连接（仅本地存储）'
+}
+async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
+function openCloudModal(){
+  document.getElementById('cloudEnvInput').value=CLOUD.env;
+  document.getElementById('cloudAppidInput').value=CLOUD.appid;
+  updateCloudStatus();
+  document.getElementById('cloudModal').classList.add('show')
+}
+function closeCloudModal(){document.getElementById('cloudModal').classList.remove('show')}
+async function saveCloudSettings(){
+  const env=document.getElementById('cloudEnvInput').value.trim();
+  const appid=document.getElementById('cloudAppidInput').value.trim();
+  if(!env){showToast('请填写环境 ID','error');return}
+  localStorage.setItem('cloudEnv',env);localStorage.setItem('cloudAppid',appid);localStorage.setItem('cloudOn','1');
+  CLOUD.env=env;CLOUD.appid=appid;CLOUD.on=true;CLOUD.synced=false;
+  await initCloudIfNeeded();
+  if(CLOUD.enabled){await syncFromCloud();await reloadAll();closeCloudModal();showToast('云同步已开启','success')}
+  else{updateCloudStatus()}
+}
+function disconnectCloud(){
+  localStorage.removeItem('cloudEnv');localStorage.removeItem('cloudAppid');localStorage.removeItem('cloudOn');
+  CLOUD.env='';CLOUD.appid='';CLOUD.on=false;CLOUD.enabled=false;CLOUD.synced=false;CLOUD.cloud=null;
+  closeCloudModal();showToast('已断开云同步，回退本地','success');updateCloudStatus();location.reload()
+}
+async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}await syncFromCloud();await reloadAll();showToast('已与云端同步','success')}
 const DB={
   _db:null,
   init(){return new Promise((resolve,reject)=>{
@@ -901,10 +997,23 @@ const DB={
     req.onsuccess=e=>{this._db=e.target.result;resolve()};
     req.onerror=e=>reject(e.target.error)
   })},
-  get(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
-  set(key,val){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})},
-  del(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').delete(key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})},
-  keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+  async get(key){
+    if(CLOUD.enabled&&!CLOUD.synced){try{const v=await cloudGet(key);if(v!==null&&v!==undefined){await this._localSet(key,v);return v}}catch(e){console.warn('云端读取失败',e)}}
+    return this._localGet(key)
+  },
+  async set(key,val){
+    await this._localSet(key,val);
+    if(CLOUD.enabled){try{await cloudSet(key,val)}catch(e){console.warn('云端写入失败',e)}}
+  },
+  async del(key){
+    await this._localDel(key);
+    if(CLOUD.enabled){try{await cloudDel(key)}catch(e){console.warn('云端删除失败',e)}}
+  },
+  async keys(){return this._localKeys()},
+  _localGet(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
+  _localSet(key,val){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})},
+  _localDel(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').delete(key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})},
+  _localKeys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
 const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,orgSearch:'',outfits:[],outfitCart:[],outfitLocExpanded:{},outfitSearch:'',pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthDiary:[],growthCalMonth:'',growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
@@ -2662,8 +2771,11 @@ async function delCity(id){if(!confirm('删除该城市标记？'))return;S.foot
 async function clearAllFootprints(){if(!confirm('清空所有足迹（省份与城市）？此操作不可恢复。'))return;S.footprints={provinces:{},cities:[]};await saveFootprints();renderFootprint();showToast('已清空','success')}
 
 // ===== Init =====
-async function init(){await DB.init();document.getElementById('datePicker').value=S.date;await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint()}
+async function init(){await DB.init();document.getElementById('datePicker').value=S.date;if(CLOUD.enabled){await syncFromCloud()}await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint();updateCloudStatus()}
 init();
+document.getElementById('cloudBtn').addEventListener('click',openCloudModal);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&CLOUD.enabled&&!CLOUD.syncing){syncFromCloud().then(()=>reloadAll())}});
+window.addEventListener('online',()=>{if(CLOUD.enabled&&!CLOUD.syncing){syncFromCloud().then(()=>reloadAll())}});
 </script>
 </body>
 </html>
