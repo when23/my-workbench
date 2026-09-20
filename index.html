@@ -947,30 +947,79 @@ function cloudCol(){return CLOUD.cloud.database().collection('kv')}
 // 提取云端 SDK 返回的可读错误信息
 function cloudErrMsg(e){if(!e)return '';if(e.errMsg)return String(e.errMsg);if(e.message)return String(e.message);try{return JSON.stringify(e)}catch(_){return String(e)}}
 let cloudLastErr='';
-async function cloudGet(key){const r=await cloudCol().doc(key).get();const list=(r&&r.data)||[];return list.length?list[0].v:null}
-async function cloudSet(key,val){
-  // 云端 set 的 data 不允许为空对象：若值 undefined/null，剥离 _id 后会变成 {}，服务端报
-  // "parameter.data should be object instead of undefined"。故空值直接删云端文档而不是空写。
-  // 注意：@wxcloud/cloud-sdk 的 set 要求参数形如 {data:{...}}（内部读 t.data），不能直接传裸对象。
-  if(val===undefined||val===null){try{await cloudCol().doc(key).remove()}catch(_){}return}
-  try{await cloudCol().doc(key).set({data:{v:val}})}catch(e){console.warn('cloudSet 失败 key='+key+' typeofVal='+(typeof val),e);throw e}
+// —— 云端文档大小限制：微信云数据库单条文档 < 512KB ——
+// 超过阈值的记录自动分片为多个小文档（key__CHK__0 / key__CHK__1 ...），读取时再拼回。
+const CHUNK_MAX = 450*1024;     // 安全上限（字节），留余量给文档元数据
+const CHUNK_SEP = '__CHK__';    // 分片文档 id 后缀分隔符（正常 key 不会出现）
+let cloudChunkIndex = {};        // key -> 分片数（用于删除时清理分片文档）
+function _byteLen(s){return new TextEncoder().encode(s).length}
+function _splitChunks(str){
+  const chunks=[]; let cur=''; let n=0; const enc=new TextEncoder();
+  for(const ch of str){const b=enc.encode(ch).length;
+    if(n+b>CHUNK_MAX && cur){chunks.push(cur);cur=ch;n=b}
+    else{cur+=ch;n+=b}}
+  if(cur)chunks.push(cur);
+  return chunks;
 }
-async function cloudDel(key){try{await cloudCol().doc(key).remove()}catch(e){}}
-async function cloudGetAll(limit){const r=await cloudCol().limit(limit||1000).get();return (r&&r.data)||[]}
+// 把云端 docs 数组还原为 {key: value}（分片文档被忽略，重组后只留真实 key）
+function _unpackDocs(docs){
+  const manifests={}, chunkMap={}, out={};
+  for(const d of docs){
+    const id=d._id;
+    if(d.__chunked===true){manifests[id]=d.__n}
+    else if(d.__cv!==undefined){const i=id.lastIndexOf(CHUNK_SEP);if(i>0){const ck=id.slice(0,i),ci=parseInt(id.slice(i+1),10);(chunkMap[ck]=chunkMap[ck]||[])[ci]=d.__cv}}
+    else if(d.__v!==undefined){out[id]=d.__v}
+    else if(d.v!==undefined){out[id]=d.v} // 兼容旧版单文档格式
+  }
+  for(const k in manifests){const parts=chunkMap[k]||[];try{out[k]=JSON.parse(parts.join(''))}catch(e){console.warn('云端分片重组失败 '+k,e)}}
+  for(const k in manifests)cloudChunkIndex[k]=manifests[k]; // 记录分片数供删除清理
+  return out;
+}
+async function cloudGet(key){
+  const r=await cloudCol().doc(key).get();const list=(r&&r.data)||[];const d=list[0]||null;
+  if(!d)return null;
+  if(d.__chunked===true){const parts=[];for(let i=0;i<(d.__n||0);i++){const cr=await cloudCol().doc(key+CHUNK_SEP+i).get();const cd=(cr&&cr.data&&cr.data[0]);if(cd&&cd.__cv!==undefined)parts[i]=cd.__cv;}try{return JSON.parse(parts.join(''))}catch(e){return null}}
+  if(d.__v!==undefined)return d.__v;
+  if(d.v!==undefined)return d.v; // 兼容旧版
+  return null;
+}
+async function cloudSet(key,val){
+  // 空值直接删除云端文档（避免空写报错）。
+  // 注意：@wxcloud/cloud-sdk 的 set 要求参数形如 {data:{...}}（内部读 t.data），不能直接传裸对象。
+  if(val===undefined||val===null){await cloudDel(key);return}
+  const str=JSON.stringify(val);
+  try{
+    if(_byteLen(str)<=CHUNK_MAX){
+      cloudChunkIndex[key]=0; // 标记为非分片
+      await cloudCol().doc(key).set({data:{__v:val}});
+    }else{
+      const chunks=_splitChunks(str); // 大记录分片存储
+      for(let i=0;i<chunks.length;i++){await cloudCol().doc(key+CHUNK_SEP+i).set({data:{__cv:chunks[i]}})}
+      await cloudCol().doc(key).set({data:{__chunked:true,__n:chunks.length}});
+      cloudChunkIndex[key]=chunks.length;
+    }
+  }catch(e){console.warn('cloudSet 失败 key='+key+' bytes='+_byteLen(str),e);throw e}
+}
+async function cloudDel(key){
+  try{await cloudCol().doc(key).remove()}catch(_){}
+  const n=cloudChunkIndex[key];
+  if(n){for(let i=0;i<n;i++){try{await cloudCol().doc(key+CHUNK_SEP+i).remove()}catch(_){}}} // 清理分片文档
+  delete cloudChunkIndex[key];
+}
+async function cloudGetAll(limit){const r=await cloudCol().limit(limit||1000).get();return _unpackDocs((r&&r.data)||[])}
 // 与云端做一次双向合并：云端键覆盖本地，本地独有键上传云端；返回是否有变更（用于决定是否刷新界面）
 async function syncFromCloud(){
   if(!CLOUD.enabled)return false;
   CLOUD.syncing=true;updateCloudStatus();
   let changed=false;
   try{
-    const docs=await cloudGetAll(1000);
-    const sig=docs.map(d=>d._id+'='+(d.v?JSON.stringify(d.v).length:-1)).join('|');
+    const map=await cloudGetAll(1000);
+    const sig=Object.keys(map).sort().map(k=>k+'='+((map[k]!==null&&map[k]!==undefined)?JSON.stringify(map[k]).length:-1)).join('|');
     if(sig!==CLOUD.lastCloudSig){
       changed=true;
-      const cloudMap={};docs.forEach(d=>{cloudMap[d._id]=d.v});
       const localKeys=await DB._localKeys();
-      for(const k of localKeys){if(!(k in cloudMap)){try{await cloudSet(k,await DB._localGet(k))}catch(e){}}}
-      for(const d of docs){await DB._localSet(d._id,d.v)}
+      for(const k of localKeys){if(!(k in map)){try{await cloudSet(k,await DB._localGet(k))}catch(e){}}}
+      for(const k in map){await DB._localSet(k,map[k])}
       CLOUD.synced=true
     }else{CLOUD.synced=true}
     CLOUD.lastCloudSig=sig
