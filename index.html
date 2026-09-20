@@ -920,7 +920,8 @@ img{max-width:100%;display:block}
 const CLOUD={
   env:localStorage.getItem('cloudEnv')||'',
   appid:localStorage.getItem('cloudAppid')||'',
-  on:localStorage.getItem('cloudOn')==='1',
+  // 在网址后加 ?nocloud 可临时禁用云同步（纯本地模式），方便排障/应急使用
+  on:(localStorage.getItem('cloudOn')==='1') && !/[?&]nocloud(=|$)/.test(location.search),
   cloud:null,        // cloud.Cloud 实例
   enabled:false,
   synced:false,      // 是否已与云端做过一次全量合并
