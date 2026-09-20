@@ -951,8 +951,9 @@ async function cloudGet(key){const r=await cloudCol().doc(key).get();const list=
 async function cloudSet(key,val){
   // 云端 set 的 data 不允许为空对象：若值 undefined/null，剥离 _id 后会变成 {}，服务端报
   // "parameter.data should be object instead of undefined"。故空值直接删云端文档而不是空写。
+  // 注意：@wxcloud/cloud-sdk 的 set 要求参数形如 {data:{...}}（内部读 t.data），不能直接传裸对象。
   if(val===undefined||val===null){try{await cloudCol().doc(key).remove()}catch(_){}return}
-  try{await cloudCol().doc(key).set({v:val})}catch(e){console.warn('cloudSet 失败 key='+key+' typeofVal='+(typeof val),e);throw e}
+  try{await cloudCol().doc(key).set({data:{v:val}})}catch(e){console.warn('cloudSet 失败 key='+key+' typeofVal='+(typeof val),e);throw e}
 }
 async function cloudDel(key){try{await cloudCol().doc(key).remove()}catch(e){}}
 async function cloudGetAll(limit){const r=await cloudCol().limit(limit||1000).get();return (r&&r.data)||[]}
