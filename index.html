@@ -2771,7 +2771,7 @@ async function delCity(id){if(!confirm('删除该城市标记？'))return;S.foot
 async function clearAllFootprints(){if(!confirm('清空所有足迹（省份与城市）？此操作不可恢复。'))return;S.footprints={provinces:{},cities:[]};await saveFootprints();renderFootprint();showToast('已清空','success')}
 
 // ===== Init =====
-async function init(){await DB.init();document.getElementById('datePicker').value=S.date;if(CLOUD.enabled){await syncFromCloud()}await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint();updateCloudStatus()}
+async function init(){await DB.init();document.getElementById('datePicker').value=S.date;if(CLOUD.on){await initCloudIfNeeded()}if(CLOUD.enabled){await syncFromCloud()}await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint();updateCloudStatus()}
 init();
 document.getElementById('cloudBtn').addEventListener('click',openCloudModal);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&CLOUD.enabled&&!CLOUD.syncing){syncFromCloud().then(()=>reloadAll())}});
