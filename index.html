@@ -164,6 +164,13 @@ img{max-width:100%;display:block}
 .emoji-item:hover{background:var(--border-l)}
 .emoji-item.selected{border-color:var(--primary);background:var(--primary-light)}
 .record-list{display:flex;flex-direction:column;gap:12px}
+.org-search-wrap{position:relative;display:flex;align-items:center;margin-bottom:14px}
+.org-search-wrap .org-search-ico{position:absolute;left:12px;font-size:15px;pointer-events:none;opacity:.6}
+.org-search-wrap input{width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:9px 34px 9px 34px;font-size:14px;background:var(--bg);color:var(--text)}
+.org-search-wrap input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+.org-search-wrap .org-search-clear{position:absolute;right:6px;width:24px;height:24px;border:none;background:var(--border-l);color:var(--text-2);border-radius:50%;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.org-search-wrap .org-search-clear:hover{background:var(--border);color:var(--text)}
+.org-search-hint{font-size:12px;color:var(--text-3);margin:-8px 0 12px;text-align:right}
 .record-card{background:var(--surface);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);transition:box-shadow .2s}
 .record-card:hover{box-shadow:var(--shadow)}
 .record-meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
@@ -684,6 +691,11 @@ img{max-width:100%;display:block}
             <h2 id="orgItemTitle"></h2>
             <button class="btn btn-danger btn-sm" id="orgClearOther" style="display:none" onclick="clearOrgOther()">🗑 一键清空</button>
           </div>
+          <div class="org-search-wrap">
+            <span class="org-search-ico">🔍</span>
+            <input type="text" id="orgSearch" placeholder="搜索已添加的物品（名称 / 描述）" oninput="onOrgSearch(this.value)">
+            <button class="org-search-clear" id="orgSearchClear" style="display:none" onclick="onOrgSearch('',true)" title="清除搜索">×</button>
+          </div>
           <div class="input-card">
             <input type="text" id="orgTitle" placeholder="物品名称（如：冬季羽绒服）" style="width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:8px 12px;font-size:14px;background:var(--bg);margin-bottom:8px">
             <textarea id="orgText" placeholder="详细描述（如：颜色、尺寸、备注等）" rows="3"></textarea>
@@ -889,7 +901,7 @@ const DB={
   keys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthDiary:[],growthCalMonth:'',growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,orgSearch:'',outfits:[],outfitCart:[],outfitLocExpanded:{},pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthDiary:[],growthCalMonth:'',growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
 const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
@@ -1245,7 +1257,7 @@ function openOrgFilter(status){
   document.getElementById('orgItemView').style.display='block';
   document.querySelector('#orgItemView .input-card').style.display='none';
   document.getElementById('orgItemTitle').innerHTML=status==='pending'?'⏳ 待处理清单':'✓ 已处理清单';
-  renderOrgItems();
+  resetOrgSearch();renderOrgItems();
 }
 // 「其他」分类一键清空
 async function clearOrgOther(){
@@ -1296,7 +1308,7 @@ function openOrgLocation(idx){
   document.querySelector('#orgItemView .input-card').style.display='block';
   document.getElementById('orgItemTitle').innerHTML=`<span>${cat.icon}</span> ${escapeHtml(cat.name)} <span style="color:var(--text-3);font-size:14px">/ ${escapeHtml(S.orgCurrentLocation||'未指定位置')}</span>`;
   document.getElementById('orgLocation').value=S.orgCurrentLocation||'';
-  renderOrgItems();
+  resetOrgSearch();renderOrgItems();
 }
 function openOrgLocationWithForm(){
   S.orgFilter=null;S.orgCurrentLocation=null;
@@ -1306,13 +1318,24 @@ function openOrgLocationWithForm(){
   document.querySelector('#orgItemView .input-card').style.display='block';
   document.getElementById('orgItemTitle').innerHTML=`<span>${cat.icon}</span> ${escapeHtml(cat.name)} <span style="color:var(--text-3);font-size:14px">/ 新增物品</span>`;
   document.getElementById('orgLocation').value='';
-  renderOrgItems();
+  resetOrgSearch();renderOrgItems();
 }
 function closeOrgToLocation(){
   S.orgCurrentLocation=null;
   document.getElementById('orgLocationView').style.display='block';
   document.getElementById('orgItemView').style.display='none';
   renderOrgLocations();
+}
+function onOrgSearch(q,clear){
+  if(clear){const el=document.getElementById('orgSearch');if(el)el.value='';q=''}
+  S.orgSearch=(q||'').trim();
+  const clr=document.getElementById('orgSearchClear');if(clr)clr.style.display=S.orgSearch?'inline-flex':'none';
+  renderOrgItems();
+}
+function resetOrgSearch(){
+  S.orgSearch='';
+  const el=document.getElementById('orgSearch');if(el)el.value='';
+  const clr=document.getElementById('orgSearchClear');if(clr)clr.style.display='none';
 }
 function renderOrgItems(){
   const list=document.getElementById('orgItemList');
@@ -1327,10 +1350,13 @@ function renderOrgItems(){
     if(S.orgCurrentLocation){records=records.filter(r=>(r.location||'未指定位置')===S.orgCurrentLocation)}
     records.sort((a,b)=>{const oa=order[a.status||'none'],ob=order[b.status||'none'];if(oa!==ob)return oa-ob;return (b.timestamp||'').localeCompare(a.timestamp||'')});
   }
+  // 关键词搜索（名称 / 描述 / 位置）
+  const q=(S.orgSearch||'').trim().toLowerCase();
+  if(q){records=records.filter(r=>(r.title||'').toLowerCase().includes(q)||(r.text||'').toLowerCase().includes(q)||(r.location||'').toLowerCase().includes(q))}
   // 「其他」分类显示一键清空按钮
   const clearBtn=document.getElementById('orgClearOther');
   if(clearBtn)clearBtn.style.display=(!S.orgFilter&&cat&&cat.name==='其他')?'inline-flex':'none';
-  if(records.length===0){list.innerHTML=`<div class="empty"><div class="empty-icon">${cat?cat.icon:'📦'}</div><p>${S.orgFilter?(S.orgFilter==='pending'?'没有待处理的物品':'没有已处理的物品'):'这里还没有物品<br>在上方添加第一件吧'}</p></div>`;return}
+  if(records.length===0){const msg=q?`没有匹配「${escapeHtml(S.orgSearch.trim())}」的物品`:(S.orgFilter?(S.orgFilter==='pending'?'没有待处理的物品':'没有已处理的物品'):'这里还没有物品<br>在上方添加第一件吧');list.innerHTML=`<div class="empty"><div class="empty-icon">${cat?cat.icon:'📦'}</div><p>${msg}</p></div>`;return}
   list.innerHTML=records.map(r=>{
     const st=r.status||'none';const stCls=st==='done'?'done':st==='pending'?'pending':'none';const stText=st==='done'?'✓ 已处理':st==='pending'?'⏳ 待处理':'○ 无需处理';
     return `<div class="record-card"><div class="record-meta"><span class="record-status ${stCls}" onclick="toggleOrgStatus('${r.id}')">${stText}</span><span class="record-time">${fmtDate(r.timestamp)}</span></div>${r.title?`<div class="record-title">${escapeHtml(r.title)}</div>`:''}${r.text?`<div class="record-text">${escapeHtml(r.text)}</div>`:''}${r.location?`<div class="record-location">📍 ${escapeHtml(r.location)}</div>`:''}${r.price!==''&&r.price!==null&&r.price!==undefined?`<div class="record-price">💰 ¥${Number(r.price).toFixed(2)}</div>`:''}${r.images&&r.images.length?`<div class="record-images">${r.images.map(src=>`<img src="${src}" onclick="openLightbox('${src.replace(/'/g,"\\'")}')" alt="">`).join('')}</div>`:''}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="editOrg('${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delOrg('${r.id}')">删除</button></div></div>`;
