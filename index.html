@@ -894,6 +894,11 @@ img{max-width:100%;display:block}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="forceUploadCloud()">强制上传（以本地为准）</button>
       </div>
+      <p style="font-size:12px;color:var(--text-3);margin:12px 0 6px;line-height:1.6">同步对不上时，先点下面「云端自检」：它会报告云端到底读到几个数据项、写读往返是否通。把结果发我即可精准定位。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button class="btn btn-ghost" onclick="cloudSelfTest()">云端自检（排查同步问题）</button>
+      </div>
+      <div id="cloudDiag" style="font-size:12px;color:#555;white-space:pre-wrap;line-height:1.7;background:#f6f7f9;padding:8px 10px;border-radius:8px;max-height:180px;overflow:auto"></div>
     </div>
   </div>
 </div>
@@ -936,6 +941,7 @@ const CLOUD={
   syncing:false,
   lastWriteError:0,  // 最近一次云端写入失败时间戳（用于界面提示）
   lastCloudSig:''    // 云端数据签名，用于判断是否有变更
+  ,lastSyncError:''  // 最近一次同步（拉取/合并）失败的可读错误，用于界面提示，避免“假成功”
 };
 function loadScriptSrc(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('加载失败: '+src));document.head.appendChild(s)})}
 async function initCloudIfNeeded(){
@@ -1017,7 +1023,22 @@ async function cloudDel(key){
   if(n){for(let i=0;i<n;i++){try{await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).remove(),12000)}catch(_){}}} // 清理分片文档
   delete cloudChunkIndex[key];
 }
-async function cloudGetAll(limit){const r=await withCloudTimeout(cloudCol().limit(limit||1000).get(),20000);return _unpackDocs((r&&r.data)||[])}
+// 拉取云端全量数据：先取所有文档的 _id，再用“逐键 cloudGet”还原每个真实键的值。
+// 比旧版「一次性取全部 + 本地拼碎片」更稳：单个分片损坏不会连带把整个键静默丢弃（旧版正是日常整理/灵感记录回不来的根因）。
+async function cloudGetAll(limit){
+  const r=await withCloudTimeout(cloudCol().limit(limit||1000).get(),20000);
+  const docs=(r&&r.data)||[];
+  const realKeys=new Set();
+  for(const d of docs){
+    const id=d._id;
+    if(d.__chunked===true)realKeys.add(id);                  // 分片主文档（含 __n）
+    else if(d.__cv!==undefined){/* 分片子文档，跳过 */}        // 碎片本身不是真实键
+    else if(d.__v!==undefined||d.v!==undefined)realKeys.add(id) // 单文档键
+  }
+  const map={};
+  await Promise.all([...realKeys].map(async k=>{try{map[k]=await cloudGet(k)}catch(e){console.warn('cloudGet 失败 '+k,e)}}));
+  return map
+}
 // 数据“更完整”的判据：数组按条目数、对象按键数、其余按字节；比单纯字节更能反映“哪边记录更多/更新”（瘦身会让字节变小但记录数不变，避免旧大图覆盖新数据）
 function dataSize(v){if(v==null)return -1;if(Array.isArray(v))return v.length;if(typeof v==='object')return Object.keys(v).length;return _byteLen(JSON.stringify(v))}
 // 与云端做双向合并：采用「更多者胜」策略——记录更多的一边覆盖少的一边。
@@ -1045,7 +1066,7 @@ async function syncFromCloud(){
     for(const k in map){if(!(k in localLen)||cloudLen[k]>localLen[k]){try{await DB._localSet(k,map[k]);pulled=true}catch(e){}}}
     changed=pulled;
     CLOUD.synced=true
-  }catch(e){console.warn('云端同步失败',e)}
+  }catch(e){console.warn('云端同步失败',e);CLOUD.lastSyncError=cloudErrMsg(e)}
   finally{clearTimeout(watchdog);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}
   return changed
 }
@@ -1102,9 +1123,30 @@ function disconnectCloud(){
   CLOUD.env='';CLOUD.appid='';CLOUD.on=false;CLOUD.enabled=false;CLOUD.synced=false;CLOUD.cloud=null;
   closeCloudModal();showToast('已断开云同步，回退本地','success');updateCloudStatus();location.reload()
 }
-async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}await syncFromCloud();await reloadAll();showToast('已与云端同步','success')}
+async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}CLOUD.lastSyncError='';try{const changed=await syncFromCloud();if(CLOUD.lastSyncError){showToast('同步失败：'+(CLOUD.lastSyncError.slice(0,140)),'error')}else{await reloadAll();showToast(changed?'已与云端同步（有更新）':'已与云端同步','success')}}catch(e){showToast('同步失败：'+(cloudErrMsg(e).slice(0,140)),'error')}}
 // 以本地为准强制覆盖云端：用于恢复——当云端存在残缺/过期副本时，从数据最完整的设备把全部本地键推上去
-async function forceUploadCloud(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}if(!confirm('确定把本机全部数据强制覆盖到云端吗？此操作会覆盖云端现有数据（包括其他设备尚未同步的改动）。请确认本机数据是最完整的。'))return;const myId=++syncRunId;cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();const wd=setTimeout(()=>{CLOUD.syncing=false;updateCloudStatus();console.warn('强制上传超时保护');CLOUD.abortSync=true;},120000);try{const keys=await DB._localKeys();let n=0;for(const k of keys){if(CLOUD.abortSync)break;try{await cloudSet(k,await DB._localGet(k));n++}catch(e){}}CLOUD.synced=true;showToast('已强制上传 '+n+' 个数据项到云端','success')}catch(e){console.warn('强制上传失败',e);showToast('强制上传失败：'+(e&&e.message||e),'error')}finally{clearTimeout(wd);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}}
+async function forceUploadCloud(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}if(!confirm('确定把本机全部数据强制覆盖到云端吗？此操作会覆盖云端现有数据（包括其他设备尚未同步的改动）。请确认本机数据是最完整的。'))return;const myId=++syncRunId;cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();const wd=setTimeout(()=>{CLOUD.syncing=false;updateCloudStatus();console.warn('强制上传超时保护');CLOUD.abortSync=true;},120000);try{const keys=await DB._localKeys();let n=0,err=null;for(const k of keys){if(CLOUD.abortSync)break;try{await cloudSet(k,await DB._localGet(k));n++}catch(e){if(!err)err=e}}CLOUD.synced=true;if(err)showToast('部分上传失败（'+n+' 项成功）：'+(cloudErrMsg(err).slice(0,120)),'error');else showToast('已强制上传 '+n+' 个数据项到云端','success')}catch(e){console.warn('强制上传失败',e);showToast('强制上传失败：'+(e&&e.message||e),'error')}finally{clearTimeout(wd);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}}
+// 云端自检：读回云端全部键、并做一次写-读往返，给出可读结论，便于排查“同步不通”
+async function cloudSelfTest(){
+  const el=document.getElementById('cloudDiag');
+  if(!CLOUD.enabled){el.textContent='未连接云端：请先填环境 ID/AppID 并点「保存并连接」。';return}
+  el.textContent='自检中…（可能需要十几秒）';
+  try{
+    const map=await cloudGetAll(1000);
+    const keys=Object.keys(map);
+    let s='① 云端读取：共 '+keys.length+' 个数据项。\n键名：'+(keys.join('、 ')||'(空)')+'\n\n';
+    const probe={__t:Date.now(),__r:Math.random()};
+    await cloudSet('__selftest__',probe);
+    const back=await cloudGet('__selftest__');
+    await cloudDel('__selftest__');
+    const ok=back&&back.__t===probe.__t;
+    s+='② 写读往返测试：'+(ok?'通过 ✅（云端写入与读取均正常）':'失败 ❌（读回内容：'+JSON.stringify(back).slice(0,80)+'）')+'\n\n';
+    if(keys.length===0)s+='③ 云端当前是空的：说明之前从未成功上传。请在有数据的设备上点「强制上传（以本地为准）」。\n';
+    else s+='③ 云端有数据但本机看不到：说明拉取未生效（请刷新到最新版本后重试点「立即同步」）。\n';
+    s+='④ 若②失败，多为：未登录模式未开 / Web 安全域名未加 https://when23.github.io / kv 集合规则非 read+write 均为 true。';
+    el.textContent=s
+  }catch(e){el.textContent='自检出错：\n'+(cloudErrMsg(e).slice(0,300))}
+}
 const DB={
   _db:null,
   init(){return new Promise((resolve,reject)=>{
