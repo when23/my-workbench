@@ -1010,15 +1010,18 @@ async function cloudSet(key,val){
   for(const f of files){
     const path=`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(f.name)}`;
     const body={message:'sync '+f.name,content:b64encode(JSON.stringify(f.obj))};
-    const sha=CLOUD.ghFileSha[f.name];
+    let sha=CLOUD.ghFileSha[f.name];
     if(sha)body.sha=sha;
     let r=await ghApi(path,{method:'PUT',body:JSON.stringify(body)});
-    if(r.status===409&&!sha){ // 文件已存在但本地无 sha：取最新 sha 后重试一次，避让并发写冲突
-      const cur=await ghApi(path);
-      if(cur.ok){const cj=await cur.json();body.sha=cj.sha;CLOUD.ghFileSha[f.name]=cj.sha;r=await ghApi(path,{method:'PUT',body:JSON.stringify(body)})}
+    // 409 = 文件 sha 与本地缓存不一致（其他设备/上次写入已改动该文件）：取最新 sha 后重试，最多 3 次，避让并发写冲突
+    let tries=0;
+    while(r.status===409&&tries<3){
+      tries++;
+      try{const cur=await ghApi(path);if(cur.ok){const cj=await cur.json();body.sha=cj.sha;CLOUD.ghFileSha[f.name]=cj.sha}}catch(_){}
+      r=await ghApi(path,{method:'PUT',body:JSON.stringify(body)});
     }
     if(!r.ok){const t=await r.text();throw new Error('PUT '+f.name+' '+r.status+' '+(t.slice(0,160)))}
-    const j=await r.json();if(j&&j.content)CLOUD.ghFileSha[f.name]=j.content.sha;
+    try{const j=await r.json();if(j&&j.content)CLOUD.ghFileSha[f.name]=j.content.sha}catch(_){}
   }
 }
 async function cloudDel(key){
@@ -1053,6 +1056,23 @@ function dataSize(v){if(v==null)return -1;if(Array.isArray(v))return v.length;if
 // 与云端做双向合并：采用「更多者胜」策略——记录更多的一边覆盖少的一边。
 // 这样既能自动补传因超时被打断而残缺的大 key，也能让两端都收敛到完整数据（避免旧/残缺云端覆盖新本地）。
 let cloudSyncRunning=false, syncRunId=0;
+// 合并两端数据：数组按 id（无 id 则按 JSON）去重求并集；对象取键并集、冲突键取较大侧；标量取较大侧。目标是不丢数据地收敛。
+function mergeValues(local, cloud){
+  if(Array.isArray(local)&&Array.isArray(cloud)){
+    const seen=new Map(),out=[];
+    for(const it of cloud.concat(local)){
+      const id=(it&&typeof it==='object'&&it.id!==undefined)?String(it.id):JSON.stringify(it);
+      if(!seen.has(id)){seen.set(id,1);out.push(it)}
+    }
+    return out;
+  }
+  if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud)){
+    const out=Object.assign({},cloud);
+    for(const kk in local){if(local[kk]!==undefined&&(out[kk]===undefined||dataSize(local[kk])>=dataSize(out[kk])))out[kk]=local[kk];}
+    return out;
+  }
+  return dataSize(local)>=dataSize(cloud)?local:cloud;
+}
 async function syncFromCloud(){
   if(!CLOUD.enabled)return false;
   const myId=++syncRunId;
@@ -1064,16 +1084,26 @@ async function syncFromCloud(){
     const map=await cloudGetAll(1000);
     if(myId!==syncRunId)return false; // 已被新一轮同步取代，放弃本轮
     const localKeys=await DB._localKeys();
-    const localLen={},localVal={};
-    for(const k of localKeys){const v=await DB._localGet(k);localVal[k]=v;localLen[k]=dataSize(v)}
-    const cloudLen={};for(const k in map){cloudLen[k]=dataSize(map[k])}
-    // 上传：本地有、云端无 或 本地更大（以本地为准）
-    for(const k of localKeys){if(CLOUD.abortSync)break;if(!(k in cloudLen)||localLen[k]>cloudLen[k]){try{await cloudSet(k,localVal[k])}catch(e){}}}
+    const localVal={};
+    for(const k of localKeys)localVal[k]=await DB._localGet(k);
+    const allKeys=new Set([...localKeys, ...Object.keys(map)]);
+    let pulled=false,pushed=false;
+    for(const k of allKeys){
+      if(CLOUD.abortSync)break;
+      const loc=(k in localVal)?localVal[k]:undefined;
+      const clo=(k in map)?map[k]:undefined;
+      try{
+        if(loc===undefined&&clo!==undefined){await DB._localSet(k,clo);pulled=true} // 仅云端有 → 拉取
+        else if(loc!==undefined&&clo===undefined){await cloudSet(k,loc);pushed=true} // 仅本地有 → 上传
+        else if(loc!==undefined&&clo!==undefined){
+          if(JSON.stringify(loc)===JSON.stringify(clo))continue; // 已一致，跳过
+          const merged=mergeValues(loc,clo); // 两端都有但内容不同 → 合并（并集/不丢数据）后双向写回
+          await cloudSet(k,merged);await DB._localSet(k,merged);pulled=true;pushed=true;
+        }
+      }catch(e){cloudLastErr=cloudErrMsg(e);CLOUD.lastWriteError=Date.now();console.warn('同步合并失败',k,e)}
+    }
     if(CLOUD.abortSync)return false;
-    // 拉取：云端有、本地无 或 云端更大（以云端为准）
-    let pulled=false;
-    for(const k in map){if(!(k in localLen)||cloudLen[k]>localLen[k]){try{await DB._localSet(k,map[k]);pulled=true}catch(e){}}}
-    changed=pulled;
+    changed=pulled||pushed;
     CLOUD.synced=true
   }catch(e){console.warn('云端同步失败',e);CLOUD.lastSyncError=cloudErrMsg(e)}
   finally{clearTimeout(watchdog);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}
