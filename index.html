@@ -874,12 +874,12 @@ img{max-width:100%;display:block}
   <div class="modal">
     <div class="modal-header"><h3>☁ 云同步设置</h3><button class="modal-close" onclick="closeCloudModal()">×</button></div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px">把工作台数据同步到「微信云开发」环境，实现电脑与手机共享。当前为方案 A：数据存于你的云开发环境（建议仅放低敏感内容；后续可加口令保护）。</p>
-      <label>云开发环境 ID</label>
-      <input type="text" id="cloudEnvInput" placeholder="如：my-env-1a2b3c" autocomplete="off" spellcheck="false">
-      <label>小程序 AppID（资源方）</label>
-      <input type="text" id="cloudAppidInput" placeholder="如：wx1234567890abcdef" autocomplete="off" spellcheck="false">
-      <p style="font-size:12px;color:var(--text-3);margin:6px 0 12px;line-height:1.6">在微信开发者工具「环境设置」拿环境 ID，「项目设置/详情」拿 AppID。并在云开发控制台：①开启「未登录模式」；②把 <code>https://when23.github.io</code> 加入 Web 安全域名；③新建集合 <code>kv</code> 并将安全规则设为允许读写（read/write 均为 true）。</p>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px">把工作台数据同步到你的 <strong>GitHub 私有仓库</strong>，实现电脑与手机共享。免费、无需任何付费套餐，也不用配置域名白名单。数据通过 <code>api.github.com</code> 直读直写，Token 仅存本机。</p>
+      <label>GitHub 访问令牌（PAT）</label>
+      <input type="password" id="ghTokenInput" placeholder="ghp_xxx…（需 repo 权限）" autocomplete="off" spellcheck="false">
+      <label>仓库名（owner/repo）</label>
+      <input type="text" id="ghRepoInput" placeholder="如：when23/workbench-sync" autocomplete="off" spellcheck="false">
+      <p style="font-size:12px;color:var(--text-3);margin:6px 0 12px;line-height:1.6">① 新建一个<strong>私有</strong>仓库（如 workbench-sync）；② 在 GitHub「Settings → Developer settings → Personal access tokens」生成 Token，勾选 <code>repo</code> 权限；③ 把 Token 和仓库名填上面。首次同步会自动在仓库里建 <code>data/</code> 目录，无需手动建。</p>
       <div id="cloudStatusText" style="font-size:13px;margin-bottom:12px"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="saveCloudSettings()">保存并连接</button>
@@ -929,46 +929,43 @@ img{max-width:100%;display:block}
 
 <script>
 // ===== 存储层：IndexedDB 本地缓存 + 云端同步（云端优先，本地兜底） =====
-// 云同步使用「微信云开发 Web SDK」(@wxcloud/cloud-sdk，本地同源 cloud.js，挂载 window.cloud)
+// 云同步后端：GitHub（经 api.github.com 读写私有仓库文件，复用现有 GitHub Pages 账号，免费、无套餐限制、无域名白名单烦恼）
 const CLOUD={
-  env:localStorage.getItem('cloudEnv')||'',
-  appid:localStorage.getItem('cloudAppid')||'',
   // 在网址后加 ?nocloud 可临时禁用云同步（纯本地模式），方便排障/应急使用
-  on:(localStorage.getItem('cloudOn')==='1') && !/[?&]nocloud(=|$)/.test(location.search),
-  cloud:null,        // cloud.Cloud 实例
+  on:(localStorage.getItem('ghOn')==='1') && !/[?&]nocloud(=|$)/.test(location.search),
   enabled:false,
   synced:false,      // 是否已与云端做过一次全量合并
   syncing:false,
   lastWriteError:0,  // 最近一次云端写入失败时间戳（用于界面提示）
   lastCloudSig:''    // 云端数据签名，用于判断是否有变更
   ,lastSyncError:''  // 最近一次同步（拉取/合并）失败的可读错误，用于界面提示，避免“假成功”
+  ,ghToken:localStorage.getItem('ghToken')||''     // GitHub Personal Access Token（仅存本机 localStorage）
+  ,ghRepo:localStorage.getItem('ghRepo')||''       // 形如 owner/repo（建议私有仓库）
+  ,ghPath:'data'     // 数据仓库目录（首次写入自动创建）
+  ,ghFileSha:{}      // 文件名 -> sha（写文件时需携带，避免 409 冲突）
 };
-function loadScriptSrc(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('加载失败: '+src));document.head.appendChild(s)})}
-async function initCloudIfNeeded(){
-  if(!CLOUD.on||!CLOUD.env){CLOUD.enabled=false;return}
-  try{
-    if(typeof window.cloud==='undefined'){await loadScriptSrc('cloud.js')}
-    if(typeof window.cloud==='undefined')throw new Error('cloud.js 未加载')
-    const inst=new window.cloud.Cloud({identityless:true,resourceAppid:CLOUD.appid||undefined,resourceEnv:CLOUD.env});
-    await inst.init();
-    CLOUD.cloud=inst;CLOUD.enabled=true;
-    updateCloudStatus();showToast('云同步已连接','success')
-  }catch(e){
-    console.error('云同步初始化失败',e);CLOUD.enabled=false;CLOUD.synced=false;updateCloudStatus();
-    showToast('云同步连接失败，已使用本地数据','error')
-  }
-}
-function cloudCol(){return CLOUD.cloud.database().collection('kv')}
-// 提取云端 SDK 返回的可读错误信息
-function cloudErrMsg(e){if(!e)return '';if(e.errMsg)return String(e.errMsg);if(e.message)return String(e.message);try{return JSON.stringify(e)}catch(_){return String(e)}}
 let cloudLastErr='';
-// 云端 SDK 个别请求可能永久挂起；用超时包裹，避免单次请求卡死整轮同步
-function withCloudTimeout(p,ms){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('云端请求超时 '+ms+'ms')),ms))])}
-// 微信云 SDK 部分接口（尤其写入）会“promise 成功 resolve、但结果对象内含 errCode/errMsg”表示失败（并不 reject）。
-// 若只判断 reject，写入被安全规则/域名拒绝时也会被当成“成功”→ 同步假成功。这里统一把含错误码的结果转为抛错，让真实原因暴露出来。
-function cloudRes(r){if(r&&typeof r==='object'){const ec=r.errCode;if(ec!==undefined&&ec!==0)throw new Error('云端错误 '+ec+'：'+(r.errMsg||JSON.stringify(r)));if(r.errMsg&&/(fail|deny|denied|permission|forbidden|not allowed|unauthorized|auth|domain|origin)/i.test(r.errMsg))throw new Error('云端错误：'+(r.errMsg))}return r}
-// —— 云端文档大小限制：微信云数据库单条文档 < 512KB ——
-// 超过阈值的记录自动分片为多个小文档（key__CHK__0 / key__CHK__1 ...），读取时再拼回。
+// 提取可读错误信息
+function cloudErrMsg(e){if(!e)return '';if(e.errMsg)return String(e.errMsg);if(e.message)return String(e.message);try{return JSON.stringify(e)}catch(_){return String(e)}}
+// GitHub API 请求封装（api.github.com 支持 CORS，浏览器可直接调用，Token 仅发往 GitHub）
+function ghHeaders(){const h={'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'};if(CLOUD.ghToken)h['Authorization']='Bearer '+CLOUD.ghToken;return h}
+function ghApi(path,opts){return fetch('https://api.github.com'+path,Object.assign({headers:ghHeaders()},opts||{}))}
+function b64encode(str){const bytes=new TextEncoder().encode(str);let bin='';for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);return btoa(bin)}
+function b64decode(str){str=(str||'').replace(/\s/g,'');const bin=atob(str);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);return new TextDecoder().decode(bytes)}
+// 初始化：读取本地配置并探活（用一次轻量请求确认 token / 仓库可用），不加载任何外部脚本
+async function initCloudIfNeeded(){
+  CLOUD.ghToken=localStorage.getItem('ghToken')||'';
+  CLOUD.ghRepo=localStorage.getItem('ghRepo')||'';
+  CLOUD.on=(localStorage.getItem('ghOn')==='1')&&!!CLOUD.ghToken&&!!CLOUD.ghRepo&&!/[?&]nocloud(=|$)/.test(location.search);
+  if(!CLOUD.on){CLOUD.enabled=false;return}
+  try{
+    const r=await ghApi('/repos/'+CLOUD.ghRepo);
+    if(!r.ok){const t=await r.text();throw new Error('仓库访问失败 '+r.status+' '+(t.slice(0,140)))}
+    CLOUD.enabled=true;updateCloudStatus()
+  }catch(e){console.warn('GitHub 连接失败',e);CLOUD.enabled=false;CLOUD.synced=false;updateCloudStatus();showToast('GitHub 连接失败：'+(cloudErrMsg(e).slice(0,140)),'error')}
+}
+// —— 单文件体积控制：GitHub 单文件建议 < 100MB，这里沿用分片阈值避免单个文件过大、也便于并行读写 ——
+// 超过阈值的记录自动分片为多个小文件（key__CHK__0 / key__CHK__1 ...），读取时再拼回。
 const CHUNK_MAX = 450*1024;     // 安全上限（字节），留余量给文档元数据
 const CHUNK_SEP = '__CHK__';    // 分片文档 id 后缀分隔符（正常 key 不会出现）
 let cloudChunkIndex = {};        // key -> 分片数（用于删除时清理分片文档）
@@ -981,63 +978,70 @@ function _splitChunks(str){
   while(i<n){const end=Math.min(i+CHUNK_MAX,n);chunks.push(dec.decode(bytes.subarray(i,end),{stream:true}));i=end;}
   return chunks;
 }
-// 把云端 docs 数组还原为 {key: value}（分片文档被忽略，重组后只留真实 key）
-function _unpackDocs(docs){
-  const manifests={}, chunkMap={}, out={};
-  for(const d of docs){
-    const id=d._id;
-    if(d.__chunked===true){manifests[id]=d.__n}
-    else if(d.__cv!==undefined){const i=id.lastIndexOf(CHUNK_SEP);if(i>0){const ck=id.slice(0,i),ci=parseInt(id.slice(i+1),10);(chunkMap[ck]=chunkMap[ck]||[])[ci]=d.__cv}}
-    else if(d.__v!==undefined){out[id]=d.__v}
-    else if(d.v!==undefined){out[id]=d.v} // 兼容旧版单文档格式
-  }
-  for(const k in manifests){const parts=chunkMap[k]||[];try{out[k]=JSON.parse(parts.join(''))}catch(e){console.warn('云端分片重组失败 '+k,e)}}
-  for(const k in manifests)cloudChunkIndex[k]=manifests[k]; // 记录分片数供删除清理
-  return out;
-}
+// 读取一个键：单文档文件 / 分片文件 都能还原。文件不存在返回 null。
 async function cloudGet(key){
-  const r=await cloudRes(await withCloudTimeout(cloudCol().doc(key).get(),12000));const list=(r&&r.data)||[];const d=list[0]||null;
-  if(!d)return null;
-  if(d.__chunked===true){const parts=[];for(let i=0;i<(d.__n||0);i++){const cr=await cloudRes(await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).get(),12000));const cd=(cr&&cr.data&&cr.data[0]);if(cd&&cd.__cv!==undefined)parts[i]=cd.__cv;}try{return JSON.parse(parts.join(''))}catch(e){return null}}
-  if(d.__v!==undefined)return d.__v;
-  if(d.v!==undefined)return d.v; // 兼容旧版
-  return null;
+  try{
+    const r=await ghApi(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(key)}.json`);
+    if(r.status===404)return null;
+    if(!r.ok){const t=await r.text();throw new Error('GET '+key+' '+r.status+' '+(t.slice(0,140)))}
+    const j=await r.json();CLOUD.ghFileSha[key+'.json']=j.sha;
+    const val=JSON.parse(b64decode(j.content));
+    if(val&&val.__chunked===true){
+      const parts=[];
+      for(let i=0;i<val.__n;i++){
+        const cr=await ghApi(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(key)}__CHK__${i}.json`);
+        if(!cr.ok)throw new Error('GET chunk '+key+' '+cr.status);
+        const cj=await cr.json();CLOUD.ghFileSha[key+'__CHK__'+i+'.json']=cj.sha;
+        parts[i]=JSON.parse(b64decode(cj.content)).__cv;
+      }
+      return JSON.parse(parts.join(''))
+    }
+    return val&&val.__v!==undefined?val.__v:val
+  }catch(e){if(/404/.test(e.message))return null;throw e}
 }
 async function cloudSet(key,val){
-  // 空值直接删除云端文档（避免空写报错）。
-  // 注意：@wxcloud/cloud-sdk 的 set 要求参数形如 {data:{...}}（内部读 t.data），不能直接传裸对象。
   if(val===undefined||val===null){await cloudDel(key);return}
   const str=JSON.stringify(val);
-  try{
-    if(_byteLen(str)<=CHUNK_MAX){
-      cloudChunkIndex[key]=0; // 标记为非分片
-      await cloudRes(await withCloudTimeout(cloudCol().doc(key).set({data:{__v:val}}),15000));
-    }else{
-      const chunks=_splitChunks(str); // 大记录分片存储
-      for(let i=0;i<chunks.length;i++){await cloudRes(await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).set({data:{__cv:chunks[i]}}),15000))}
-      await cloudRes(await withCloudTimeout(cloudCol().doc(key).set({data:{__chunked:true,__n:chunks.length}}),15000));
-      cloudChunkIndex[key]=chunks.length;
+  const files=[];
+  if(_byteLen(str)<=CHUNK_MAX){cloudChunkIndex[key]=0;files.push({name:key+'.json',obj:{__v:val}})}
+  else{const chunks=_splitChunks(str);for(let i=0;i<chunks.length;i++)files.push({name:key+'__CHK__'+i+'.json',obj:{__cv:chunks[i]}});files.push({name:key+'.json',obj:{__chunked:true,__n:chunks.length}});cloudChunkIndex[key]=chunks.length}
+  for(const f of files){
+    const path=`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(f.name)}`;
+    const body={message:'sync '+f.name,content:b64encode(JSON.stringify(f.obj))};
+    const sha=CLOUD.ghFileSha[f.name];
+    if(sha)body.sha=sha;
+    let r=await ghApi(path,{method:'PUT',body:JSON.stringify(body)});
+    if(r.status===409&&!sha){ // 文件已存在但本地无 sha：取最新 sha 后重试一次，避让并发写冲突
+      const cur=await ghApi(path);
+      if(cur.ok){const cj=await cur.json();body.sha=cj.sha;CLOUD.ghFileSha[f.name]=cj.sha;r=await ghApi(path,{method:'PUT',body:JSON.stringify(body)})}
     }
-  }catch(e){console.warn('cloudSet 失败 key='+key+' bytes='+_byteLen(str),e);throw e}
+    if(!r.ok){const t=await r.text();throw new Error('PUT '+f.name+' '+r.status+' '+(t.slice(0,160)))}
+    const j=await r.json();if(j&&j.content)CLOUD.ghFileSha[f.name]=j.content.sha;
+  }
 }
 async function cloudDel(key){
-  try{await cloudRes(await withCloudTimeout(cloudCol().doc(key).remove(),12000))}catch(_){}
+  const names=[key+'.json'];
   const n=cloudChunkIndex[key];
-  if(n){for(let i=0;i<n;i++){try{await cloudRes(await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).remove(),12000))}catch(_){}}} // 清理分片文档
-  delete cloudChunkIndex[key];
-}
-// 拉取云端全量数据：先取所有文档的 _id，再用“逐键 cloudGet”还原每个真实键的值。
-// 比旧版「一次性取全部 + 本地拼碎片」更稳：单个分片损坏不会连带把整个键静默丢弃（旧版正是日常整理/灵感记录回不来的根因）。
-async function cloudGetAll(limit){
-  const r=await cloudRes(await withCloudTimeout(cloudCol().limit(limit||1000).get(),20000));
-  const docs=(r&&r.data)||[];
-  const realKeys=new Set();
-  for(const d of docs){
-    const id=d._id;
-    if(d.__chunked===true)realKeys.add(id);                  // 分片主文档（含 __n）
-    else if(d.__cv!==undefined){/* 分片子文档，跳过 */}        // 碎片本身不是真实键
-    else if(d.__v!==undefined||d.v!==undefined)realKeys.add(id) // 单文档键
+  if(n){for(let i=0;i<n;i++)names.push(key+'__CHK__'+i+'.json')}
+  for(const nm of names){
+    const sha=CLOUD.ghFileSha[nm];
+    if(!sha)continue;
+    const r=await ghApi(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(nm)}`,{method:'DELETE',body:JSON.stringify({message:'del '+nm,sha})});
+    if(r.ok||r.status===404){delete CLOUD.ghFileSha[nm]}else{const t=await r.text();throw new Error('DEL '+nm+' '+r.status+' '+(t.slice(0,140)))}
   }
+  if(n)delete cloudChunkIndex[key];
+}
+// 拉取云端全量：列出 data 目录，识别真实键（排除分片文件与同步签名文件），再逐键读取还原。
+async function cloudGetAll(){
+  let arr=[];
+  try{
+    const r=await ghApi(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/`);
+    if(!r.ok){if(r.status===404)return {};const t=await r.text();throw new Error('LIST '+r.status+' '+(t.slice(0,160)))}
+    arr=await r.json();
+  }catch(e){if(/404/.test(e.message))return {};throw e}
+  for(const f of arr){if(f.name)CLOUD.ghFileSha[f.name]=f.sha}
+  const realKeys=new Set();
+  for(const f of arr){if(f.name&&f.name.endsWith('.json')&&f.name!=='_syncsig.json'){const base=f.name.slice(0,-5);if(base.indexOf(CHUNK_SEP)>=0)continue;realKeys.add(base)}}
   const map={};
   await Promise.all([...realKeys].map(async k=>{try{map[k]=await cloudGet(k)}catch(e){console.warn('cloudGet 失败 '+k,e)}}));
   return map
@@ -1053,7 +1057,7 @@ async function syncFromCloud(){
   cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();
   let changed=false;
   // 安全网：整体超过 60s 仍没结束，先解除“同步中”UI 并中止本轮上传（数据留在本地，下次同步重试），避免永久卡在同步中
-  const watchdog=setTimeout(()=>{if(CLOUD.syncing){CLOUD.syncing=false;updateCloudStatus();console.warn('云同步超时保护：中止本轮')}CLOUD.abortSync=true;},60000);
+  const watchdog=setTimeout(()=>{if(CLOUD.syncing){CLOUD.syncing=false;updateCloudStatus();console.warn('云同步超时保护：中止本轮')}CLOUD.abortSync=true;},120000);
   try{
     const map=await cloudGetAll(1000);
     if(myId!==syncRunId)return false; // 已被新一轮同步取代，放弃本轮
@@ -1087,7 +1091,7 @@ function startCloudPolling(){
       const changed=await syncFromCloud();
       if(changed&&!isUserEditing()){await reloadAll()}
     }
-  },20000)
+  },60000)
 }
 function updateCloudStatus(){
   const btn=document.getElementById('cloudBtn');
@@ -1100,55 +1104,60 @@ function updateCloudStatus(){
     btn.textContent=txt;btn.classList.toggle('cloud-on',cls)
   }
   const st=document.getElementById('cloudStatusText');
-  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<60000?('写入异常：'+(cloudLastErr.slice(0,120)||'请检查域名/规则/集合')):'已连接'))):'状态：未连接（仅本地存储）'
+  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<60000?('写入异常：'+(cloudLastErr.slice(0,120)||'请检查 Token / 仓库 / 网络')):'已连接'))):'状态：未连接（仅本地存储）'
 }
 async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
 function openCloudModal(){
-  document.getElementById('cloudEnvInput').value=CLOUD.env;
-  document.getElementById('cloudAppidInput').value=CLOUD.appid;
+  document.getElementById('ghTokenInput').value=CLOUD.ghToken;
+  document.getElementById('ghRepoInput').value=CLOUD.ghRepo;
   updateCloudStatus();
   document.getElementById('cloudModal').classList.add('show')
 }
 function closeCloudModal(){document.getElementById('cloudModal').classList.remove('show')}
 async function saveCloudSettings(){
   if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}
-  const env=document.getElementById('cloudEnvInput').value.trim();
-  const appid=document.getElementById('cloudAppidInput').value.trim();
-  if(!env){showToast('请填写环境 ID','error');return}
-  localStorage.setItem('cloudEnv',env);localStorage.setItem('cloudAppid',appid);localStorage.setItem('cloudOn','1');
-  CLOUD.env=env;CLOUD.appid=appid;CLOUD.on=true;CLOUD.synced=false;
+  const token=document.getElementById('ghTokenInput').value.trim();
+  const repo=document.getElementById('ghRepoInput').value.trim();
+  if(!token||!repo){showToast('请填写 Token 和仓库名','error');return}
+  localStorage.setItem('ghToken',token);localStorage.setItem('ghRepo',repo);localStorage.setItem('ghOn','1');
+  CLOUD.ghToken=token;CLOUD.ghRepo=repo;CLOUD.on=true;CLOUD.synced=false;
   await initCloudIfNeeded();
-  if(CLOUD.enabled){await syncFromCloud();await reloadAll();closeCloudModal();showToast('云同步已开启','success')}
+  if(CLOUD.enabled){await syncFromCloud();await reloadAll();closeCloudModal();showToast('GitHub 同步已开启','success')}
   else{updateCloudStatus()}
 }
 function disconnectCloud(){
-  localStorage.removeItem('cloudEnv');localStorage.removeItem('cloudAppid');localStorage.removeItem('cloudOn');
-  CLOUD.env='';CLOUD.appid='';CLOUD.on=false;CLOUD.enabled=false;CLOUD.synced=false;CLOUD.cloud=null;
+  localStorage.removeItem('ghToken');localStorage.removeItem('ghRepo');localStorage.removeItem('ghOn');
+  CLOUD.ghToken='';CLOUD.ghRepo='';CLOUD.on=false;CLOUD.enabled=false;CLOUD.synced=false;CLOUD.ghFileSha={};
   closeCloudModal();showToast('已断开云同步，回退本地','success');updateCloudStatus();location.reload()
 }
 async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}CLOUD.lastSyncError='';try{const changed=await syncFromCloud();if(CLOUD.lastSyncError){showToast('同步失败：'+(CLOUD.lastSyncError.slice(0,140)),'error')}else{await reloadAll();showToast(changed?'已与云端同步（有更新）':'已与云端同步','success')}}catch(e){showToast('同步失败：'+(cloudErrMsg(e).slice(0,140)),'error')}}
 // 以本地为准强制覆盖云端：用于恢复——当云端存在残缺/过期副本时，从数据最完整的设备把全部本地键推上去
 async function forceUploadCloud(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}if(!confirm('确定把本机全部数据强制覆盖到云端吗？此操作会覆盖云端现有数据（包括其他设备尚未同步的改动）。请确认本机数据是最完整的。'))return;const myId=++syncRunId;cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();const wd=setTimeout(()=>{CLOUD.syncing=false;updateCloudStatus();console.warn('强制上传超时保护');CLOUD.abortSync=true;},120000);try{const keys=await DB._localKeys();let n=0,err=null;for(const k of keys){if(CLOUD.abortSync)break;try{await cloudSet(k,await DB._localGet(k));n++}catch(e){if(!err)err=e}}CLOUD.synced=true;if(err)showToast('部分上传失败（'+n+' 项成功）：'+(cloudErrMsg(err).slice(0,120)),'error');else showToast('已强制上传 '+n+' 个数据项到云端','success')}catch(e){console.warn('强制上传失败',e);showToast('强制上传失败：'+(e&&e.message||e),'error')}finally{clearTimeout(wd);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}}
-// 云端自检：读回云端全部键、并做一次写-读往返，给出可读结论，便于排查“同步不通”
+// 云端自检：读回 GitHub 仓库 data 目录、并做一次写-读往返，给出可读结论
 async function cloudSelfTest(){
   const el=document.getElementById('cloudDiag');
-  if(!CLOUD.enabled){el.textContent='未连接云端：请先填环境 ID/AppID 并点「保存并连接」。';return}
+  if(!CLOUD.enabled){el.textContent='未连接：请先填 Token / 仓库 并点「保存并连接」。';return}
   el.textContent='自检中…（可能需要十几秒）';
   try{
-    const map=await cloudGetAll(1000);
-    const keys=Object.keys(map);
-    let s='① 云端读取：共 '+keys.length+' 个数据项。\n键名：'+(keys.join('、 ')||'(空)')+'\n\n';
+    let keys=[];
+    try{
+      const r=await ghApi(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/`);
+      if(r.ok){const arr=await r.json();keys=arr.filter(f=>f.name.endsWith('.json')&&f.name!=='_syncsig.json'&&f.name.indexOf(CHUNK_SEP)<0).map(f=>f.name.slice(0,-5))}
+      else if(r.status===404){/* 空仓库或目录不存在 */}
+      else{const t=await r.text();throw new Error('LIST '+r.status+' '+(t.slice(0,160)))}
+    }catch(e){el.textContent='自检列表失败：\n'+(e.message.slice(0,300));return}
+    let s='① GitHub 仓库读取：共 '+keys.length+' 个数据项。\n键名：'+(keys.join('、 ')||'(空)')+'\n\n';
     const probe={__t:Date.now(),__r:Math.random()};
     let writeErr=null,back=null;
     try{await cloudSet('__selftest__',probe)}catch(e){writeErr=e}
     if(!writeErr){try{back=await cloudGet('__selftest__')}catch(e){writeErr=e}try{await cloudDel('__selftest__')}catch(_){}}
     const ok=back&&back.__t===probe.__t;
-    s+='② 写读往返测试：'+(writeErr?('失败 ❌（真实原因）：'+(cloudErrMsg(writeErr).slice(0,180))):(ok?'通过 ✅（云端写入与读取均正常）':'失败 ❌（读回内容：'+JSON.stringify(back).slice(0,80)+'）'))+'\n\n';
-    if(keys.length===0)s+='③ 云端当前是空的：说明之前从未成功上传。请在有数据的设备上点「强制上传（以本地为准）」。\n';
-    else s+='③ 云端有数据但本机看不到：说明拉取未生效（请刷新到最新版本后重试点「立即同步」）。\n';
-    s+='④ ② 里的“真实原因”若含 domain/origin/未授权/不在安全域名 → 是 Web 安全域名没加；含 permission/denied/rule/安全检查 → 是 kv 集合自定义规则未生效（须 exactly {"read":true,"write":true}）。';
+    s+='② 写读往返测试：'+(writeErr?('失败（真实原因）：'+(writeErr.message.slice(0,180))):(ok?'通过 ✅（GitHub 写入与读取均正常）':'失败（读回内容：'+JSON.stringify(back).slice(0,80)+'）'))+'\n\n';
+    if(keys.length===0)s+='③ 仓库当前为空或尚无 data 目录：首次连接后点「强制上传（以本地为准）」即可写入。\n';
+    else s+='③ 仓库有数据但本机看不到：请刷新到最新版本后重试点「立即同步」。\n';
+    s+='④ ② 报错解读：401/403=Token 无效或无仓库权限（需含 repo 权限）；404=仓库名错误或未建 data 目录（首次写入会自动创建）；rate limit=触发限流（稍后再试）。';
     el.textContent=s
-  }catch(e){el.textContent='自检出错：\n'+(cloudErrMsg(e).slice(0,300))}
+  }catch(e){el.textContent='自检出错：\n'+(e.message.slice(0,300))}
 }
 const DB={
   _db:null,
