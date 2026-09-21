@@ -964,6 +964,9 @@ function cloudErrMsg(e){if(!e)return '';if(e.errMsg)return String(e.errMsg);if(e
 let cloudLastErr='';
 // 云端 SDK 个别请求可能永久挂起；用超时包裹，避免单次请求卡死整轮同步
 function withCloudTimeout(p,ms){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('云端请求超时 '+ms+'ms')),ms))])}
+// 微信云 SDK 部分接口（尤其写入）会“promise 成功 resolve、但结果对象内含 errCode/errMsg”表示失败（并不 reject）。
+// 若只判断 reject，写入被安全规则/域名拒绝时也会被当成“成功”→ 同步假成功。这里统一把含错误码的结果转为抛错，让真实原因暴露出来。
+function cloudRes(r){if(r&&typeof r==='object'){const ec=r.errCode;if(ec!==undefined&&ec!==0)throw new Error('云端错误 '+ec+'：'+(r.errMsg||JSON.stringify(r)));if(r.errMsg&&/(fail|deny|denied|permission|forbidden|not allowed|unauthorized|auth|domain|origin)/i.test(r.errMsg))throw new Error('云端错误：'+(r.errMsg))}return r}
 // —— 云端文档大小限制：微信云数据库单条文档 < 512KB ——
 // 超过阈值的记录自动分片为多个小文档（key__CHK__0 / key__CHK__1 ...），读取时再拼回。
 const CHUNK_MAX = 450*1024;     // 安全上限（字节），留余量给文档元数据
@@ -993,9 +996,9 @@ function _unpackDocs(docs){
   return out;
 }
 async function cloudGet(key){
-  const r=await withCloudTimeout(cloudCol().doc(key).get(),12000);const list=(r&&r.data)||[];const d=list[0]||null;
+  const r=await cloudRes(await withCloudTimeout(cloudCol().doc(key).get(),12000));const list=(r&&r.data)||[];const d=list[0]||null;
   if(!d)return null;
-  if(d.__chunked===true){const parts=[];for(let i=0;i<(d.__n||0);i++){const cr=await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).get(),12000);const cd=(cr&&cr.data&&cr.data[0]);if(cd&&cd.__cv!==undefined)parts[i]=cd.__cv;}try{return JSON.parse(parts.join(''))}catch(e){return null}}
+  if(d.__chunked===true){const parts=[];for(let i=0;i<(d.__n||0);i++){const cr=await cloudRes(await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).get(),12000));const cd=(cr&&cr.data&&cr.data[0]);if(cd&&cd.__cv!==undefined)parts[i]=cd.__cv;}try{return JSON.parse(parts.join(''))}catch(e){return null}}
   if(d.__v!==undefined)return d.__v;
   if(d.v!==undefined)return d.v; // 兼容旧版
   return null;
@@ -1008,25 +1011,25 @@ async function cloudSet(key,val){
   try{
     if(_byteLen(str)<=CHUNK_MAX){
       cloudChunkIndex[key]=0; // 标记为非分片
-      await withCloudTimeout(cloudCol().doc(key).set({data:{__v:val}}),15000);
+      await cloudRes(await withCloudTimeout(cloudCol().doc(key).set({data:{__v:val}}),15000));
     }else{
       const chunks=_splitChunks(str); // 大记录分片存储
-      for(let i=0;i<chunks.length;i++){await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).set({data:{__cv:chunks[i]}}),15000)}
-      await withCloudTimeout(cloudCol().doc(key).set({data:{__chunked:true,__n:chunks.length}}),15000);
+      for(let i=0;i<chunks.length;i++){await cloudRes(await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).set({data:{__cv:chunks[i]}}),15000))}
+      await cloudRes(await withCloudTimeout(cloudCol().doc(key).set({data:{__chunked:true,__n:chunks.length}}),15000));
       cloudChunkIndex[key]=chunks.length;
     }
   }catch(e){console.warn('cloudSet 失败 key='+key+' bytes='+_byteLen(str),e);throw e}
 }
 async function cloudDel(key){
-  try{await withCloudTimeout(cloudCol().doc(key).remove(),12000)}catch(_){}
+  try{await cloudRes(await withCloudTimeout(cloudCol().doc(key).remove(),12000))}catch(_){}
   const n=cloudChunkIndex[key];
-  if(n){for(let i=0;i<n;i++){try{await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).remove(),12000)}catch(_){}}} // 清理分片文档
+  if(n){for(let i=0;i<n;i++){try{await cloudRes(await withCloudTimeout(cloudCol().doc(key+CHUNK_SEP+i).remove(),12000))}catch(_){}}} // 清理分片文档
   delete cloudChunkIndex[key];
 }
 // 拉取云端全量数据：先取所有文档的 _id，再用“逐键 cloudGet”还原每个真实键的值。
 // 比旧版「一次性取全部 + 本地拼碎片」更稳：单个分片损坏不会连带把整个键静默丢弃（旧版正是日常整理/灵感记录回不来的根因）。
 async function cloudGetAll(limit){
-  const r=await withCloudTimeout(cloudCol().limit(limit||1000).get(),20000);
+  const r=await cloudRes(await withCloudTimeout(cloudCol().limit(limit||1000).get(),20000));
   const docs=(r&&r.data)||[];
   const realKeys=new Set();
   for(const d of docs){
@@ -1136,14 +1139,14 @@ async function cloudSelfTest(){
     const keys=Object.keys(map);
     let s='① 云端读取：共 '+keys.length+' 个数据项。\n键名：'+(keys.join('、 ')||'(空)')+'\n\n';
     const probe={__t:Date.now(),__r:Math.random()};
-    await cloudSet('__selftest__',probe);
-    const back=await cloudGet('__selftest__');
-    await cloudDel('__selftest__');
+    let writeErr=null,back=null;
+    try{await cloudSet('__selftest__',probe)}catch(e){writeErr=e}
+    if(!writeErr){try{back=await cloudGet('__selftest__')}catch(e){writeErr=e}try{await cloudDel('__selftest__')}catch(_){}}
     const ok=back&&back.__t===probe.__t;
-    s+='② 写读往返测试：'+(ok?'通过 ✅（云端写入与读取均正常）':'失败 ❌（读回内容：'+JSON.stringify(back).slice(0,80)+'）')+'\n\n';
+    s+='② 写读往返测试：'+(writeErr?('失败 ❌（真实原因）：'+(cloudErrMsg(writeErr).slice(0,180))):(ok?'通过 ✅（云端写入与读取均正常）':'失败 ❌（读回内容：'+JSON.stringify(back).slice(0,80)+'）'))+'\n\n';
     if(keys.length===0)s+='③ 云端当前是空的：说明之前从未成功上传。请在有数据的设备上点「强制上传（以本地为准）」。\n';
     else s+='③ 云端有数据但本机看不到：说明拉取未生效（请刷新到最新版本后重试点「立即同步」）。\n';
-    s+='④ 若②失败，多为：未登录模式未开 / Web 安全域名未加 https://when23.github.io / kv 集合规则非 read+write 均为 true。';
+    s+='④ ② 里的“真实原因”若含 domain/origin/未授权/不在安全域名 → 是 Web 安全域名没加；含 permission/denied/rule/安全检查 → 是 kv 集合自定义规则未生效（须 exactly {"read":true,"write":true}）。';
     el.textContent=s
   }catch(e){el.textContent='自检出错：\n'+(cloudErrMsg(e).slice(0,300))}
 }
