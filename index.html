@@ -1018,7 +1018,9 @@ async function cloudDel(key){
   delete cloudChunkIndex[key];
 }
 async function cloudGetAll(limit){const r=await withCloudTimeout(cloudCol().limit(limit||1000).get(),20000);return _unpackDocs((r&&r.data)||[])}
-// 与云端做双向合并：采用「更大者胜」策略——数据多的一边覆盖少的一边。
+// 数据“更完整”的判据：数组按条目数、对象按键数、其余按字节；比单纯字节更能反映“哪边记录更多/更新”（瘦身会让字节变小但记录数不变，避免旧大图覆盖新数据）
+function dataSize(v){if(v==null)return -1;if(Array.isArray(v))return v.length;if(typeof v==='object')return Object.keys(v).length;return _byteLen(JSON.stringify(v))}
+// 与云端做双向合并：采用「更多者胜」策略——记录更多的一边覆盖少的一边。
 // 这样既能自动补传因超时被打断而残缺的大 key，也能让两端都收敛到完整数据（避免旧/残缺云端覆盖新本地）。
 let cloudSyncRunning=false, syncRunId=0;
 async function syncFromCloud(){
@@ -1033,8 +1035,8 @@ async function syncFromCloud(){
     if(myId!==syncRunId)return false; // 已被新一轮同步取代，放弃本轮
     const localKeys=await DB._localKeys();
     const localLen={},localVal={};
-    for(const k of localKeys){const v=await DB._localGet(k);localVal[k]=v;localLen[k]=(v==null?-1:_byteLen(JSON.stringify(v)))}
-    const cloudLen={};for(const k in map){cloudLen[k]=(map[k]==null?-1:_byteLen(JSON.stringify(map[k])))}
+    for(const k of localKeys){const v=await DB._localGet(k);localVal[k]=v;localLen[k]=dataSize(v)}
+    const cloudLen={};for(const k in map){cloudLen[k]=dataSize(map[k])}
     // 上传：本地有、云端无 或 本地更大（以本地为准）
     for(const k of localKeys){if(CLOUD.abortSync)break;if(!(k in cloudLen)||localLen[k]>cloudLen[k]){try{await cloudSet(k,localVal[k])}catch(e){}}}
     if(CLOUD.abortSync)return false;
