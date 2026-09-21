@@ -949,7 +949,9 @@ let cloudLastErr='';
 function cloudErrMsg(e){if(!e)return '';if(e.errMsg)return String(e.errMsg);if(e.message)return String(e.message);try{return JSON.stringify(e)}catch(_){return String(e)}}
 // GitHub API 请求封装（api.github.com 支持 CORS，浏览器可直接调用，Token 仅发往 GitHub）
 function ghHeaders(){const h={'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'};if(CLOUD.ghToken)h['Authorization']='Bearer '+CLOUD.ghToken;return h}
-function ghApi(path,opts){return fetch('https://api.github.com'+path,Object.assign({headers:ghHeaders()},opts||{}))}
+// 关键：cache:'no-store' 强制每次请求都走网络，禁止浏览器（尤其 iOS Safari PWA）把 GET 响应缓存到本地，
+// 否则写后立读会命中 Safari 的 HTTP 缓存，读回的是上次（甚至 24 小时前）的旧值，导致「写读往返」误报失败。
+function ghApi(path,opts){return fetch('https://api.github.com'+path,Object.assign({cache:'no-store',headers:ghHeaders()},opts||{}))}
 function b64encode(str){const bytes=new TextEncoder().encode(str);let bin='';for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);return btoa(bin)}
 function b64decode(str){str=(str||'').replace(/\s/g,'');const bin=atob(str);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);return new TextDecoder().decode(bytes)}
 // 初始化：读取本地配置并探活（用一次轻量请求确认 token / 仓库可用），不加载任何外部脚本
@@ -1150,7 +1152,15 @@ async function cloudSelfTest(){
     const probe={__t:Date.now(),__r:Math.random()};
     let writeErr=null,back=null;
     try{await cloudSet('__selftest__',probe)}catch(e){writeErr=e}
-    if(!writeErr){try{back=await cloudGet('__selftest__')}catch(e){writeErr=e}try{await cloudDel('__selftest__')}catch(_){}}
+    if(!writeErr){
+      try{back=await cloudGet('__selftest__')}catch(e){writeErr=e}
+      // 读回不一致时，先等 1.5s 让 GitHub 边缘缓存/提交收敛，再读一次，避免误报（尤其移动端）
+      if(!writeErr && !(back&&back.__t===probe.__t)){
+        await new Promise(r=>setTimeout(r,1500));
+        try{back=await cloudGet('__selftest__')}catch(e){writeErr=e}
+      }
+      try{await cloudDel('__selftest__')}catch(_){}
+    }
     const ok=back&&back.__t===probe.__t;
     s+='② 写读往返测试：'+(writeErr?('失败（真实原因）：'+(writeErr.message.slice(0,180))):(ok?'通过 ✅（GitHub 写入与读取均正常）':'失败（读回内容：'+JSON.stringify(back).slice(0,80)+'）'))+'\n\n';
     if(keys.length===0)s+='③ 仓库当前为空或尚无 data 目录：首次连接后点「强制上传（以本地为准）」即可写入。\n';
