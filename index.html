@@ -890,6 +890,10 @@ img{max-width:100%;display:block}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="recompressLocalImages()">压缩瘦身本地图片</button>
       </div>
+      <p style="font-size:12px;color:var(--warn,#c0392b);margin:12px 0 6px;line-height:1.6">⚠️ 若发现某台设备数据缺了一块（云端曾有残缺/过期副本），请在这台<strong>数据最完整</strong>的设备上点下面按钮：把本地全部数据强制覆盖到云端（以本地为准），再用其他设备同步拉取。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="forceUploadCloud()">强制上传（以本地为准）</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1014,27 +1018,33 @@ async function cloudDel(key){
   delete cloudChunkIndex[key];
 }
 async function cloudGetAll(limit){const r=await withCloudTimeout(cloudCol().limit(limit||1000).get(),20000);return _unpackDocs((r&&r.data)||[])}
-// 与云端做一次双向合并：云端键覆盖本地，本地独有键上传云端；返回是否有变更（用于决定是否刷新界面）
+// 与云端做双向合并：采用「更大者胜」策略——数据多的一边覆盖少的一边。
+// 这样既能自动补传因超时被打断而残缺的大 key，也能让两端都收敛到完整数据（避免旧/残缺云端覆盖新本地）。
+let cloudSyncRunning=false, syncRunId=0;
 async function syncFromCloud(){
   if(!CLOUD.enabled)return false;
-  CLOUD.syncing=true;updateCloudStatus();
+  const myId=++syncRunId;
+  cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();
   let changed=false;
-  // 安全网：云端请求若长时间不返回（网络抖动/SDK 卡死），强制结束"同步中"并回退本地，
-  // 避免页面/指示器永久卡在同步中。真正的同步仍可能在后台稍后完成。
-  const watchdog=setTimeout(()=>{if(CLOUD.syncing){CLOUD.syncing=false;updateCloudStatus();console.warn('云同步超时保护：强制结束"同步中"状态')}},60000);
+  // 安全网：整体超过 60s 仍没结束，先解除“同步中”UI 并中止本轮上传（数据留在本地，下次同步重试），避免永久卡在同步中
+  const watchdog=setTimeout(()=>{if(CLOUD.syncing){CLOUD.syncing=false;updateCloudStatus();console.warn('云同步超时保护：中止本轮')}CLOUD.abortSync=true;},60000);
   try{
     const map=await cloudGetAll(1000);
-    const sig=Object.keys(map).sort().map(k=>k+'='+((map[k]!==null&&map[k]!==undefined)?JSON.stringify(map[k]).length:-1)).join('|');
-    if(sig!==CLOUD.lastCloudSig){
-      changed=true;
-      const localKeys=await DB._localKeys();
-      for(const k of localKeys){if(!(k in map)){try{await cloudSet(k,await DB._localGet(k))}catch(e){}}}
-      for(const k in map){await DB._localSet(k,map[k])}
-      CLOUD.synced=true
-    }else{CLOUD.synced=true}
-    CLOUD.lastCloudSig=sig
+    if(myId!==syncRunId)return false; // 已被新一轮同步取代，放弃本轮
+    const localKeys=await DB._localKeys();
+    const localLen={},localVal={};
+    for(const k of localKeys){const v=await DB._localGet(k);localVal[k]=v;localLen[k]=(v==null?-1:_byteLen(JSON.stringify(v)))}
+    const cloudLen={};for(const k in map){cloudLen[k]=(map[k]==null?-1:_byteLen(JSON.stringify(map[k])))}
+    // 上传：本地有、云端无 或 本地更大（以本地为准）
+    for(const k of localKeys){if(CLOUD.abortSync)break;if(!(k in cloudLen)||localLen[k]>cloudLen[k]){try{await cloudSet(k,localVal[k])}catch(e){}}}
+    if(CLOUD.abortSync)return false;
+    // 拉取：云端有、本地无 或 云端更大（以云端为准）
+    let pulled=false;
+    for(const k in map){if(!(k in localLen)||cloudLen[k]>localLen[k]){try{await DB._localSet(k,map[k]);pulled=true}catch(e){}}}
+    changed=pulled;
+    CLOUD.synced=true
   }catch(e){console.warn('云端同步失败',e)}
-  finally{clearTimeout(watchdog);CLOUD.syncing=false;updateCloudStatus()}
+  finally{clearTimeout(watchdog);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}
   return changed
 }
 // 用户是否正在编辑（输入或弹窗打开），避免自动刷新打断
@@ -1047,7 +1057,7 @@ function isUserEditing(){
 // 周期性自动拉取云端变更（实时同步的核心）
 function startCloudPolling(){
   setInterval(async()=>{
-    if(CLOUD.enabled&&!CLOUD.syncing&&document.visibilityState==='visible'){
+    if(CLOUD.enabled&&!cloudSyncRunning&&document.visibilityState==='visible'){
       const changed=await syncFromCloud();
       if(changed&&!isUserEditing()){await reloadAll()}
     }
@@ -1075,6 +1085,7 @@ function openCloudModal(){
 }
 function closeCloudModal(){document.getElementById('cloudModal').classList.remove('show')}
 async function saveCloudSettings(){
+  if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}
   const env=document.getElementById('cloudEnvInput').value.trim();
   const appid=document.getElementById('cloudAppidInput').value.trim();
   if(!env){showToast('请填写环境 ID','error');return}
@@ -1089,7 +1100,9 @@ function disconnectCloud(){
   CLOUD.env='';CLOUD.appid='';CLOUD.on=false;CLOUD.enabled=false;CLOUD.synced=false;CLOUD.cloud=null;
   closeCloudModal();showToast('已断开云同步，回退本地','success');updateCloudStatus();location.reload()
 }
-async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}await syncFromCloud();await reloadAll();showToast('已与云端同步','success')}
+async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}await syncFromCloud();await reloadAll();showToast('已与云端同步','success')}
+// 以本地为准强制覆盖云端：用于恢复——当云端存在残缺/过期副本时，从数据最完整的设备把全部本地键推上去
+async function forceUploadCloud(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}if(!confirm('确定把本机全部数据强制覆盖到云端吗？此操作会覆盖云端现有数据（包括其他设备尚未同步的改动）。请确认本机数据是最完整的。'))return;const myId=++syncRunId;cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();const wd=setTimeout(()=>{CLOUD.syncing=false;updateCloudStatus();console.warn('强制上传超时保护');CLOUD.abortSync=true;},120000);try{const keys=await DB._localKeys();let n=0;for(const k of keys){if(CLOUD.abortSync)break;try{await cloudSet(k,await DB._localGet(k));n++}catch(e){}}CLOUD.synced=true;showToast('已强制上传 '+n+' 个数据项到云端','success')}catch(e){console.warn('强制上传失败',e);showToast('强制上传失败：'+(e&&e.message||e),'error')}finally{clearTimeout(wd);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}}
 const DB={
   _db:null,
   init(){return new Promise((resolve,reject)=>{
@@ -2902,8 +2915,8 @@ async function init(){await DB.init();document.getElementById('datePicker').valu
 init();
 startCloudPolling();
 document.getElementById('cloudBtn').addEventListener('click',openCloudModal);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&CLOUD.enabled&&!CLOUD.syncing){syncFromCloud().then(()=>reloadAll())}});
-window.addEventListener('online',()=>{if(CLOUD.enabled&&!CLOUD.syncing){syncFromCloud().then(()=>reloadAll())}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&CLOUD.enabled&&!cloudSyncRunning){syncFromCloud().then(()=>reloadAll())}});
+window.addEventListener('online',()=>{if(CLOUD.enabled&&!cloudSyncRunning){syncFromCloud().then(()=>reloadAll())}});
 </script>
 </body>
 </html>
