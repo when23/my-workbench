@@ -961,11 +961,11 @@ const CHUNK_SEP = '__CHK__';    // 分片文档 id 后缀分隔符（正常 key 
 let cloudChunkIndex = {};        // key -> 分片数（用于删除时清理分片文档）
 function _byteLen(s){return new TextEncoder().encode(s).length}
 function _splitChunks(str){
-  const chunks=[]; let cur=''; let n=0; const enc=new TextEncoder();
-  for(const ch of str){const b=enc.encode(ch).length;
-    if(n+b>CHUNK_MAX && cur){chunks.push(cur);cur=ch;n=b}
-    else{cur+=ch;n+=b}}
-  if(cur)chunks.push(cur);
+  // 一次性编码后用字节切片 + 流式解码重组，避免逐字符 encode 的 O(n) 性能陷阱（曾导致上传大记录时主线程卡死）
+  const bytes=new TextEncoder().encode(str);
+  const chunks=[]; const n=bytes.length; let i=0;
+  const dec=new TextDecoder('utf-8');
+  while(i<n){const end=Math.min(i+CHUNK_MAX,n);chunks.push(dec.decode(bytes.subarray(i,end),{stream:true}));i=end;}
   return chunks;
 }
 // 把云端 docs 数组还原为 {key: value}（分片文档被忽略，重组后只留真实 key）
@@ -1145,7 +1145,10 @@ async function recompressLocalImages(){
   if(total===0){showToast('没有需要压缩的图片','success');return}
   showToast('开始压缩 '+total+' 张图片…','success');
   let done=0,cur=0;
-  for(const tk of tasks){cur++;const oldImg=tk.imgs[tk.i];const newImg=await recompressDataUrl(oldImg,800,0.6);if(newImg!==oldImg){tk.imgs[tk.i]=newImg;done++}if(cur%5===0){showToast('压缩中 '+cur+'/'+total,'success');await new Promise(r=>setTimeout(r,0))}}
+  for(const tk of tasks){cur++;const oldImg=tk.imgs[tk.i];
+    // 已很小（<32KB）的图片跳过，避免无谓的解码重压、省时
+    if(oldImg.length>=32768){const newImg=await recompressDataUrl(oldImg,800,0.6);if(newImg!==oldImg){tk.imgs[tk.i]=newImg;done++}}
+    if(cur%10===0){showToast('压缩中 '+cur+'/'+total,'success');await new Promise(r=>setTimeout(r,0))}}
   await DB.set('inspirations',S.insp);await DB.set('organizing',S.org);await DB.set('outfits',S.outfits);await DB.set('trips',S.trips);
   showToast('完成：'+done+'/'+total+' 张已瘦身并保存','success');
 }
