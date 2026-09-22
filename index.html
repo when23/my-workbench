@@ -1059,6 +1059,8 @@ async function cloudSet(key,val){
       if(r.status===200||r.status===201){ ok=true; try{const j=await r.json();if(j&&j.content)CLOUD.ghFileSha[f.name]=j.content.sha}catch(_){} break; }
       // 409 = 文件 sha 与本地缓存不一致（其他设备/上次写入已改动）：取最新 sha 后重试，避让并发写冲突
       if(r.status===409){ try{const cur=await ghApi(path);if(cur.ok){const cj=await cur.json();body.sha=cj.sha;CLOUD.ghFileSha[f.name]=cj.sha}}catch(_){} continue; }
+      // 422 = 文件已存在但本应以“新建”提交（cloudDel 删除在 GitHub 侧瞬时未生效 / 缺 sha 的 create 冲突）：取当前 sha 以「更新」重试；若文件其实已删则去掉 sha 再 create
+      if(r.status===422){ try{const cur=await ghApi(path);if(cur.ok){const cj=await cur.json();body.sha=cj.sha;CLOUD.ghFileSha[f.name]=cj.sha;continue;}else if(cur.status===404){delete body.sha;continue;}}catch(_){} lastErr='PUT '+f.name+' 422 无法重试'; break; }
       // 403/429 = GitHub 二级限流（突发并发触发）：退避后重试，最多 5 次
       if(r.status===403||r.status===429){
         if(tries>=5){ lastErr='PUT '+f.name+' 限流超限'; break; }
@@ -1086,6 +1088,8 @@ async function cloudDel(key){
       if(r.ok||r.status===404){ ok=true; break; }
       // 409 = 本地缓存 sha 与服务器不一致（其他设备/上次写入已改）：重新取最新 sha 后重试
       if(r.status===409){ try{const cur=await _ghGetJson(path);if(cur.status===404){ok=true;break}if(cur.sha){sha=cur.sha;CLOUD.ghFileSha[nm]=sha}}catch(_){} continue; }
+      // 422 = 删除目标状态异常：重新取最新 sha 后重试删除
+      if(r.status===422){ try{const cur=await _ghGetJson(path);if(cur.status===404){ok=true;break}if(cur.sha){sha=cur.sha;CLOUD.ghFileSha[nm]=sha}}catch(_){} continue; }
       const t=await r.text();throw new Error('DEL '+nm+' '+r.status+' '+(t.slice(0,140)));
     }
     // 删除失败（持续 409/限流）不抛错中断整轮，仅跳过该文件（后续 PUT 会带 sha 重传，覆盖即可），避免“一个键坏掉整轮同步挂掉”
@@ -1134,6 +1138,16 @@ function stableSig(o){
   const ks=Object.keys(o).sort();
   return '{'+ks.map(k=>JSON.stringify(k)+':'+stableSig(o[k])).join(',')+'}';
 }
+// 墓碑（tombstone）：记录被删除条目的 id，使“删除”能跨设备同步（合并逻辑本身是并集、只增不减）。
+// 存储：云端一个普通同步键 __tombstones = ["key::id", ...]，随正常同步在两端并集收敛。
+function idOf(o){ if(o&&typeof o==='object'&&!Array.isArray(o)&&o.id!==undefined&&o.id!==null)return o.id; return stableSig(o); }
+function _collectIds(v){ if(Array.isArray(v))return v.map(idOf); if(v&&typeof v==='object'){const ids=[];for(const k in v){if(Array.isArray(v[k]))ids.push(...v[k].map(idOf))}return ids;} return []; }
+function computeRemoved(oldV,newV){ const o=_collectIds(oldV),n=new Set(_collectIds(newV)),out=[]; for(const id of o)if(!n.has(id))out.push(id); return out; }
+function applyTombstones(v,key,tombSet){
+  if(Array.isArray(v))return v.filter(it=>!tombSet.has(key+'::'+idOf(it)));
+  if(v&&typeof v==='object'){const o={};for(const k in v){if(Array.isArray(v[k]))o[k]=v[k].filter(it=>!tombSet.has(key+'::'+idOf(it)));else o[k]=v[k];}return o;}
+  return v;
+}
 // 合并两端数据：数组按内容签名去重求并集（解决跨设备 id 撞车导致的“各自覆盖、永不收敛”）；
 // 对象取键并集、冲突键取较大侧；标量取较大侧。目标是不丢数据地收敛。
 // 注意：数组并集改为 local 优先（local.concat(cloud)），使“本地有真图、云端是剥离占位图”的 sig 撞车时
@@ -1167,20 +1181,26 @@ async function syncFromCloud(){
     const localKeys=await DB._localKeys();
     const localVal={};
     for(const k of localKeys)localVal[k]=await DB._localGet(k);
+    // 墓碑集合：本机已删的 id + 云端已删的 id（来自其他设备），合并后用于过滤“已删除条目”，使删除能跨设备同步
+    const _lt=await DB._localGet('__tombstones'); const _ct=map['__tombstones'];
+    const tombSet=new Set([].concat(_lt||[],_ct||[]).map(x=>typeof x==='string'?x:(''+x)));
     const allKeys=new Set([...localKeys, ...Object.keys(map)]);
     let pulled=false,pushed=false;
-    for(const k of allKeys){
+    // 先把墓碑键排到最前：确保其先与云端合并，后续捕获删除时才不会用过期本地墓碑覆盖云端
+    const keysArr=[...allKeys]; const _ti=keysArr.indexOf('__tombstones'); if(_ti>0){keysArr.splice(_ti,1);keysArr.unshift('__tombstones');}
+    for(const k of keysArr){
       if(CLOUD.abortSync)break;
       if(failed.has(k)){console.warn('同步跳过 '+k+'（云端读取失败，下轮再试，绝不以本地覆盖）');continue;}
       const loc=(k in localVal)?localVal[k]:undefined;
       const clo=(k in map)?map[k]:undefined;
       try{
-        if(loc===undefined&&clo!==undefined){await DB._localSet(k,clo);pulled=true} // 仅云端有 → 拉取
+        if(loc===undefined&&clo!==undefined){const fv=(k==='__tombstones')?clo:applyTombstones(clo,k,tombSet);await DB._localSet(k,fv);pulled=true} // 仅云端有 → 拉取（应用墓碑过滤）
         else if(loc!==undefined&&clo===undefined){await cloudSet(k,loc);pushed=true} // 仅本地有 → 上传
         else if(loc!==undefined&&clo!==undefined){
           if(JSON.stringify(loc)===JSON.stringify(clo))continue; // 已一致，跳过
-          const merged=mergeValues(loc,clo); // 两端都有但内容不同 → 合并（并集/不丢数据）后双向写回
-          await cloudSet(k,merged);await DB._localSet(k,merged);pulled=true;pushed=true;
+          const merged=mergeValues(loc,clo); // 两端都有但内容不同 → 合并（并集/不丢数据）
+          const fv=(k==='__tombstones')?merged:applyTombstones(merged,k,tombSet); // 应用墓碑：剔除已删除条目
+          await cloudSet(k,fv);await DB._localSet(k,fv);pulled=true;pushed=true;
         }
       }catch(e){cloudLastErr=cloudErrMsg(e);CLOUD.lastWriteError=Date.now();CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步合并失败',k,e)}
     }
@@ -1307,7 +1327,22 @@ const DB={
   },
   async keys(){return this._localKeys()},
   _localGet(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
-  _localSet(key,val){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})},
+  async _localSet(key,val){
+    // 捕获删除（墓碑）：对比旧值，找出被移除条目的 id，记入 __tombstones，使删除能跨设备同步
+    if(CLOUD.enabled&&key!=='__tombstones'){
+      try{
+        const oldV=await this._localGet(key);
+        const removed=computeRemoved(oldV,val);
+        if(removed.length){
+          const T=(await this._localGet('__tombstones'))||[];
+          let ch=false;
+          for(const id of removed){const t=key+'::'+id; if(!T.includes(t)){T.push(t);ch=true;}}
+          if(ch){ await this._localSet('__tombstones',T); try{await cloudSet('__tombstones',T)}catch(_){} }
+        }
+      }catch(_){}
+    }
+    return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').put(val,key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})
+  },
   _localDel(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').delete(key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})},
   _localKeys(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 };
