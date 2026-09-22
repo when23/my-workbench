@@ -947,6 +947,8 @@ const CLOUD={
   ,ghFileSha:{}      // 文件名 -> sha（写文件时需携带，避免 409 冲突）
   ,auto:localStorage.getItem('ghAuto')!=='0'   // 自动同步开关（默认开；关闭后仅手动「立即同步」）
   ,noImages:localStorage.getItem('ghNoImg')==='1'   // 同步不含图片（仅传文字）：本地图片保留，云端只存文字版，彻底规避大图导致多分片写失败（先把同步跑通）
+  ,lastLocal:(JSON.parse(localStorage.getItem('ghLastLocal')||'null'))||{}   // key->上次同步时本地内容签名（增量跳过用）
+  ,lastSha:(JSON.parse(localStorage.getItem('ghLastSha')||'null'))||{}      // 文件名->上次同步时云端 sha（增量跳过用：服务端与本地都未变则跳过该键读写）
 };
 let cloudLastErr='';
 // 提取可读错误信息
@@ -1102,25 +1104,37 @@ async function cloudDel(key){
 //  1) LIST 与每个键读取都走带限流退避重试的 _ghGetJson；
 //  2) 键读取改为串行 + 间隔，不再 Promise.all 一次性并发，避免触发限流；
 //  3) 读取失败的键进入 failed 集合，本轮跳过——绝不当成“云端无此键”去用本地覆盖，避免误删另一设备数据。
-async function cloudGetAll(){
+async function cloudGetAll(localVal){
   let arr=[];
   try{
     const jr=await _ghGetJson(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/`);
-    if(jr.status===404)return {map:{},failed:new Set()};
+    if(jr.status===404)return {map:{},failed:new Set(),shas:{},skipped:new Set()};
     arr=jr;
-  }catch(e){if(/404/.test(e.message))return {map:{},failed:new Set()};throw e}
-  for(const f of arr){if(f.name)CLOUD.ghFileSha[f.name]=f.sha}
+  }catch(e){if(/404/.test(e.message))return {map:{},failed:new Set(),shas:{},skipped:new Set()};throw e}
+  const shas={};
+  for(const f of arr){if(f.name){CLOUD.ghFileSha[f.name]=f.sha;shas[f.name]=f.sha;}}
   const realKeys=new Set();
   for(const f of arr){if(f.name&&f.name.endsWith('.json')&&f.name!=='_syncsig.json'){const base=f.name.slice(0,-5);if(base.indexOf(CHUNK_SEP)>=0)continue;realKeys.add(base)}}
-  const map={}, failed=new Set();
+  const map={}, failed=new Set(), skipped=new Set();
   const keys=[...realKeys];
+  // 增量跳过：服务端 sha 未变 且 本地自上次同步未变 → 该键稳定，跳过读写（不重读、不重传），大幅提速
+  const skipFn=(k)=>{
+    if(k==='__tombstones'||k==='__syncsnap')return false;
+    const nm=k+'.json';
+    const sSha=shas[nm];
+    const serverChanged = sSha===undefined || (CLOUD.lastSha[nm]!==undefined && CLOUD.lastSha[nm]!==sSha);
+    const lHash=localVal?stableSig(localVal[k]):null;
+    const localChanged = lHash===null || CLOUD.lastLocal[k]===undefined || CLOUD.lastLocal[k]!==lHash;
+    return !serverChanged && !localChanged;
+  };
   for(let i=0;i<keys.length;i++){
     const k=keys[i];
+    if(skipFn(k)){skipped.add(k);continue;} // 增量跳过：未变化键不重读（合并时直接 continue，不重传）
     try{ map[k]=await cloudGet(k); }
     catch(e){ failed.add(k); console.warn('cloudGet 失败(本轮跳过，下轮重试) '+k,e); }
-    if(i%3===2) await new Promise(r=>setTimeout(r,300)); // 每 3 个键稍作停顿，进一步避让限流
+    if(i%3===2) await new Promise(r=>setTimeout(r,200));
   }
-  return {map, failed}
+  return {map, failed, shas, skipped}
 }
 // 数据“更完整”的判据：数组按条目数、对象按键数、其余按字节；比单纯字节更能反映“哪边记录更多/更新”（瘦身会让字节变小但记录数不变，避免旧大图覆盖新数据）
 function dataSize(v){if(v==null)return -1;if(Array.isArray(v))return v.length;if(typeof v==='object')return Object.keys(v).length;return _byteLen(JSON.stringify(v))}
@@ -1173,23 +1187,40 @@ async function syncFromCloud(){
   const myId=++syncRunId;
   cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();
   let changed=false;
-  // 安全网：整体超过 60s 仍没结束，先解除“同步中”UI 并中止本轮上传（数据留在本地，下次同步重试），避免永久卡在同步中
   const watchdog=setTimeout(()=>{if(CLOUD.syncing){CLOUD.syncing=false;updateCloudStatus();console.warn('云同步超时保护：中止本轮')}CLOUD.abortSync=true;},180000);
   try{
-    const {map,failed}=await cloudGetAll();
-    if(myId!==syncRunId)return false; // 已被新一轮同步取代，放弃本轮
     const localKeys=await DB._localKeys();
     const localVal={};
     for(const k of localKeys)localVal[k]=await DB._localGet(k);
-    // 墓碑集合：本机已删的 id + 云端已删的 id（来自其他设备），合并后用于过滤“已删除条目”，使删除能跨设备同步
-    const _lt=await DB._localGet('__tombstones'); const _ct=map['__tombstones'];
-    const tombSet=new Set([].concat(_lt||[],_ct||[]).map(x=>typeof x==='string'?x:(''+x)));
+    // 本机删除兜底捕获：与上次成功同步的本地快照对比，找出本机自上次同步后删除的条目，记入墓碑。
+    // 即使 DB._localSet 的即时捕获漏了 daily 这类“对象套数组”结构，这里也能兜住，确保删除跨设备同步。
+    let snap={};
+    try{ snap=await DB._localGet('__syncsnap')||{}; }catch(_){}
+    const tombSet=new Set();
+    let T=(await DB._localGet('__tombstones'))||[];
+    if(!Array.isArray(T))T=[];
+    for(const x of T)tombSet.add(typeof x==='string'?x:(''+x));
+    let tombChanged=false;
+    for(const k of localKeys){
+      if(k==='__tombstones'||k==='__syncsnap')continue;
+      if(snap[k]!==undefined){
+        const removed=computeRemoved(snap[k], localVal[k]);
+        for(const id of removed){const t=k+'::'+id; if(!tombSet.has(t)){tombSet.add(t); if(!T.includes(t)){T.push(t);tombChanged=true;}}}
+      }
+    }
+    if(tombChanged){ await DB._localSet('__tombstones',T); try{await cloudSet('__tombstones',T)}catch(_){} }
+    const {map,failed,shas,skipped}=await cloudGetAll(localVal);
+    if(myId!==syncRunId)return false;
+    // 合并云端已删的 id（来自其他设备）
+    const _ct=map['__tombstones'];
+    if(Array.isArray(_ct))for(const x of _ct){const t=typeof x==='string'?x:(''+x); if(!tombSet.has(t)){tombSet.add(t); if(!T.includes(t)){T.push(t);tombChanged=true;}}}
     const allKeys=new Set([...localKeys, ...Object.keys(map)]);
     let pulled=false,pushed=false;
-    // 先把墓碑键排到最前：确保其先与云端合并，后续捕获删除时才不会用过期本地墓碑覆盖云端
     const keysArr=[...allKeys]; const _ti=keysArr.indexOf('__tombstones'); if(_ti>0){keysArr.splice(_ti,1);keysArr.unshift('__tombstones');}
     for(const k of keysArr){
       if(CLOUD.abortSync)break;
+      if(k==='__syncsnap')continue;
+      if(skipped.has(k))continue; // 增量跳过：服务端+本地都未变，无需处理
       if(failed.has(k)){console.warn('同步跳过 '+k+'（云端读取失败，下轮再试，绝不以本地覆盖）');continue;}
       const loc=(k in localVal)?localVal[k]:undefined;
       const clo=(k in map)?map[k]:undefined;
@@ -1205,7 +1236,14 @@ async function syncFromCloud(){
       }catch(e){cloudLastErr=cloudErrMsg(e);CLOUD.lastWriteError=Date.now();CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步合并失败',k,e)}
     }
     if(CLOUD.abortSync)return false;
-    changed=pulled||pushed;
+    // 保存本次同步后的本地快照与内容签名、云端 sha，供下次“增量跳过”（未变化的键不重读，大幅提速）
+    const newSnap={}, newHash={};
+    for(const k of localKeys){ if(k==='__syncsnap')continue; newSnap[k]=localVal[k]; newHash[k]=stableSig(localVal[k]); }
+    try{ await DB._localSet('__syncsnap',newSnap); }catch(_){}
+    CLOUD.lastLocal=newHash;
+    CLOUD.lastSha=Object.assign({},CLOUD.ghFileSha);
+    try{ localStorage.setItem('ghLastLocal',JSON.stringify(newHash)); localStorage.setItem('ghLastSha',JSON.stringify(CLOUD.lastSha)); }catch(_){}
+    changed=pulled||pushed||tombChanged;
     CLOUD.synced=true
   }catch(e){console.warn('云端同步失败',e);CLOUD.lastSyncError=cloudErrMsg(e)}
   finally{clearTimeout(watchdog);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}
