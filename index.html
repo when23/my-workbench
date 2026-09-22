@@ -882,6 +882,7 @@ img{max-width:100%;display:block}
       <p style="font-size:12px;color:var(--text-3);margin:6px 0 12px;line-height:1.6">① 新建一个<strong>私有</strong>仓库（如 workbench-sync）；② 在 GitHub「Settings → Developer settings → Personal access tokens」生成 Token，勾选 <code>repo</code> 权限；③ 把 Token 和仓库名填上面。首次同步会自动在仓库里建 <code>data/</code> 目录，无需手动建。</p>
       <div id="cloudStatusText" style="font-size:13px;margin-bottom:12px"></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="ghAutoInput" onchange="CLOUD.auto=this.checked;localStorage.setItem('ghAuto',this.checked?'1':'0');updateCloudStatus()"> 自动同步（每 60 秒后台拉取；取消勾选后仅手动点「立即同步」）</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="ghNoImgInput" onchange="CLOUD.noImages=this.checked;localStorage.setItem('ghNoImg',this.checked?'1':'0');updateCloudStatus()"> 同步不含图片（仅传文字，先把同步跑通；本地图片保留，云端只存文字版）</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="saveCloudSettings()">保存并连接</button>
         <button class="btn btn-ghost" onclick="doCloudSync()">立即同步</button>
@@ -945,6 +946,7 @@ const CLOUD={
   ,ghPath:'data'     // 数据仓库目录（首次写入自动创建）
   ,ghFileSha:{}      // 文件名 -> sha（写文件时需携带，避免 409 冲突）
   ,auto:localStorage.getItem('ghAuto')!=='0'   // 自动同步开关（默认开；关闭后仅手动「立即同步」）
+  ,noImages:localStorage.getItem('ghNoImg')==='1'   // 同步不含图片（仅传文字）：本地图片保留，云端只存文字版，彻底规避大图导致多分片写失败（先把同步跑通）
 };
 let cloudLastErr='';
 // 提取可读错误信息
@@ -1024,8 +1026,18 @@ async function cloudGet(key){
     return val&&val.__v!==undefined?val.__v:val
   }catch(e){if(/404/.test(e.message))return null;throw e}
 }
+// 把数据里的图片（base64 data URL）替换为占位串，使同步只传文字。占位串以 "data:" 开头，
+// 这样 stableSig 仍把它归一为 <IMG>，与本地真图 sig 一致 → 合并时不会因“图不同”制造重复，
+// 且因 mergeValues 改为 local 优先，本地真图在 sig 撞车时胜出、本地图片不丢。
+function stripImages(v){
+  if(typeof v==='string'){ return v.startsWith('data:')?'data:__stripped__':v; }
+  if(Array.isArray(v)){ return v.map(stripImages); }
+  if(v&&typeof v==='object'){ const o={}; for(const k in v)o[k]=stripImages(v[k]); return o; }
+  return v;
+}
 async function cloudSet(key,val){
   if(val===undefined||val===null){await cloudDel(key);return}
+  if(CLOUD.noImages)val=stripImages(val); // 同步不含图片：只在写云端时剥离，本地数据保持原样（图片仍在本地）
   await cloudDel(key); // 先删旧分片，避免“半覆盖”导致 manifest 与新分片不一致而永久损坏（中断时至多丢整个键，下轮重传即可恢复）
   const str=JSON.stringify(val);
   const files=[];
@@ -1124,10 +1136,12 @@ function stableSig(o){
 }
 // 合并两端数据：数组按内容签名去重求并集（解决跨设备 id 撞车导致的“各自覆盖、永不收敛”）；
 // 对象取键并集、冲突键取较大侧；标量取较大侧。目标是不丢数据地收敛。
+// 注意：数组并集改为 local 优先（local.concat(cloud)），使“本地有真图、云端是剥离占位图”的 sig 撞车时
+// 保留本地真图，避免“同步不含图片”模式下把本地图片覆盖成占位图而丢失。
 function mergeValues(local, cloud){
   if(Array.isArray(local)&&Array.isArray(cloud)){
     const seen=new Set(),out=[];
-    for(const it of cloud.concat(local)){
+    for(const it of local.concat(cloud)){
       const sig=stableSig(it);
       if(!seen.has(sig)){seen.add(sig);out.push(it)}
     }
@@ -1168,7 +1182,7 @@ async function syncFromCloud(){
           const merged=mergeValues(loc,clo); // 两端都有但内容不同 → 合并（并集/不丢数据）后双向写回
           await cloudSet(k,merged);await DB._localSet(k,merged);pulled=true;pushed=true;
         }
-      }catch(e){cloudLastErr=cloudErrMsg(e);CLOUD.lastWriteError=Date.now();console.warn('同步合并失败',k,e)}
+      }catch(e){cloudLastErr=cloudErrMsg(e);CLOUD.lastWriteError=Date.now();CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步合并失败',k,e)}
     }
     if(CLOUD.abortSync)return false;
     changed=pulled||pushed;
@@ -1212,6 +1226,7 @@ function openCloudModal(){
   document.getElementById('ghTokenInput').value=CLOUD.ghToken;
   document.getElementById('ghRepoInput').value=CLOUD.ghRepo;
   const ai=document.getElementById('ghAutoInput');if(ai)ai.checked=CLOUD.auto;
+  const ni=document.getElementById('ghNoImgInput');if(ni)ni.checked=CLOUD.noImages;
   updateCloudStatus();
   document.getElementById('cloudModal').classList.add('show')
 }
