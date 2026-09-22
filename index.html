@@ -881,6 +881,7 @@ img{max-width:100%;display:block}
       <input type="text" id="ghRepoInput" placeholder="如：when23/workbench-sync" autocomplete="off" spellcheck="false">
       <p style="font-size:12px;color:var(--text-3);margin:6px 0 12px;line-height:1.6">① 新建一个<strong>私有</strong>仓库（如 workbench-sync）；② 在 GitHub「Settings → Developer settings → Personal access tokens」生成 Token，勾选 <code>repo</code> 权限；③ 把 Token 和仓库名填上面。首次同步会自动在仓库里建 <code>data/</code> 目录，无需手动建。</p>
       <div id="cloudStatusText" style="font-size:13px;margin-bottom:12px"></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="ghAutoInput" onchange="CLOUD.auto=this.checked;localStorage.setItem('ghAuto',this.checked?'1':'0');updateCloudStatus()"> 自动同步（每 60 秒后台拉取；取消勾选后仅手动点「立即同步」）</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="saveCloudSettings()">保存并连接</button>
         <button class="btn btn-ghost" onclick="doCloudSync()">立即同步</button>
@@ -943,6 +944,7 @@ const CLOUD={
   ,ghRepo:localStorage.getItem('ghRepo')||''       // 形如 owner/repo（建议私有仓库）
   ,ghPath:'data'     // 数据仓库目录（首次写入自动创建）
   ,ghFileSha:{}      // 文件名 -> sha（写文件时需携带，避免 409 冲突）
+  ,auto:localStorage.getItem('ghAuto')!=='0'   // 自动同步开关（默认开；关闭后仅手动「立即同步」）
 };
 let cloudLastErr='';
 // 提取可读错误信息
@@ -968,7 +970,7 @@ async function initCloudIfNeeded(){
 }
 // —— 单文件体积控制：GitHub 单文件建议 < 100MB，这里沿用分片阈值避免单个文件过大、也便于并行读写 ——
 // 超过阈值的记录自动分片为多个小文件（key__CHK__0 / key__CHK__1 ...），读取时再拼回。
-const CHUNK_MAX = 64*1024;      // 单分片上限（字节）。GitHub Contents API 对大文件 GET 易截断（IncompleteRead），故调小让每个文件都在可靠范围内（约 85KB base64）
+const CHUNK_MAX = 256*1024;     // 单分片上限（字节）。权衡：调大→分片数少→写/读请求数少→大幅降低 GitHub 二级限流触发概率（v99 后“写入异常30”根因：64KB 把 6.97MB 切成 110 片、突发 PUT 撞限流）；同时保持在 GET 截断阈值(~600KB 编码)以下（256KB 原始≈341KB 编码，安全）。
 const CHUNK_SEP = '__CHK__';    // 分片文档 id 后缀分隔符（正常 key 不会出现）
 let cloudChunkIndex = {};        // key -> 分片数（用于删除时清理分片文档）
 function _byteLen(s){return new TextEncoder().encode(s).length}
@@ -1011,6 +1013,7 @@ async function cloudGet(key){
     if(val&&val.__chunked===true){
       const parts=[];
       for(let i=0;i<val.__n;i++){
+        if(i>0)await new Promise(r=>setTimeout(r,120)); // 分片读取间稍作停顿，避让 GitHub 二级限流（避免“读分片失败→整键跳过→PC 永远拉不到”）
         const cj=await _ghGetJson(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(key)}__CHK__${i}.json`);
         if(!cj||cj.status===404||!cj.content)throw new Error('GET chunk '+key+' '+i);
         CLOUD.ghFileSha[key+'__CHK__'+i+'.json']=cj.sha;
@@ -1023,11 +1026,14 @@ async function cloudGet(key){
 }
 async function cloudSet(key,val){
   if(val===undefined||val===null){await cloudDel(key);return}
+  await cloudDel(key); // 先删旧分片，避免“半覆盖”导致 manifest 与新分片不一致而永久损坏（中断时至多丢整个键，下轮重传即可恢复）
   const str=JSON.stringify(val);
   const files=[];
   if(_byteLen(str)<=CHUNK_MAX){cloudChunkIndex[key]=0;files.push({name:key+'.json',obj:{__v:val}})}
   else{const chunks=_splitChunks(str);for(let i=0;i<chunks.length;i++)files.push({name:key+'__CHK__'+i+'.json',obj:{__cv:chunks[i]}});files.push({name:key+'.json',obj:{__chunked:true,__n:chunks.length}});cloudChunkIndex[key]=chunks.length}
+  let _ci=0;
   for(const f of files){
+    if(_ci++>0)await new Promise(r=>setTimeout(r,150)); // 分片之间稍作停顿，进一步避让 GitHub 二级限流（v99 后“写入异常30”主因：64KB 把 6.97MB 切成 110 片突发 PUT）
     const path=`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(f.name)}`;
     const body={message:'sync '+f.name,content:b64encode(JSON.stringify(f.obj))};
     let sha=CLOUD.ghFileSha[f.name];
@@ -1128,7 +1134,7 @@ async function syncFromCloud(){
   cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();
   let changed=false;
   // 安全网：整体超过 60s 仍没结束，先解除“同步中”UI 并中止本轮上传（数据留在本地，下次同步重试），避免永久卡在同步中
-  const watchdog=setTimeout(()=>{if(CLOUD.syncing){CLOUD.syncing=false;updateCloudStatus();console.warn('云同步超时保护：中止本轮')}CLOUD.abortSync=true;},120000);
+  const watchdog=setTimeout(()=>{if(CLOUD.syncing){CLOUD.syncing=false;updateCloudStatus();console.warn('云同步超时保护：中止本轮')}CLOUD.abortSync=true;},180000);
   try{
     const {map,failed}=await cloudGetAll();
     if(myId!==syncRunId)return false; // 已被新一轮同步取代，放弃本轮
@@ -1169,10 +1175,11 @@ function isUserEditing(){
 // 周期性自动拉取云端变更（实时同步的核心）
 function startCloudPolling(){
   setInterval(async()=>{
-    if(CLOUD.enabled&&!cloudSyncRunning&&document.visibilityState==='visible'){
-      const changed=await syncFromCloud();
-      if(changed&&!isUserEditing()){await reloadAll()}
-    }
+    // 仅在开启自动同步、且最近没有写入错误（出错后退避 5 分钟，避免限流死亡螺旋）时才自动同步
+    if(!(CLOUD.enabled&&CLOUD.auto&&!cloudSyncRunning&&document.visibilityState==='visible'))return;
+    if(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000){console.warn('自动同步退避中（上次写入异常，5 分钟后再试）');return;}
+    const changed=await syncFromCloud();
+    if(changed&&!isUserEditing()){await reloadAll()}
   },60000)
 }
 function updateCloudStatus(){
@@ -1192,6 +1199,7 @@ async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCat
 function openCloudModal(){
   document.getElementById('ghTokenInput').value=CLOUD.ghToken;
   document.getElementById('ghRepoInput').value=CLOUD.ghRepo;
+  const ai=document.getElementById('ghAutoInput');if(ai)ai.checked=CLOUD.auto;
   updateCloudStatus();
   document.getElementById('cloudModal').classList.add('show')
 }
@@ -3061,8 +3069,8 @@ async function init(){await DB.init();document.getElementById('datePicker').valu
 init();
 startCloudPolling();
 document.getElementById('cloudBtn').addEventListener('click',openCloudModal);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&CLOUD.enabled&&!cloudSyncRunning){syncFromCloud().then(()=>reloadAll())}});
-window.addEventListener('online',()=>{if(CLOUD.enabled&&!cloudSyncRunning){syncFromCloud().then(()=>reloadAll())}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&CLOUD.enabled&&CLOUD.auto&&!cloudSyncRunning&&!(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000)){syncFromCloud().then(()=>reloadAll())}});
+window.addEventListener('online',()=>{if(CLOUD.enabled&&CLOUD.auto&&!cloudSyncRunning&&!(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000)){syncFromCloud().then(()=>reloadAll())}});
 </script>
 </body>
 </html>
