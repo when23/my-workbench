@@ -968,7 +968,7 @@ async function initCloudIfNeeded(){
 }
 // —— 单文件体积控制：GitHub 单文件建议 < 100MB，这里沿用分片阈值避免单个文件过大、也便于并行读写 ——
 // 超过阈值的记录自动分片为多个小文件（key__CHK__0 / key__CHK__1 ...），读取时再拼回。
-const CHUNK_MAX = 450*1024;     // 安全上限（字节），留余量给文档元数据
+const CHUNK_MAX = 64*1024;      // 单分片上限（字节）。GitHub Contents API 对大文件 GET 易截断（IncompleteRead），故调小让每个文件都在可靠范围内（约 85KB base64）
 const CHUNK_SEP = '__CHK__';    // 分片文档 id 后缀分隔符（正常 key 不会出现）
 let cloudChunkIndex = {};        // key -> 分片数（用于删除时清理分片文档）
 function _byteLen(s){return new TextEncoder().encode(s).length}
@@ -981,19 +981,34 @@ function _splitChunks(str){
   return chunks;
 }
 // 读取一个键：单文档文件 / 分片文件 都能还原。文件不存在返回 null。
+// tryGet：带重试的 GET+JSON，规避 GitHub API 对大文件偶发的网络/解析截断（IncompleteRead 等）造成的一次性失败。
+async function _ghGetJson(p){
+  let lastE;
+  for(let i=0;i<3;i++){
+    try{
+      const r=await ghApi(p);
+      if(r.status===404)return {status:404};
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return await r.json();
+    }catch(e){lastE=e;if(i<2)await new Promise(r=>setTimeout(r,700*(i+1)))}
+  }
+  throw lastE||new Error('read fail '+p);
+}
 async function cloudGet(key){
   try{
-    const r=await ghApi(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(key)}.json`);
-    if(r.status===404)return null;
-    if(!r.ok){const t=await r.text();throw new Error('GET '+key+' '+r.status+' '+(t.slice(0,140)))}
-    const j=await r.json();CLOUD.ghFileSha[key+'.json']=j.sha;
+    let j;
+    try{j=await _ghGetJson(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(key)}.json`)}
+    catch(e){if(/404/.test(e.message))return null;throw e}
+    if(j.status===404)return null;
+    if(!j||!j.content)throw new Error('GET '+key+' 无内容');
+    CLOUD.ghFileSha[key+'.json']=j.sha;
     const val=JSON.parse(b64decode(j.content));
     if(val&&val.__chunked===true){
       const parts=[];
       for(let i=0;i<val.__n;i++){
-        const cr=await ghApi(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(key)}__CHK__${i}.json`);
-        if(!cr.ok)throw new Error('GET chunk '+key+' '+cr.status);
-        const cj=await cr.json();CLOUD.ghFileSha[key+'__CHK__'+i+'.json']=cj.sha;
+        const cj=await _ghGetJson(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(key)}__CHK__${i}.json`);
+        if(!cj||cj.status===404||!cj.content)throw new Error('GET chunk '+key+' '+i);
+        CLOUD.ghFileSha[key+'__CHK__'+i+'.json']=cj.sha;
         parts[i]=JSON.parse(b64decode(cj.content)).__cv;
       }
       return JSON.parse(parts.join(''))
@@ -1056,13 +1071,21 @@ function dataSize(v){if(v==null)return -1;if(Array.isArray(v))return v.length;if
 // 与云端做双向合并：采用「更多者胜」策略——记录更多的一边覆盖少的一边。
 // 这样既能自动补传因超时被打断而残缺的大 key，也能让两端都收敛到完整数据（避免旧/残缺云端覆盖新本地）。
 let cloudSyncRunning=false, syncRunId=0;
-// 合并两端数据：数组按 id（无 id 则按 JSON）去重求并集；对象取键并集、冲突键取较大侧；标量取较大侧。目标是不丢数据地收敛。
+// 稳定的内容签名（忽略对象键顺序），用于数组去重时区分“同一项”与“不同项”。
+function stableSig(o){
+  if(o===null||typeof o!=='object')return JSON.stringify(o);
+  if(Array.isArray(o))return '['+o.map(stableSig).join(',')+']';
+  const ks=Object.keys(o).sort();
+  return '{'+ks.map(k=>JSON.stringify(k)+':'+stableSig(o[k])).join(',')+'}';
+}
+// 合并两端数据：数组按内容签名去重求并集（解决跨设备 id 撞车导致的“各自覆盖、永不收敛”）；
+// 对象取键并集、冲突键取较大侧；标量取较大侧。目标是不丢数据地收敛。
 function mergeValues(local, cloud){
   if(Array.isArray(local)&&Array.isArray(cloud)){
-    const seen=new Map(),out=[];
+    const seen=new Set(),out=[];
     for(const it of cloud.concat(local)){
-      const id=(it&&typeof it==='object'&&it.id!==undefined)?String(it.id):JSON.stringify(it);
-      if(!seen.has(id)){seen.set(id,1);out.push(it)}
+      const sig=stableSig(it);
+      if(!seen.has(sig)){seen.add(sig);out.push(it)}
     }
     return out;
   }
