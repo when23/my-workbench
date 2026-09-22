@@ -1094,7 +1094,11 @@ function dataSize(v){if(v==null)return -1;if(Array.isArray(v))return v.length;if
 // 这样既能自动补传因超时被打断而残缺的大 key，也能让两端都收敛到完整数据（避免旧/残缺云端覆盖新本地）。
 let cloudSyncRunning=false, syncRunId=0;
 // 稳定的内容签名（忽略对象键顺序），用于数组去重时区分“同一项”与“不同项”。
+// 关键：图片以 base64 data URL 内嵌时，仅按字节比较会让“同一张图被重新压缩/换尺寸”也被视为不同项，
+// 导致两端合并时无限累积重复（数据膨胀到几十 MB、同步彻底崩）。故把 data: URL 归一为常量，
+// 让“同条目、仅图片字节不同”在合并时被视为同一条（保留云端已压缩的小图版本），不再重新撑大。
 function stableSig(o){
+  if(typeof o==='string'){ if(o.startsWith('data:'))return '<IMG>'; return JSON.stringify(o); }
   if(o===null||typeof o!=='object')return JSON.stringify(o);
   if(Array.isArray(o))return '['+o.map(stableSig).join(',')+']';
   const ks=Object.keys(o).sort();
@@ -1208,9 +1212,9 @@ function disconnectCloud(){
   CLOUD.ghToken='';CLOUD.ghRepo='';CLOUD.on=false;CLOUD.enabled=false;CLOUD.synced=false;CLOUD.ghFileSha={};
   closeCloudModal();showToast('已断开云同步，回退本地','success');updateCloudStatus();location.reload()
 }
-async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}CLOUD.lastSyncError='';try{const changed=await syncFromCloud();if(CLOUD.lastSyncError){showToast('同步失败：'+(CLOUD.lastSyncError.slice(0,140)),'error')}else{await reloadAll();showToast(changed?'已与云端同步（有更新）':'已与云端同步','success')}}catch(e){showToast('同步失败：'+(cloudErrMsg(e).slice(0,140)),'error')}}
+async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}CLOUD.lastSyncError='';let changed=false;try{changed=await syncFromCloud()}catch(e){CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步异常',e)}if(CLOUD.lastSyncError)showToast('同步出错：'+(CLOUD.lastSyncError.slice(0,140)),'error');else if(changed){await reloadAll();showToast('已与云端同步（有更新）','success')}else showToast('已与云端同步','success')}
 // 以本地为准强制覆盖云端：用于恢复——当云端存在残缺/过期副本时，从数据最完整的设备把全部本地键推上去
-async function forceUploadCloud(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}if(!confirm('确定把本机全部数据强制覆盖到云端吗？此操作会覆盖云端现有数据（包括其他设备尚未同步的改动）。请确认本机数据是最完整的。'))return;const myId=++syncRunId;cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();const wd=setTimeout(()=>{CLOUD.syncing=false;updateCloudStatus();console.warn('强制上传超时保护');CLOUD.abortSync=true;},120000);try{const keys=await DB._localKeys();let n=0,err=null;for(const k of keys){if(CLOUD.abortSync)break;try{await cloudSet(k,await DB._localGet(k));n++}catch(e){if(!err)err=e}}CLOUD.synced=true;if(err)showToast('部分上传失败（'+n+' 项成功）：'+(cloudErrMsg(err).slice(0,120)),'error');else showToast('已强制上传 '+n+' 个数据项到云端','success')}catch(e){console.warn('强制上传失败',e);showToast('强制上传失败：'+(e&&e.message||e),'error')}finally{clearTimeout(wd);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}}
+async function forceUploadCloud(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}if(!confirm('确定把本机全部数据强制覆盖到云端吗？此操作会覆盖云端现有数据（包括其他设备尚未同步的改动）。请确认本机数据是最完整的。'))return;const myId=++syncRunId;cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();const wd=setTimeout(()=>{CLOUD.syncing=false;updateCloudStatus();console.warn('强制上传超时保护');CLOUD.abortSync=true;},300000);try{const keys=await DB._localKeys();let n=0,err=null;for(const k of keys){if(CLOUD.abortSync)break;try{await cloudSet(k,await DB._localGet(k));n++}catch(e){if(!err)err=e}}CLOUD.synced=true;if(CLOUD.abortSync)showToast('强制上传超时（已完成 '+n+' 项，请稍后重试剩余）','error');else if(err)showToast('部分上传失败（'+n+' 项成功）：'+(cloudErrMsg(err).slice(0,120)),'error');else showToast('已强制上传 '+n+' 个数据项到云端','success')}catch(e){console.warn('强制上传失败',e);showToast('强制上传失败：'+(e&&e.message||e),'error')}finally{clearTimeout(wd);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}}
 // 云端自检：读回 GitHub 仓库 data 目录、并做一次写-读往返，给出可读结论
 async function cloudSelfTest(){
   const el=document.getElementById('cloudDiag');
