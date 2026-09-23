@@ -939,6 +939,7 @@ const CLOUD={
   synced:false,      // 是否已与云端做过一次全量合并
   syncing:false,
   lastWriteError:0,  // 最近一次云端写入失败时间戳（用于界面提示）
+  lastWriteOk:0,     // 最近一次云端写入成功时间戳；状态栏以 lastWriteError>lastWriteOk 判定“最近一次写确实失败”，避免成功写抹空错误信息后误报“Token 无效”
   lastCloudSig:''    // 云端数据签名，用于判断是否有变更
   ,lastSyncError:''  // 最近一次同步（拉取/合并）失败的可读错误，用于界面提示，避免“假成功”
   ,ghToken:localStorage.getItem('ghToken')||''     // GitHub Personal Access Token（仅存本机 localStorage）
@@ -1257,6 +1258,7 @@ function isUserEditing(){
   return false
 }
 // 周期性自动拉取云端变更（实时同步的核心）
+let lastSyncErrToast=0; // 自动同步写失败提示节流：最多每 5 分钟在手机端弹一次真实错误
 function startCloudPolling(){
   setInterval(async()=>{
     // 仅在开启自动同步、且最近没有写入错误（出错后退避 5 分钟，避免限流死亡螺旋）时才自动同步
@@ -1264,6 +1266,11 @@ function startCloudPolling(){
     if(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000){console.warn('自动同步退避中（上次写入异常，5 分钟后再试）');return;}
     const changed=await syncFromCloud();
     if(changed&&!isUserEditing()){await reloadAll()}
+    // 自动同步若真有写失败，节流弹一次真实错误（手机端无状态栏常驻，靠这个提示），避免只显示笼统“写入异常”
+    if(CLOUD.lastWriteError>CLOUD.lastWriteOk && Date.now()-CLOUD.lastWriteError<60000 && Date.now()-lastSyncErrToast>5*60*1000){
+      lastSyncErrToast=Date.now();
+      showToast('云同步写入失败：'+(cloudLastErr.slice(0,140)||'临时失败，会自动重试'),'error')
+    }
   },60000)
 }
 function updateCloudStatus(){
@@ -1277,7 +1284,8 @@ function updateCloudStatus(){
     btn.textContent=txt;btn.classList.toggle('cloud-on',cls)
   }
   const st=document.getElementById('cloudStatusText');
-  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<60000?('写入异常：'+(cloudLastErr.slice(0,120)||'请检查 Token / 仓库 / 网络')):'已连接'))):'状态：未连接（仅本地存储）'
+  // 只有“最近一次写确实失败”（lastWriteError 晚于 lastWriteOk 且 60s 内）才提示异常；异常显示真实错误，不再误报“Token/仓库/网络”
+  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':((CLOUD.lastWriteError>CLOUD.lastWriteOk && Date.now()-CLOUD.lastWriteError<60000)?('写入异常：'+(cloudLastErr.slice(0,120)||'临时失败，自动同步会后台重试')):'已连接'))):'状态：未连接（仅本地存储）')
 }
 async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
 function openCloudModal(){
@@ -1357,11 +1365,11 @@ const DB={
   },
   async set(key,val){
     await this._localSet(key,val);
-    if(CLOUD.enabled){try{await cloudSet(key,val);cloudLastErr=''}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)}}
+    if(CLOUD.enabled){try{await cloudSet(key,val);cloudLastErr='';CLOUD.lastWriteOk=Date.now()}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)}}
   },
   async del(key){
     await this._localDel(key);
-    if(CLOUD.enabled){try{await cloudDel(key);cloudLastErr=''}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端删除失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端删除失败',e)}}
+    if(CLOUD.enabled){try{await cloudDel(key);cloudLastErr='';CLOUD.lastWriteOk=Date.now()}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端删除失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端删除失败',e)}}
   },
   async keys(){return this._localKeys()},
   _localGet(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
