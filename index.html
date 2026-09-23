@@ -1261,9 +1261,11 @@ function isUserEditing(){
 let lastSyncErrToast=0; // 自动同步写失败提示节流：最多每 5 分钟在手机端弹一次真实错误
 function startCloudPolling(){
   setInterval(async()=>{
-    // 仅在开启自动同步、且最近没有写入错误（出错后退避 5 分钟，避免限流死亡螺旋）时才自动同步
+    // 仅在开启自动同步时才自动同步。退避策略：仅当上次是“限流(403/429)”才冻结 5 分钟，避免限流死亡螺旋；
+    // 409/422 属自愈合的并发冲突（cloudSet 内部已带 sha 重试），不应冻结自动同步，否则删除等改动偶发 422 就会被冻 5 分钟、迟迟传不过去。
     if(!(CLOUD.enabled&&CLOUD.auto&&!cloudSyncRunning&&document.visibilityState==='visible'))return;
-    if(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000){console.warn('自动同步退避中（上次写入异常，5 分钟后再试）');return;}
+    const _rateLimited=/限流/.test(cloudLastErr);
+    if(_rateLimited&&CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000){console.warn('自动同步退避中（上次触发限流，5 分钟后再试）');return;}
     const changed=await syncFromCloud();
     if(changed&&!isUserEditing()){await reloadAll()}
     // 自动同步若真有写失败，节流弹一次真实错误（手机端无状态栏常驻，靠这个提示），避免只显示笼统“写入异常”
