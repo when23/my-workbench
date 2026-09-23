@@ -1188,6 +1188,22 @@ function applyTombstones(v,key,tombSet){
   if(v&&typeof v==='object'&&!Array.isArray(v)){const o={};for(const k in v){o[k]=applyTombstones(v[k],key+'::'+k,tombSet);}return o;}
   return v;
 }
+// v110 一次性迁移：清除本地残留的「旧格式 phasePlans 计划级墓碑」。这些墓碑是 v108 误删整计划的元凶，
+// 残留在各设备本地 IndexedDB 里；若不清，下次同步会用它们把刚恢复的健康计划再次删掉。
+// 新格式里「计划级墓碑」与「误删的计划级墓碑」字符串完全相同、无法区分，而用户从未主动删过任何计划，
+// 故本地所有 phasePlans:: 开头的墓碑一律清空（如需删除某计划可重删一次）。仅执行一次。
+async function _migrateTombstonesV110(){
+  if(localStorage.getItem('tombMigrated')==='v110')return;
+  try{
+    const T=(await DB._localGet('__tombstones'))||[];
+    if(Array.isArray(T)&&T.some(t=>(typeof t==='string'&&t.startsWith('phasePlans::')))){
+      const cleaned=T.filter(t=>!(typeof t==='string'&&t.startsWith('phasePlans::')));
+      await DB._localSet('__tombstones',cleaned);
+      try{await cloudSet('__tombstones',cleaned)}catch(_){}
+    }
+  }catch(_){}
+  localStorage.setItem('tombMigrated','v110');
+}
 // ===== 基于 id 的对齐合并（核心修复：解决"编辑/新增子项产生重复"与"删除不传播"）=====
 // 思路：数组按 id 对齐——同 id 命中则原地深合并（保留双方改动、不重复）；
 // 不同 id 的条目都保留（并集，不丢数据）；无 id 的纯内容项按内容签名去重。
@@ -1230,6 +1246,7 @@ function mergeValues(local, cloud){
 }
 async function syncFromCloud(){
   if(!CLOUD.enabled)return false;
+  await _migrateTombstonesV110(); // 先清本地残留的误删整计划墓碑，避免刚恢复的数据被再次删掉
   const myId=++syncRunId;
   cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();
   let changed=false;
