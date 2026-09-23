@@ -1287,7 +1287,7 @@ function updateCloudStatus(){
   }
   const st=document.getElementById('cloudStatusText');
   // 只有“最近一次写确实失败”（lastWriteError 晚于 lastWriteOk 且 60s 内）才提示异常；异常显示真实错误，不再误报“Token/仓库/网络”
-  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':((CLOUD.lastWriteError>CLOUD.lastWriteOk && Date.now()-CLOUD.lastWriteError<60000)?('写入异常：'+(cloudLastErr.slice(0,120)||'临时失败，自动同步会后台重试')):'已连接'))):'状态：未连接（仅本地存储）')
+  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':((CLOUD.lastWriteError>CLOUD.lastWriteOk && Date.now()-CLOUD.lastWriteError<60000)?('写入异常：'+(cloudLastErr.slice(0,120)||'临时失败，自动同步会后台重试')):'已连接'))):'状态：未连接（仅本地存储）'
 }
 async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
 function openCloudModal(){
