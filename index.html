@@ -939,9 +939,9 @@ const CLOUD={
   synced:false,      // 是否已与云端做过一次全量合并
   syncing:false,
   lastWriteError:0,  // 最近一次云端写入失败时间戳（用于界面提示）
-  lastWriteOk:0,     // 最近一次云端写入成功时间戳；状态栏以 lastWriteError>lastWriteOk 判定“最近一次写确实失败”，避免成功写抹空错误信息后误报“Token 无效”
+  lastWriteOk:0,     // 最近一次云端写入成功时间戳；状态栏以 lastWriteError>lastWriteOk 判定"最近一次写确实失败"，避免成功写抹空错误信息后误报"Token 无效"
   lastCloudSig:''    // 云端数据签名，用于判断是否有变更
-  ,lastSyncError:''  // 最近一次同步（拉取/合并）失败的可读错误，用于界面提示，避免“假成功”
+  ,lastSyncError:''  // 最近一次同步（拉取/合并）失败的可读错误，用于界面提示，避免"假成功"
   ,ghToken:localStorage.getItem('ghToken')||''     // GitHub Personal Access Token（仅存本机 localStorage）
   ,ghRepo:localStorage.getItem('ghRepo')||''       // 形如 owner/repo（建议私有仓库）
   ,ghPath:'data'     // 数据仓库目录（首次写入自动创建）
@@ -975,7 +975,7 @@ async function initCloudIfNeeded(){
 }
 // —— 单文件体积控制：GitHub 单文件建议 < 100MB，这里沿用分片阈值避免单个文件过大、也便于并行读写 ——
 // 超过阈值的记录自动分片为多个小文件（key__CHK__0 / key__CHK__1 ...），读取时再拼回。
-const CHUNK_MAX = 256*1024;     // 单分片上限（字节）。权衡：调大→分片数少→写/读请求数少→大幅降低 GitHub 二级限流触发概率（v99 后“写入异常30”根因：64KB 把 6.97MB 切成 110 片、突发 PUT 撞限流）；同时保持在 GET 截断阈值(~600KB 编码)以下（256KB 原始≈341KB 编码，安全）。
+const CHUNK_MAX = 256*1024;     // 单分片上限（字节）。权衡：调大→分片数少→写/读请求数少→大幅降低 GitHub 二级限流触发概率（v99 后"写入异常30"根因：64KB 把 6.97MB 切成 110 片、突发 PUT 撞限流）；同时保持在 GET 截断阈值(~600KB 编码)以下（256KB 原始≈341KB 编码，安全）。
 const CHUNK_SEP = '__CHK__';    // 分片文档 id 后缀分隔符（正常 key 不会出现）
 let cloudChunkIndex = {};        // key -> 分片数（用于删除时清理分片文档）
 function _byteLen(s){return new TextEncoder().encode(s).length}
@@ -1018,7 +1018,7 @@ async function cloudGet(key){
     if(val&&val.__chunked===true){
       const parts=[];
       for(let i=0;i<val.__n;i++){
-        if(i>0)await new Promise(r=>setTimeout(r,120)); // 分片读取间稍作停顿，避让 GitHub 二级限流（避免“读分片失败→整键跳过→PC 永远拉不到”）
+        if(i>0)await new Promise(r=>setTimeout(r,120)); // 分片读取间稍作停顿，避让 GitHub 二级限流（避免"读分片失败→整键跳过→PC 永远拉不到"）
         const cj=await _ghGetJson(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(key)}__CHK__${i}.json`);
         if(!cj||cj.status===404||!cj.content)throw new Error('GET chunk '+key+' '+i);
         CLOUD.ghFileSha[key+'__CHK__'+i+'.json']=cj.sha;
@@ -1030,7 +1030,7 @@ async function cloudGet(key){
   }catch(e){if(/404/.test(e.message))return null;throw e}
 }
 // 把数据里的图片（base64 data URL）替换为占位串，使同步只传文字。占位串以 "data:" 开头，
-// 这样 stableSig 仍把它归一为 <IMG>，与本地真图 sig 一致 → 合并时不会因“图不同”制造重复，
+// 这样 stableSig 仍把它归一为 <IMG>，与本地真图 sig 一致 → 合并时不会因"图不同"制造重复，
 // 且因 mergeValues 改为 local 优先，本地真图在 sig 撞车时胜出、本地图片不丢。
 function stripImages(v){
   if(typeof v==='string'){ return v.startsWith('data:')?'data:__stripped__':v; }
@@ -1041,14 +1041,17 @@ function stripImages(v){
 async function cloudSet(key,val){
   if(val===undefined||val===null){await cloudDel(key);return}
   if(CLOUD.noImages)val=stripImages(val); // 同步不含图片：只在写云端时剥离，本地数据保持原样（图片仍在本地）
-  await cloudDel(key); // 先删旧分片，避免“半覆盖”导致 manifest 与新分片不一致而永久损坏（中断时至多丢整个键，下轮重传即可恢复）
+  await cloudDel(key); // 先删旧分片，避免"半覆盖"导致 manifest 与新分片不一致而永久损坏（中断时至多丢整个键，下轮重传即可恢复）
+  // 清空该键的 sha 缓存：确保下面 PUT 以"新建"提交，避免带陈旧 sha 触发 409 冲突（批量删除/清空时 GitHub 二级限流下极易撞 409 并耗尽重试）
+  delete CLOUD.ghFileSha[key+'.json'];
+  { const _n=cloudChunkIndex[key]; if(_n){ for(let _i=0;_i<_n;_i++)delete CLOUD.ghFileSha[key+'__CHK__'+_i+'.json']; } }
   const str=JSON.stringify(val);
   const files=[];
   if(_byteLen(str)<=CHUNK_MAX){cloudChunkIndex[key]=0;files.push({name:key+'.json',obj:{__v:val}})}
   else{const chunks=_splitChunks(str);for(let i=0;i<chunks.length;i++)files.push({name:key+'__CHK__'+i+'.json',obj:{__cv:chunks[i]}});files.push({name:key+'.json',obj:{__chunked:true,__n:chunks.length}});cloudChunkIndex[key]=chunks.length}
   let _ci=0;
   for(const f of files){
-    if(_ci++>0)await new Promise(r=>setTimeout(r,150)); // 分片之间稍作停顿，进一步避让 GitHub 二级限流（v99 后“写入异常30”主因：64KB 把 6.97MB 切成 110 片突发 PUT）
+    if(_ci++>0)await new Promise(r=>setTimeout(r,150)); // 分片之间稍作停顿，进一步避让 GitHub 二级限流（v99 后"写入异常30"主因：64KB 把 6.97MB 切成 110 片突发 PUT）
     const path=`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/${encodeURIComponent(f.name)}`;
     const body={message:'sync '+f.name,content:b64encode(JSON.stringify(f.obj))};
     let sha=CLOUD.ghFileSha[f.name];
@@ -1060,9 +1063,13 @@ async function cloudSet(key,val){
       try{ r=await ghApi(path,{method:'PUT',body:JSON.stringify(body)}); }
       catch(e){ r={status:0,_e:e}; }
       if(r.status===200||r.status===201){ ok=true; try{const j=await r.json();if(j&&j.content)CLOUD.ghFileSha[f.name]=j.content.sha}catch(_){} break; }
-      // 409 = 文件 sha 与本地缓存不一致（其他设备/上次写入已改动）：取最新 sha 后重试，避让并发写冲突
-      if(r.status===409){ try{const cur=await ghApi(path);if(cur.ok){const cj=await cur.json();body.sha=cj.sha;CLOUD.ghFileSha[f.name]=cj.sha}}catch(_){} continue; }
-      // 422 = 文件已存在但本应以“新建”提交（cloudDel 删除在 GitHub 侧瞬时未生效 / 缺 sha 的 create 冲突）：取当前 sha 以「更新」重试；若文件其实已删则去掉 sha 再 create
+      // 409 = 文件 sha 与本地缓存不一致（极少出现，因上面已清空 sha；若仍发生则取最新 sha 或确认已删后重试）
+      if(r.status===409){
+        if(tries>=5){ lastErr='PUT '+f.name+' 409 冲突(重试超限)'; break; }
+        try{const cur=await ghApi(path); if(cur.ok){const cj=await cur.json();body.sha=cj.sha;CLOUD.ghFileSha[f.name]=cj.sha;} else if(cur.status===404){delete body.sha;delete CLOUD.ghFileSha[f.name];}}catch(_){}
+        await new Promise(res=>setTimeout(res,Math.min(3000,800*tries))); continue;
+      }
+      // 422 = 文件已存在但本应以"新建"提交（cloudDel 删除在 GitHub 侧瞬时未生效 / 缺 sha 的 create 冲突）：取当前 sha 以「更新」重试；若文件其实已删则去掉 sha 再 create
       if(r.status===422){ try{const cur=await ghApi(path);if(cur.ok){const cj=await cur.json();body.sha=cj.sha;CLOUD.ghFileSha[f.name]=cj.sha;continue;}else if(cur.status===404){delete body.sha;continue;}}catch(_){} lastErr='PUT '+f.name+' 422 无法重试'; break; }
       // 403/429 = GitHub 二级限流（突发并发触发）：退避后重试，最多 5 次
       if(r.status===403||r.status===429){
@@ -1095,16 +1102,16 @@ async function cloudDel(key){
       if(r.status===422){ try{const cur=await _ghGetJson(path);if(cur.status===404){ok=true;break}if(cur.sha){sha=cur.sha;CLOUD.ghFileSha[nm]=sha}}catch(_){} continue; }
       const t=await r.text();throw new Error('DEL '+nm+' '+r.status+' '+(t.slice(0,140)));
     }
-    // 删除失败（持续 409/限流）不抛错中断整轮，仅跳过该文件（后续 PUT 会带 sha 重传，覆盖即可），避免“一个键坏掉整轮同步挂掉”
+    // 删除失败（持续 409/限流）不抛错中断整轮，仅跳过该文件（后续 PUT 会带 sha 重传，覆盖即可），避免"一个键坏掉整轮同步挂掉"
     if(ok)delete CLOUD.ghFileSha[nm];
   }
   if(n)delete cloudChunkIndex[key];
 }
 // 拉取云端全量：列出 data 目录，识别真实键（排除分片文件与同步签名文件），再逐键读取还原。
-// 关键稳定性修复（针对 GitHub 二级限流导致“只有部分键同步”的真凶）：
+// 关键稳定性修复（针对 GitHub 二级限流导致"只有部分键同步"的真凶）：
 //  1) LIST 与每个键读取都走带限流退避重试的 _ghGetJson；
 //  2) 键读取改为串行 + 间隔，不再 Promise.all 一次性并发，避免触发限流；
-//  3) 读取失败的键进入 failed 集合，本轮跳过——绝不当成“云端无此键”去用本地覆盖，避免误删另一设备数据。
+//  3) 读取失败的键进入 failed 集合，本轮跳过——绝不当成"云端无此键"去用本地覆盖，避免误删另一设备数据。
 async function cloudGetAll(localVal){
   let arr=[];
   try{
@@ -1137,15 +1144,15 @@ async function cloudGetAll(localVal){
   }
   return {map, failed, shas, skipped}
 }
-// 数据“更完整”的判据：数组按条目数、对象按键数、其余按字节；比单纯字节更能反映“哪边记录更多/更新”（瘦身会让字节变小但记录数不变，避免旧大图覆盖新数据）
+// 数据"更完整"的判据：数组按条目数、对象按键数、其余按字节；比单纯字节更能反映"哪边记录更多/更新"（瘦身会让字节变小但记录数不变，避免旧大图覆盖新数据）
 function dataSize(v){if(v==null)return -1;if(Array.isArray(v))return v.length;if(typeof v==='object')return Object.keys(v).length;return _byteLen(JSON.stringify(v))}
 // 与云端做双向合并：采用「更多者胜」策略——记录更多的一边覆盖少的一边。
 // 这样既能自动补传因超时被打断而残缺的大 key，也能让两端都收敛到完整数据（避免旧/残缺云端覆盖新本地）。
 let cloudSyncRunning=false, syncRunId=0;
-// 稳定的内容签名（忽略对象键顺序），用于数组去重时区分“同一项”与“不同项”。
-// 关键：图片以 base64 data URL 内嵌时，仅按字节比较会让“同一张图被重新压缩/换尺寸”也被视为不同项，
+// 稳定的内容签名（忽略对象键顺序），用于数组去重时区分"同一项"与"不同项"。
+// 关键：图片以 base64 data URL 内嵌时，仅按字节比较会让"同一张图被重新压缩/换尺寸"也被视为不同项，
 // 导致两端合并时无限累积重复（数据膨胀到几十 MB、同步彻底崩）。故把 data: URL 归一为常量，
-// 让“同条目、仅图片字节不同”在合并时被视为同一条（保留云端已压缩的小图版本），不再重新撑大。
+// 让"同条目、仅图片字节不同"在合并时被视为同一条（保留云端已压缩的小图版本），不再重新撑大。
 function stableSig(o){
   if(typeof o==='string'){ if(o.startsWith('data:'))return '<IMG>'; return JSON.stringify(o); }
   if(o===null||typeof o!=='object')return JSON.stringify(o);
@@ -1153,19 +1160,35 @@ function stableSig(o){
   const ks=Object.keys(o).sort();
   return '{'+ks.map(k=>JSON.stringify(k)+':'+stableSig(o[k])).join(',')+'}';
 }
-// 墓碑（tombstone）：记录被删除条目的 id，使“删除”能跨设备同步（合并逻辑本身是并集、只增不减）。
+// 墓碑（tombstone）：记录被删除条目的 id，使"删除"能跨设备同步（合并逻辑本身是并集、只增不减）。
 // 存储：云端一个普通同步键 __tombstones = ["key::id", ...]，随正常同步在两端并集收敛。
 function idOf(o){ if(o&&typeof o==='object'&&!Array.isArray(o)&&o.id!==undefined&&o.id!==null)return o.id; return stableSig(o); }
-// 递归收集所有嵌套层级的条目 id（用于"本机删除兜底捕获"：删除子项/记账等嵌套条目也要记墓碑）
-function _collectIds(v){ if(Array.isArray(v))return v.map(idOf); if(v&&typeof v==='object'){const ids=[];for(const k in v){if(Array.isArray(v[k]))ids.push(...v[k].map(idOf));else if(v[k]&&typeof v[k]==='object')ids.push(..._collectIds(v[k]));}return ids;} return []; }
-function computeRemoved(oldV,newV){ const o=_collectIds(oldV),n=new Set(_collectIds(newV)),out=[]; for(const id of o)if(!n.has(id))out.push(id); return out; }
-// 墓碑（删除）过滤：递归到任意嵌套层，剔除 id 在 tombSet 中的条目（解决“删除不传播”）。
+// 墓碑路径化：同一同步键内"计划 / 计划子项 / 计划每日记录 / daily 板块任务"等不同嵌套层级的
+// id 各自独立命名空间（如 phasePlans::<planId>::items::<itemId>、daily:2026-09-05::b1::<taskId>）。
+// 这是修复"删一条子项结果整计划被删"的关键：旧逻辑把计划 id 与子项 id 混在同一命名空间，
+// 导致删子项时计划 id 被误写进墓碑、整计划被 applyTombstones 过滤掉。
+function _idPathOf(it){ if(it&&typeof it==='object'&&!Array.isArray(it)&&it.id!==undefined&&it.id!==null)return String(it.id); return stableSig(it); }
+function _collectPaths(v,path,out){
+  if(Array.isArray(v)){
+    for(const it of v){const p=path+'::'+_idPathOf(it); out.push(p); _collectPaths(it,p,out);}
+  }else if(v&&typeof v==='object'&&!Array.isArray(v)){
+    for(const k in v){ if(Array.isArray(v[k]))_collectPaths(v[k],path+'::'+k,out); else if(v[k]&&typeof v[k]==='object'&&!Array.isArray(v[k]))_collectPaths(v[k],path+'::'+k,out); }
+  }
+}
+// 计算"本机删除的条目"：旧值路径集合减去新值路径集合，结果即墓碑（含完整路径前缀）。
+function computeRemoved(oldV,newV,root){
+  const o=[],n=new Set();
+  _collectPaths(oldV,root,o); _collectPaths(newV,root,n);
+  return o.filter(id=>!n.has(id));
+}
+// 墓碑过滤：路径化，仅删除 tombSet 中存在的"完整路径"对应条目（递归到任意嵌套层）。
+// 计划级墓碑(phasePlans::<planId>)只删整计划；子项级(phasePlans::<planId>::items::<itemId>)只删那条子项——互不误伤。
 function applyTombstones(v,key,tombSet){
-  if(Array.isArray(v))return v.filter(it=>!tombSet.has(key+'::'+idOf(it))).map(it=>applyTombstones(it,key,tombSet));
-  if(v&&typeof v==='object'&&!Array.isArray(v)){const o={};for(const k in v){o[k]=applyTombstones(v[k],key,tombSet);}return o;}
+  if(Array.isArray(v))return v.filter(it=>!tombSet.has(key+'::'+_idPathOf(it))).map(it=>applyTombstones(it,key+'::'+_idPathOf(it),tombSet));
+  if(v&&typeof v==='object'&&!Array.isArray(v)){const o={};for(const k in v){o[k]=applyTombstones(v[k],key+'::'+k,tombSet);}return o;}
   return v;
 }
-// ===== 基于 id 的对齐合并（核心修复：解决“编辑/新增子项产生重复”与“删除不传播”）=====
+// ===== 基于 id 的对齐合并（核心修复：解决"编辑/新增子项产生重复"与"删除不传播"）=====
 // 思路：数组按 id 对齐——同 id 命中则原地深合并（保留双方改动、不重复）；
 // 不同 id 的条目都保留（并集，不丢数据）；无 id 的纯内容项按内容签名去重。
 // 删除不在此处处理，统一交给墓碑机制（applyTombstones）过滤。
@@ -1190,7 +1213,7 @@ function mergeObjects(local, cloud){
   for(const k in local){ if(!(k in out))out[k]=local[k]; else out[k]=mergeValues(local[k], out[k]); }
   return out;
 }
-// 同 id 命中的两条记录深合并：数组/对象递归；标量冲突优先“非空更完整”，否则本地优先（同步设备为准）。
+// 同 id 命中的两条记录深合并：数组/对象递归；标量冲突优先"非空更完整"，否则本地优先（同步设备为准）。
 function deepMerge(local, cloud){
   if(Array.isArray(local)&&Array.isArray(cloud))return mergeArrays(local, cloud);
   if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud))return mergeObjects(local, cloud);
@@ -1203,7 +1226,7 @@ function mergeValues(local, cloud){
   if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud))return mergeObjects(local, cloud);
   if(local===undefined||local===null)return cloud;
   if(cloud===undefined||cloud===null)return local;
-  return dataSize(local)>=dataSize(cloud)?local:cloud; // 类型不一致（极少见）回退“更完整者胜”
+  return dataSize(local)>=dataSize(cloud)?local:cloud; // 类型不一致（极少见）回退"更完整者胜"
 }
 async function syncFromCloud(){
   if(!CLOUD.enabled)return false;
@@ -1216,7 +1239,7 @@ async function syncFromCloud(){
     const localVal={};
     for(const k of localKeys)localVal[k]=await DB._localGet(k);
     // 本机删除兜底捕获：与上次成功同步的本地快照对比，找出本机自上次同步后删除的条目，记入墓碑。
-    // 即使 DB._localSet 的即时捕获漏了 daily 这类“对象套数组”结构，这里也能兜住，确保删除跨设备同步。
+    // 即使 DB._localSet 的即时捕获漏了 daily 这类"对象套数组"结构，这里也能兜住，确保删除跨设备同步。
     let snap={};
     try{ snap=await DB._localGet('__syncsnap')||{}; }catch(_){}
     const tombSet=new Set();
@@ -1227,8 +1250,8 @@ async function syncFromCloud(){
     for(const k of localKeys){
       if(k==='__tombstones'||k==='__syncsnap')continue;
       if(snap[k]!==undefined){
-        const removed=computeRemoved(snap[k], localVal[k]);
-        for(const id of removed){const t=k+'::'+id; if(!tombSet.has(t)){tombSet.add(t); if(!T.includes(t)){T.push(t);tombChanged=true;}}}
+        const removed=computeRemoved(snap[k], localVal[k], k);
+        for(const id of removed){const t=id; if(!tombSet.has(t)){tombSet.add(t); if(!T.includes(t)){T.push(t);tombChanged=true;}}}
       }
     }
     if(tombChanged){ await DB._localSet('__tombstones',T); try{await cloudSet('__tombstones',T)}catch(_){} }
@@ -1259,7 +1282,7 @@ async function syncFromCloud(){
       }catch(e){cloudLastErr=cloudErrMsg(e);CLOUD.lastWriteError=Date.now();CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步合并失败',k,e)}
     }
     if(CLOUD.abortSync)return false;
-    // 保存本次同步后的本地快照与内容签名、云端 sha，供下次“增量跳过”（未变化的键不重读，大幅提速）
+    // 保存本次同步后的本地快照与内容签名、云端 sha，供下次"增量跳过"（未变化的键不重读，大幅提速）
     const newSnap={}, newHash={};
     for(const k of localKeys){ if(k==='__syncsnap')continue; newSnap[k]=localVal[k]; newHash[k]=stableSig(localVal[k]); }
     try{ await DB._localSet('__syncsnap',newSnap); }catch(_){}
@@ -1283,14 +1306,14 @@ function isUserEditing(){
 let lastSyncErrToast=0; // 自动同步写失败提示节流：最多每 5 分钟在手机端弹一次真实错误
 function startCloudPolling(){
   setInterval(async()=>{
-    // 仅在开启自动同步时才自动同步。退避策略：仅当上次是“限流(403/429)”才冻结 5 分钟，避免限流死亡螺旋；
+    // 仅在开启自动同步时才自动同步。退避策略：仅当上次是"限流(403/429)"才冻结 5 分钟，避免限流死亡螺旋；
     // 409/422 属自愈合的并发冲突（cloudSet 内部已带 sha 重试），不应冻结自动同步，否则删除等改动偶发 422 就会被冻 5 分钟、迟迟传不过去。
     if(!(CLOUD.enabled&&CLOUD.auto&&!cloudSyncRunning&&document.visibilityState==='visible'))return;
     const _rateLimited=/限流/.test(cloudLastErr);
     if(_rateLimited&&CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000){console.warn('自动同步退避中（上次触发限流，5 分钟后再试）');return;}
     const changed=await syncFromCloud();
     if(changed&&!isUserEditing()){await reloadAll()}
-    // 自动同步若真有写失败，节流弹一次真实错误（手机端无状态栏常驻，靠这个提示），避免只显示笼统“写入异常”
+    // 自动同步若真有写失败，节流弹一次真实错误（手机端无状态栏常驻，靠这个提示），避免只显示笼统"写入异常"
     if(CLOUD.lastWriteError>CLOUD.lastWriteOk && Date.now()-CLOUD.lastWriteError<60000 && Date.now()-lastSyncErrToast>5*60*1000){
       lastSyncErrToast=Date.now();
       showToast('云同步写入失败：'+(cloudLastErr.slice(0,140)||'临时失败，会自动重试'),'error')
@@ -1308,7 +1331,7 @@ function updateCloudStatus(){
     btn.textContent=txt;btn.classList.toggle('cloud-on',cls)
   }
   const st=document.getElementById('cloudStatusText');
-  // 只有“最近一次写确实失败”（lastWriteError 晚于 lastWriteOk 且 60s 内）才提示异常；异常显示真实错误，不再误报“Token/仓库/网络”
+  // 只有"最近一次写确实失败"（lastWriteError 晚于 lastWriteOk 且 60s 内）才提示异常；异常显示真实错误，不再误报"Token/仓库/网络"
   if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':((CLOUD.lastWriteError>CLOUD.lastWriteOk && Date.now()-CLOUD.lastWriteError<60000)?('写入异常：'+(cloudLastErr.slice(0,120)||'临时失败，自动同步会后台重试')):'已连接'))):'状态：未连接（仅本地存储）'
 }
 async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
@@ -1384,7 +1407,7 @@ const DB={
   })},
   async get(key){
     // 注：云→本的初始合并统一由 syncFromCloud 负责，这里只读本地。
-    // 曾经的“每次读取都先去云端拉一次”会造成云拉取风暴（每渲染/每轮询都触发），是页面卡死的主因，已移除。
+    // 曾经的"每次读取都先去云端拉一次"会造成云拉取风暴（每渲染/每轮询都触发），是页面卡死的主因，已移除。
     return this._localGet(key)
   },
   async set(key,val){
@@ -1402,11 +1425,11 @@ const DB={
     if(CLOUD.enabled&&key!=='__tombstones'){
       try{
         const oldV=await this._localGet(key);
-        const removed=computeRemoved(oldV,val);
+        const removed=computeRemoved(oldV,val,key);
         if(removed.length){
           const T=(await this._localGet('__tombstones'))||[];
           let ch=false;
-          for(const id of removed){const t=key+'::'+id; if(!T.includes(t)){T.push(t);ch=true;}}
+          for(const t of removed){ if(!T.includes(t)){T.push(t);ch=true;} }
           if(ch){ await this._localSet('__tombstones',T); try{await cloudSet('__tombstones',T)}catch(_){} }
         }
       }catch(_){}
@@ -3186,7 +3209,7 @@ function openCityEditor(id){
 }
 function goTripFromFootprint(id){closeEditModal();document.getElementById('footprintView').style.display='none';openTrip(id)}
 function renderCityList(){const list=document.getElementById('fpCityList');if(!list)return;const cities=S.footprints.cities;
-  list.innerHTML=cities.length?cities.map(c=>`<div class="fp-city-item" onclick="openCityEditor('${c.id}')"><span class="fp-city-dot"></span><div class="fp-city-main"><div class="fp-city-name">${escapeHtml(c.name)}</div><div class="fp-city-sub">${escapeHtml(c.province||'')}${c.tripId?' · <span class="fp-city-trip">'+escapeHtml(tripName(c.tripId))+'</span>':''}</div></div><span class="fp-city-del" onclick="event.stopPropagation();delCity('${c.id}')">×</span></div>`).join(''):'<div class="trip-empty-hint">还没有记录城市，点“＋ 添加城市”并在地图打点</div>';}
+  list.innerHTML=cities.length?cities.map(c=>`<div class="fp-city-item" onclick="openCityEditor('${c.id}')"><span class="fp-city-dot"></span><div class="fp-city-main"><div class="fp-city-name">${escapeHtml(c.name)}</div><div class="fp-city-sub">${escapeHtml(c.province||'')}${c.tripId?' · <span class="fp-city-trip">'+escapeHtml(tripName(c.tripId))+'</span>':''}</div></div><span class="fp-city-del" onclick="event.stopPropagation();delCity('${c.id}')">×</span></div>`).join(''):'<div class="trip-empty-hint">还没有记录城市，点"＋ 添加城市"并在地图打点</div>';}
 function updateFpStat(){const el=document.getElementById('fpStat');if(!el)return;const np=Object.keys(S.footprints.provinces).filter(k=>S.footprints.provinces[k]&&S.footprints.provinces[k].visited).length;el.textContent=`已点亮 ${np} 省 · ${S.footprints.cities.length} 城市`}
 async function delCity(id){if(!confirm('删除该城市标记？'))return;S.footprints.cities=S.footprints.cities.filter(x=>x.id!==id);await saveFootprints();renderFootprint();showToast('已删除','success')}
 async function clearAllFootprints(){if(!confirm('清空所有足迹（省份与城市）？此操作不可恢复。'))return;S.footprints={provinces:{},cities:[]};await saveFootprints();renderFootprint();showToast('已清空','success')}
