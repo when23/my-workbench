@@ -1156,32 +1156,54 @@ function stableSig(o){
 // 墓碑（tombstone）：记录被删除条目的 id，使“删除”能跨设备同步（合并逻辑本身是并集、只增不减）。
 // 存储：云端一个普通同步键 __tombstones = ["key::id", ...]，随正常同步在两端并集收敛。
 function idOf(o){ if(o&&typeof o==='object'&&!Array.isArray(o)&&o.id!==undefined&&o.id!==null)return o.id; return stableSig(o); }
-function _collectIds(v){ if(Array.isArray(v))return v.map(idOf); if(v&&typeof v==='object'){const ids=[];for(const k in v){if(Array.isArray(v[k]))ids.push(...v[k].map(idOf))}return ids;} return []; }
+// 递归收集所有嵌套层级的条目 id（用于"本机删除兜底捕获"：删除子项/记账等嵌套条目也要记墓碑）
+function _collectIds(v){ if(Array.isArray(v))return v.map(idOf); if(v&&typeof v==='object'){const ids=[];for(const k in v){if(Array.isArray(v[k]))ids.push(...v[k].map(idOf));else if(v[k]&&typeof v[k]==='object')ids.push(..._collectIds(v[k]));}return ids;} return []; }
 function computeRemoved(oldV,newV){ const o=_collectIds(oldV),n=new Set(_collectIds(newV)),out=[]; for(const id of o)if(!n.has(id))out.push(id); return out; }
+// 墓碑（删除）过滤：递归到任意嵌套层，剔除 id 在 tombSet 中的条目（解决“删除不传播”）。
 function applyTombstones(v,key,tombSet){
-  if(Array.isArray(v))return v.filter(it=>!tombSet.has(key+'::'+idOf(it)));
-  if(v&&typeof v==='object'){const o={};for(const k in v){if(Array.isArray(v[k]))o[k]=v[k].filter(it=>!tombSet.has(key+'::'+idOf(it)));else o[k]=v[k];}return o;}
+  if(Array.isArray(v))return v.filter(it=>!tombSet.has(key+'::'+idOf(it))).map(it=>applyTombstones(it,key,tombSet));
+  if(v&&typeof v==='object'&&!Array.isArray(v)){const o={};for(const k in v){o[k]=applyTombstones(v[k],key,tombSet);}return o;}
   return v;
 }
-// 合并两端数据：数组按内容签名去重求并集（解决跨设备 id 撞车导致的“各自覆盖、永不收敛”）；
-// 对象取键并集、冲突键取较大侧；标量取较大侧。目标是不丢数据地收敛。
-// 注意：数组并集改为 local 优先（local.concat(cloud)），使“本地有真图、云端是剥离占位图”的 sig 撞车时
-// 保留本地真图，避免“同步不含图片”模式下把本地图片覆盖成占位图而丢失。
-function mergeValues(local, cloud){
-  if(Array.isArray(local)&&Array.isArray(cloud)){
-    const seen=new Set(),out=[];
-    for(const it of local.concat(cloud)){
-      const sig=stableSig(it);
-      if(!seen.has(sig)){seen.add(sig);out.push(it)}
+// ===== 基于 id 的对齐合并（核心修复：解决“编辑/新增子项产生重复”与“删除不传播”）=====
+// 思路：数组按 id 对齐——同 id 命中则原地深合并（保留双方改动、不重复）；
+// 不同 id 的条目都保留（并集，不丢数据）；无 id 的纯内容项按内容签名去重。
+// 删除不在此处处理，统一交给墓碑机制（applyTombstones）过滤。
+function _hasId(o){return o&&typeof o==='object'&&!Array.isArray(o)&&o.id!==undefined&&o.id!==null}
+function mergeArrays(local, cloud){
+  const byId={}, noId={}, order=[];
+  function ingest(side, arr){
+    for(const it of arr){
+      if(_hasId(it)){const id=String(it.id); if(!byId[id]){byId[id]={};order.push(id);} byId[id][side]=it;}
+      else {const sig=stableSig(it); if(!noId[sig])noId[sig]=it;}
     }
-    return out;
   }
-  if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud)){
-    const out=Object.assign({},cloud);
-    for(const kk in local){if(local[kk]!==undefined&&(out[kk]===undefined||dataSize(local[kk])>=dataSize(out[kk])))out[kk]=local[kk];}
-    return out;
-  }
-  return dataSize(local)>=dataSize(cloud)?local:cloud;
+  ingest('local', local); ingest('cloud', cloud);
+  const out=[];
+  for(const id of order){const e=byId[id]; out.push((e.local!==undefined&&e.cloud!==undefined)?deepMerge(e.local,e.cloud):(e.local!==undefined?e.local:e.cloud));}
+  for(const sig in noId)out.push(noId[sig]);
+  return out;
+}
+function mergeObjects(local, cloud){
+  const out={};
+  for(const k in cloud)out[k]=cloud[k];
+  for(const k in local){ if(!(k in out))out[k]=local[k]; else out[k]=mergeValues(local[k], out[k]); }
+  return out;
+}
+// 同 id 命中的两条记录深合并：数组/对象递归；标量冲突优先“非空更完整”，否则本地优先（同步设备为准）。
+function deepMerge(local, cloud){
+  if(Array.isArray(local)&&Array.isArray(cloud))return mergeArrays(local, cloud);
+  if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud))return mergeObjects(local, cloud);
+  if(local===undefined||local===null||local===''||local===0||local===false)return cloud;
+  if(cloud===undefined||cloud===null||cloud===''||cloud===0||cloud===false)return local;
+  return local;
+}
+function mergeValues(local, cloud){
+  if(Array.isArray(local)&&Array.isArray(cloud))return mergeArrays(local, cloud);
+  if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud))return mergeObjects(local, cloud);
+  if(local===undefined||local===null)return cloud;
+  if(cloud===undefined||cloud===null)return local;
+  return dataSize(local)>=dataSize(cloud)?local:cloud; // 类型不一致（极少见）回退“更完整者胜”
 }
 async function syncFromCloud(){
   if(!CLOUD.enabled)return false;
