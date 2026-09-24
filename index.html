@@ -1116,7 +1116,7 @@ async function cloudDel(key){
 //  1) LIST 与每个键读取都走带限流退避重试的 _ghGetJson；
 //  2) 键读取改为串行 + 间隔，不再 Promise.all 一次性并发，避免触发限流；
 //  3) 读取失败的键进入 failed 集合，本轮跳过——绝不当成"云端无此键"去用本地覆盖，避免误删另一设备数据。
-async function cloudGetAll(localVal){
+async function cloudGetAll(localVal, force){
   let arr=[];
   try{
     const jr=await _ghGetJson(`/repos/${CLOUD.ghRepo}/contents/${CLOUD.ghPath}/`);
@@ -1131,6 +1131,7 @@ async function cloudGetAll(localVal){
   const keys=[...realKeys];
   // 增量跳过：服务端 sha 未变 且 本地自上次同步未变 → 该键稳定，跳过读写（不重读、不重传），大幅提速
   const skipFn=(k)=>{
+    if(force)return false; // resetFromCloud 全量拉取：不做增量跳过，否则本地会漏键→load 兜底空→上传清空云端
     if(k==='__tombstones'||k==='__syncsnap')return false;
     const nm=k+'.json';
     const sSha=shas[nm];
@@ -1404,8 +1405,8 @@ async function resetFromCloud(){
   if(!confirm('确定【清空本机全部数据】并以云端最新数据重新同步吗？\n此操作会删除本机所有本地数据，再从云端原样拉取（以云端为准）。\n请先确保云端数据是你想要的版本（若不确定，先在「数据最完整」的设备上点「强制上传」）。'))return;
   try{
     await DB._localClearAll();
-    const {map,failed}=await cloudGetAll({});
-    for(const k in map){ if(k==='__syncsnap')continue; await DB._localRawSet(k,map[k]); }
+    const {map,failed}=await cloudGetAll({}, true); // 强制全量：不增量跳过，确保本地拿到所有云端键
+    for(const k in map){ if(k==='__syncsnap')continue; const v=map[k]; if(v===undefined||v===null)continue; await DB._localRawSet(k,v); } // 跳过读取失败的空值，避免往本地写 null 键
     let T=(map['__tombstones']||[]); if(!Array.isArray(T))T=[];
     const cleaned=T.filter(t=>!(typeof t==='string'&&t.startsWith('phasePlans::')));
     await DB._localRawSet('__tombstones',cleaned);
@@ -1540,7 +1541,7 @@ function removePendingImg(type,idx){S.pendingImgs[type].splice(idx,1);renderPend
 document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',async()=>{const n=tab.dataset.tab;S.tab=n;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='inspiration')loadInsp();if(n==='organize'){await loadOrgCategories();await loadOutfits();S.orgCurrentCat=null;S.orgCurrentLocation=null;S.orgFilter=null;document.querySelector('#orgItemView .input-card').style.display='block';document.getElementById('orgOverviewView').style.display='block';document.getElementById('orgLocationView').style.display='none';document.getElementById('orgItemView').style.display='none';loadOrg()}if(n==='phase'){await loadPhasePlans();S.phaseCurrentId=null;S.phaseSelDate=null;S.phaseCalMonth=null;backPhaseList()}if(n==='health'){await loadHealth()}if(n==='growth'){await loadGrowth();S.growthModule=null;document.getElementById('growthOverview').style.display='block';document.getElementById('growthDetailView').style.display='none';renderGrowthOverview()}if(n==='trip'){await loadTrips();await loadChecklist();await loadFootprints();S.tripCurrentId=null;S.tripSub='account';backTripList()}})});
 
 // ===== Daily Execution =====
-async function loadBoards(){const b=await DB.get('boards');if(b){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}S.boards.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});await saveBoards()}
+async function loadBoards(){const b=await DB.get('boards');if(b===undefined){S.boards=[...DEFAULT_BOARDS];return;}if(b){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}S.boards.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});await saveBoards()}
 async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};await carryOverUncompleted();renderBoards()}
 // 未完成的任务自动顺延到下一天，直到完成
 async function carryOverUncompleted(){
@@ -2631,7 +2632,7 @@ document.getElementById('backupDismiss').addEventListener('click',()=>{
 });
 
 // ===== 阶段计划 =====
-async function loadPhasePlans(){S.phasePlans=(await DB.get('phasePlans'))||[];S.phasePlans.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});migratePhaseItemChecks();await savePhasePlans()}
+async function loadPhasePlans(){const _pp=await DB.get('phasePlans');if(_pp===undefined){S.phasePlans=[];return;}S.phasePlans=_pp||[];S.phasePlans.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});migratePhaseItemChecks();await savePhasePlans()}
 function migratePhaseItemChecks(){for(const p of (S.phasePlans||[])){if(!p.itemChecks)continue;for(const itId in p.itemChecks){const byDate=p.itemChecks[itId];for(const d in byDate){const v=byDate[d];if(Array.isArray(v)){const o={};for(const tid of v)o[tid]=true;byDate[d]=o;}}}}}
 async function savePhasePlans(){
   // 防御：按 id 去重，避免同步/导入混乱把同 id 条目持久化成两份（重复 id 会导致「删一条连带删另一条」）
@@ -3133,7 +3134,7 @@ const TRIP_LIST_CATS=['重要物品','衣物','洗漱用品','药品','化妆品
 const TRIP_LIST_PAIRS=[['重要物品','药品'],['衣物','化妆品'],['洗漱用品','杂物']];
 const TRIP_ACCT_CATS=['交通','住宿','餐饮','门票','购物','其他'];
 const TRIP_MOODS=['😀','😊','😐','😟','😍','🤩','😴','😡'];
-async function loadTrips(){S.trips=(await DB.get('trips'))||[];S.trips.forEach(t=>{if(!t.list)t.list=[];if(!t.accounts)t.accounts=[];if(!t.nodes)t.nodes=[]});await saveTrips()}
+async function loadTrips(){const _tr=await DB.get('trips');if(_tr===undefined){S.trips=[];return;}S.trips=_tr||[];S.trips.forEach(t=>{if(!t.list)t.list=[];if(!t.accounts)t.accounts=[];if(!t.nodes)t.nodes=[]});await saveTrips()}
 async function saveTrips(){await DB.set('trips',S.trips)}
 function curTrip(){return S.trips.find(x=>x.id===S.tripCurrentId)}
 function renderTripList(){
@@ -3191,7 +3192,7 @@ async function delTripNode(id){const t=curTrip();if(!t)return;t.nodes=t.nodes.fi
 async function editTripAccount(id){const t=curTrip();if(!t)return;const a=t.accounts.find(x=>x.id===id);if(!a)return;const cats=TRIP_ACCT_CATS.map(c=>`<option value="${c}" ${c===a.category?'selected':''}>${c}</option>`).join('');openEditModal('编辑记账',`<label>日期</label><input type="date" id="tripAcctDate" value="${a.date||S.date}"><label>分类</label><select id="tripAcctCat">${cats}</select><label>金额（元）</label><input type="number" id="tripAcctAmt" step="0.01" min="0" placeholder="0.00" value="${a.amount||0}"><label>备注（选填）</label><input type="text" id="tripAcctNote" maxlength="40" value="${escapeHtml(a.note||'').replace(/"/g,'&quot;')}">`);document.getElementById('saveEdit').onclick=async()=>{const date=document.getElementById('tripAcctDate').value;const category=document.getElementById('tripAcctCat').value;const amtRaw=document.getElementById('tripAcctAmt').value.trim();const amount=amtRaw===''?'0':Number(amtRaw);const note=document.getElementById('tripAcctNote').value.trim();if(isNaN(amount)||amount<0){showToast('金额无效','error');return}a.date=date;a.category=category;a.amount=amount;a.note=note;await saveTrips();closeEditModal();renderTripSub();showToast('已更新','success')};}
 async function editTripNode(id){const t=curTrip();if(!t)return;const n=t.nodes.find(x=>x.id===id);if(!n)return;S.pendingImgs.trip=[...(n.images||[])];S._tripMood=n.mood||'';const moods=TRIP_MOODS.map(m=>`<span class="mood-chip${m===S._tripMood?' active':''}" data-m="${m}" onclick="setTripMood('${m}')">${m}</span>`).join('');openEditModal('编辑轨迹节点',`<label>节点名称</label><input type="text" id="tripNodeTitle" value="${escapeHtml(n.title||'').replace(/"/g,'&quot;')}" maxlength="40"><label>日期</label><input type="date" id="tripNodeDate" value="${n.date||S.date}"><label>心情</label><div class="tag-chips" id="tripNodeMoods">${moods}</div><label>备注</label><textarea id="tripNodeNote" rows="3">${escapeHtml(n.note||'')}</textarea><label>图片</label><div class="image-preview" id="tripNodeImgs"></div><label class="upload-btn" style="display:inline-flex;margin-top:8px">📷 添加图片<input type="file" accept="image/*" multiple id="tripNodeFile"></label>`);renderTripNodeImgs();document.getElementById('tripNodeFile').addEventListener('change',async e=>{const files=Array.from(e.target.files);for(const f of files){if(f.type.startsWith('image/'))S.pendingImgs.trip.push(await compressImage(f))}renderTripNodeImgs();e.target.value=''});document.getElementById('saveEdit').onclick=async()=>{const title=document.getElementById('tripNodeTitle').value.trim();const date=document.getElementById('tripNodeDate').value;const note=document.getElementById('tripNodeNote').value.trim();if(!title){showToast('请输入节点名称','error');return}const idx=t.nodes.findIndex(x=>x.id===id);if(idx>=0)t.nodes[idx]={id,title,date,mood:S._tripMood||'',note,images:[...S.pendingImgs.trip]};await saveTrips();closeEditModal();S.pendingImgs.trip=[];renderTripSub();showToast('已更新','success')};}
 // ===== 出行清单（全局通用，常驻模块首页上方，可反复复用） =====
-async function loadChecklist(){S.tripChecklist=(await DB.get('tripChecklist'))||[];const cats=await DB.get('tripChecklistCats');S.tripChecklistCats=Array.isArray(cats)&&cats.length?cats:TRIP_LIST_PAIRS.flat();if(S.tripChecklist.length===0&&S.trips.some(t=>(t.list||[]).length)){const seen=new Set();S.trips.forEach(t=>{(t.list||[]).forEach(it=>{const k=it.cat+'|'+it.text;if(!seen.has(k)){seen.add(k);S.tripChecklist.push({id:genId(),cat:it.cat,text:it.text,done:false})}});t.list=[]});await saveTrips()}await saveChecklist()}
+async function loadChecklist(){const _ck=await DB.get('tripChecklist');const cats=await DB.get('tripChecklistCats');S.tripChecklistCats=Array.isArray(cats)&&cats.length?cats:TRIP_LIST_PAIRS.flat();if(_ck===undefined){S.tripChecklist=[];return;}S.tripChecklist=_ck||[];if(S.tripChecklist.length===0&&S.trips.some(t=>(t.list||[]).length)){const seen=new Set();S.trips.forEach(t=>{(t.list||[]).forEach(it=>{const k=it.cat+'|'+it.text;if(!seen.has(k)){seen.add(k);S.tripChecklist.push({id:genId(),cat:it.cat,text:it.text,done:false})}});t.list=[]});await saveTrips()}await saveChecklist()}
 async function saveChecklist(){await DB.set('tripChecklist',S.tripChecklist);await DB.set('tripChecklistCats',S.tripChecklistCats||[])}
 function renderTripChecklist(){const c=document.getElementById('tripGlobalList');if(!c)return;
   const cats=S.tripChecklistCats||[];
