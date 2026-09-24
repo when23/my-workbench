@@ -2633,7 +2633,18 @@ document.getElementById('backupDismiss').addEventListener('click',()=>{
 // ===== 阶段计划 =====
 async function loadPhasePlans(){S.phasePlans=(await DB.get('phasePlans'))||[];S.phasePlans.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});migratePhaseItemChecks();await savePhasePlans()}
 function migratePhaseItemChecks(){for(const p of (S.phasePlans||[])){if(!p.itemChecks)continue;for(const itId in p.itemChecks){const byDate=p.itemChecks[itId];for(const d in byDate){const v=byDate[d];if(Array.isArray(v)){const o={};for(const tid of v)o[tid]=true;byDate[d]=o;}}}}}
-async function savePhasePlans(){await DB.set('phasePlans',S.phasePlans)}
+async function savePhasePlans(){
+  // 防御：按 id 去重，避免同步/导入混乱把同 id 条目持久化成两份（重复 id 会导致「删一条连带删另一条」）
+  const byId={};
+  for(const p of (S.phasePlans||[])){
+    const pid=p.id;
+    if(pid==null){byId['_noid_'+Object.keys(byId).length]=p;continue;}
+    if(!(pid in byId))byId[pid]=p;
+    else{const prev=byId[pid];if((p.items||[]).length>(prev.items||[]).length)byId[pid]=p;} // 重复 id：保留条目更完整的一份，避免静默丢数据
+  }
+  S.phasePlans=Object.values(byId);
+  await DB.set('phasePlans',S.phasePlans);
+}
 function renderPhaseList(){
   const list=document.getElementById('phaseList');if(!list)return;
   if(!S.phasePlans||S.phasePlans.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">🗓️</div><p>还没有阶段计划<br>点击右上角"新建计划"开始</p></div>';return}
