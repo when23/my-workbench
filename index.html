@@ -1452,6 +1452,10 @@ async function cloudSelfTest(){
     el.textContent=s
   }catch(e){el.textContent='自检出错：\n'+(e.message.slice(0,300))}
 }
+// 判断同步值是否为「空集合」：空数组或空对象。空值不向上传云端（云端优先），
+// 防止某设备阶段计划残留成空数组时，加载即把云端真数据覆盖成空（phasePlans 反复被清空的元凶）。
+// 注意：null/undefined 不在此列——它们走 cloudDel 删除路径，由墓碑机制负责跨设备删除同步。
+function _isEmptySync(v){return (Array.isArray(v)&&v.length===0)||(v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).length===0)}
 const DB={
   _db:null,
   init(){return new Promise((resolve,reject)=>{
@@ -1467,7 +1471,9 @@ const DB={
   },
   async set(key,val){
     await this._localSet(key,val);
-    if(CLOUD.enabled){try{await cloudSet(key,val);cloudLastErr='';CLOUD.lastWriteOk=Date.now()}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)}}
+    // 防「空集合覆盖云端真数据」：本地值是空数组/空对象时不向上传（云端优先），
+    // 避免某设备本地残留空数组时，加载即把云端 3 条覆盖成空。删除同步本就靠墓碑（单条删除），整键清空极少且代价更低。
+    if(CLOUD.enabled && !_isEmptySync(val)){try{await cloudSet(key,val);cloudLastErr='';CLOUD.lastWriteOk=Date.now()}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)}}
   },
   async del(key){
     await this._localDel(key);
