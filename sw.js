@@ -1,5 +1,5 @@
 // Service Worker - 网络优先策略，确保刷新能看到最新版本
-const CACHE = 'daily-workspace-v119';
+const CACHE = 'daily-workspace-v120';
 const VER = CACHE.replace('daily-workspace-', ''); // 页面显示用的版本号，如 'v118'
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
 
