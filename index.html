@@ -866,9 +866,10 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span>🔄 发现新版本，点击刷新以更新</span>
+  <span id="updateText">🔄 发现新版本，点击刷新以更新</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
+<div id="verBadge" style="position:fixed;right:6px;bottom:4px;font-size:11px;color:#9aa0a6;opacity:.75;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
 
 <div class="modal-overlay" id="cloudModal">
   <div class="modal">
@@ -2604,7 +2605,16 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
+// 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
+let SW_VER=null;
 if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message',e=>{
+    if(e.data&&e.data.type==='SW_VERSION'){
+      SW_VER=e.data.ver;
+      const av=document.getElementById('verBadge'); if(av)av.textContent=SW_VER;
+      const ut=document.getElementById('updateText'); if(ut)ut.textContent='🔄 发现新版本 '+SW_VER+'，点击刷新以更新';
+    }
+  });
   navigator.serviceWorker.register('sw.js').then(reg=>{
     reg.addEventListener('updatefound',()=>{
       const nw=reg.installing;
@@ -2616,6 +2626,8 @@ if('serviceWorker' in navigator){
         }
       });
     });
+    // 页面已受 SW 控制时，主动询问当前版本（首次加载即可显示，无需等下次更新）
+    if(navigator.serviceWorker.controller){ try{navigator.serviceWorker.controller.postMessage({type:'GET_VERSION'})}catch(_){} }
   }).catch(()=>{});
 }
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();S.deferredPrompt=e;document.getElementById('installBanner').classList.add('show')});
