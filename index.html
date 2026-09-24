@@ -3281,7 +3281,8 @@ async function init(){await DB.init();document.getElementById('datePicker').valu
   // 关键：先渲染本地数据，保证页面立即可见，绝不被云同步阻塞
   await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint();updateCloudStatus();
   // 云端同步放后台执行（不 await），完成后再按需刷新；若卡死有超时保护，不影响页面
-  if(CLOUD.on){initCloudIfNeeded().then(async()=>{if(CLOUD.enabled){try{const changed=await syncFromCloud();if(changed)await reloadAll()}catch(e){console.warn('后台云同步异常',e);updateCloudStatus()}}}).catch(e=>{console.warn('云初始化异常',e);updateCloudStatus()})}
+  // 开页即同步也受「自动同步」开关约束：关闭后只在用户手动点「立即同步」时才拉取，避免硬刷后立即合并造成混乱
+  if(CLOUD.on){initCloudIfNeeded().then(async()=>{if(CLOUD.enabled&&CLOUD.auto){try{const changed=await syncFromCloud();if(changed)await reloadAll()}catch(e){console.warn('后台云同步异常',e);updateCloudStatus()}}}).catch(e=>{console.warn('云初始化异常',e);updateCloudStatus()})}
 }
 init();
 startCloudPolling();
