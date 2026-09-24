@@ -1,5 +1,6 @@
 // Service Worker - 网络优先策略，确保刷新能看到最新版本
-const CACHE = 'daily-workspace-v117';
+const CACHE = 'daily-workspace-v118';
+const VER = CACHE.replace('daily-workspace-', ''); // 页面显示用的版本号，如 'v118'
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
@@ -12,8 +13,21 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    ).then(() => self.clients.claim()).then(() => {
+      // 广播当前版本号给所有已打开的页面（用于「刷新提示」与常驻徽章显示实际版本）
+      self.clients.matchAll({includeUncontrolled: true}).then(cs => cs.forEach(c => {
+        try { c.postMessage({type: 'SW_VERSION', ver: VER}); } catch (_) {}
+      }));
+    })
   );
+});
+
+// 页面主动询问当前版本（首次加载即可显示，无需等待下一次更新）
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'GET_VERSION') {
+    const src = e.source;
+    if (src && src.postMessage) { try { src.postMessage({type: 'SW_VERSION', ver: VER}); } catch (_) {} }
+  }
 });
 
 self.addEventListener('fetch', e => {
