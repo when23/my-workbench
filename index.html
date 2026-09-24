@@ -1287,17 +1287,29 @@ async function syncFromCloud(){
     for(const k of keysArr){
       if(CLOUD.abortSync)break;
       if(k==='__syncsnap')continue;
+      // 墓碑键单独处理：直接取本地与云端并集，不做 applyTombstones（墓碑本身就是"已删 id 集合"，合并即可）
+      if(k==='__tombstones'){
+        if(loc===undefined&&clo!==undefined){await DB._localSet(k,clo);pulled=true}
+        else if(loc!==undefined&&clo===undefined){try{await cloudSet(k,loc)}catch(_){};pushed=true}
+        else if(loc!==undefined&&clo!==undefined){ if(JSON.stringify(loc)!==JSON.stringify(clo)){const m=mergeValues(loc,clo);try{await cloudSet(k,m)}catch(_){};await DB._localSet(k,m);pulled=true;pushed=true;} }
+        continue;
+      }
       if(skipped.has(k))continue; // 增量跳过：服务端+本地都未变，无需处理
       if(failed.has(k)){console.warn('同步跳过 '+k+'（云端读取失败，下轮再试，绝不以本地覆盖）');continue;}
       const loc=(k in localVal)?localVal[k]:undefined;
       const clo=(k in map)?map[k]:undefined;
       try{
-        if(loc===undefined&&clo!==undefined){const fv=(k==='__tombstones')?clo:applyTombstones(clo,k,tombSet);await DB._localSet(k,fv);pulled=true} // 仅云端有 → 拉取（应用墓碑过滤）
-        else if(loc!==undefined&&clo===undefined){await cloudSet(k,loc);pushed=true} // 仅本地有 → 上传
+        if(loc===undefined&&clo!==undefined){const fv=applyTombstones(clo,k,tombSet);await DB._localSet(k,fv);pulled=true} // 仅云端有 → 拉取（应用墓碑过滤）
+        else if(loc!==undefined&&clo===undefined){const fv=applyTombstones(loc,k,tombSet); if(JSON.stringify(fv)!==JSON.stringify(loc))await DB._localSet(k,fv); await cloudSet(k,fv);pushed=true} // 仅本地有 → 套墓碑后再上传（剔除本机已删项，避免把已删项推回云端复活）
         else if(loc!==undefined&&clo!==undefined){
-          if(JSON.stringify(loc)===JSON.stringify(clo))continue; // 已一致，跳过
+          if(JSON.stringify(loc)===JSON.stringify(clo)){
+            // 两端内容一致时也要套墓碑：防止"墓碑刚从其他设备到达、本机仍含已删项却因相等被跳过"导致的复活
+            const fv=applyTombstones(loc,k,tombSet);
+            if(JSON.stringify(fv)===JSON.stringify(loc))continue;
+            await DB._localSet(k,fv);try{await cloudSet(k,fv)}catch(_){} changed=true; continue;
+          }
           const merged=mergeValues(loc,clo); // 两端都有但内容不同 → 合并（并集/不丢数据）
-          const fv=(k==='__tombstones')?merged:applyTombstones(merged,k,tombSet); // 应用墓碑：剔除已删除条目
+          const fv=applyTombstones(merged,k,tombSet); // 应用墓碑：剔除已删除条目
           await cloudSet(k,fv);await DB._localSet(k,fv);pulled=true;pushed=true;
         }
       }catch(e){cloudLastErr=cloudErrMsg(e);CLOUD.lastWriteError=Date.now();CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步合并失败',k,e)}
@@ -1464,7 +1476,9 @@ const DB={
   _localGet(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
   async _localSet(key,val){
     // 捕获删除（墓碑）：对比旧值，找出被移除条目的 id，记入 __tombstones，使删除能跨设备同步
-    if(CLOUD.enabled&&key!=='__tombstones'){
+    // 注意：无论云端是否开启都记录墓碑到本地——删除即使离线也会留下墓碑，下次联网同步即可传播，
+    // 避免"删了但当时没联网/没开云 → 不记墓碑 → 之后同步把云端那条又拉回来（复活）"的 bug。
+    if(key!=='__tombstones'){
       try{
         const oldV=await this._localGet(key);
         const removed=computeRemoved(oldV,val,key);
