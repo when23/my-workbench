@@ -1314,7 +1314,9 @@ async function syncFromCloud(){
           }
           const merged=mergeValues(loc,clo); // 两端都有但内容不同 → 合并（并集/不丢数据）
           const fv=applyTombstones(merged,k,tombSet); // 应用墓碑：剔除已删除条目
-          await cloudSet(k,fv);await DB._localSet(k,fv);pulled=true;pushed=true;
+          // 先写本地再写云端：即使云端写入撞限流/瞬时失败，本地也先拿到数据，避免"合并成功却本地仍空"的静默丢失
+          await DB._localSet(k,fv);pulled=true;
+          try{await cloudSet(k,fv);pushed=true}catch(_){}
         }
       }catch(e){cloudLastErr=cloudErrMsg(e);CLOUD.lastWriteError=Date.now();CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步合并失败',k,e)}
     }
