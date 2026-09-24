@@ -887,8 +887,10 @@ img{max-width:100%;display:block}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="saveCloudSettings()">保存并连接</button>
         <button class="btn btn-ghost" onclick="doCloudSync()">立即同步</button>
+        <button class="btn btn-ghost" onclick="forceFullSync()">强制完整同步</button>
         <button class="btn btn-ghost" onclick="disconnectCloud()">断开</button>
       </div>
+      <p style="font-size:12px;color:var(--text-3);margin:10px 0 6px;line-height:1.6">若两台设备数据对不齐（如某台阶段计划为空、或 growth/分类/健康标签始终拉不到），点「<strong>强制完整同步</strong>」：它会清空过期的"增量跳过"缓存，重新拉取并<strong>并集合并全部数据（不删除任何数据）</strong>，解除同步锁定。两端各点一次即可对齐。</p>
       <p style="font-size:12px;color:var(--text-3);margin:12px 0 6px;line-height:1.6">图片是同步变慢的主因。若本地存了大量旧图，可先点下面按钮把已存图片瘦身（不影响查看），再开启同步会快很多：</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="recompressLocalImages()">压缩瘦身本地图片</button>
@@ -1396,6 +1398,19 @@ function disconnectCloud(){
   closeCloudModal();showToast('已断开云同步，回退本地','success');updateCloudStatus();location.reload()
 }
 async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}CLOUD.lastSyncError='';let changed=false;try{changed=await syncFromCloud()}catch(e){CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步异常',e)}if(CLOUD.lastSyncError)showToast('同步出错：'+(CLOUD.lastSyncError.slice(0,140)),'error');else if(changed){await reloadAll();showToast('已与云端同步（有更新）','success')}else showToast('已与云端同步','success')}
+// 强制完整同步：解除「增量跳过」锁定。清空本机记录的 lastLocal/lastSha（localStorage + 内存），
+// 使下一轮 syncFromCloud 对所有键重新拉取并合并（并集合并，只增不删），让两端收敛到云端、解除同步死锁。
+async function forceFullSync(){
+  if(!CLOUD.enabled){showToast('请先保存并连接','error');return;}
+  if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return;}
+  if(!confirm('强制完整同步：清空本机过期的"增量跳过"缓存，重新拉取并合并全部数据。\n不删除任何数据（仅解除同步锁定）。确定继续吗？'))return;
+  try{localStorage.removeItem('ghLastLocal');localStorage.removeItem('ghLastSha');}catch(_){}
+  CLOUD.lastLocal={};CLOUD.lastSha={};CLOUD.lastSyncError='';
+  let changed=false;
+  try{changed=await syncFromCloud();}catch(e){CLOUD.lastSyncError=cloudErrMsg(e);console.warn('强制同步异常',e);}
+  if(CLOUD.lastSyncError)showToast('同步出错：'+(CLOUD.lastSyncError.slice(0,140)),'error');
+  else{if(changed)await reloadAll();showToast('已强制完整同步（'+(changed?'有更新':'无变化')+'）','success');}
+}
 // 以本地为准强制覆盖云端：用于恢复——当云端存在残缺/过期副本时，从数据最完整的设备把全部本地键推上去
 async function forceUploadCloud(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}if(!confirm('确定把本机全部数据强制覆盖到云端吗？此操作会覆盖云端现有数据（包括其他设备尚未同步的改动）。请确认本机数据是最完整的。'))return;const myId=++syncRunId;cloudSyncRunning=true;CLOUD.syncing=true;CLOUD.abortSync=false;updateCloudStatus();const wd=setTimeout(()=>{CLOUD.syncing=false;updateCloudStatus();console.warn('强制上传超时保护');CLOUD.abortSync=true;},300000);try{const keys=await DB._localKeys();let n=0,err=null;for(const k of keys){if(CLOUD.abortSync)break;try{await cloudSet(k,await DB._localGet(k));n++}catch(e){if(!err)err=e}}CLOUD.synced=true;if(CLOUD.abortSync)showToast('强制上传超时（已完成 '+n+' 项，请稍后重试剩余）','error');else if(err)showToast('部分上传失败（'+n+' 项成功）：'+(cloudErrMsg(err).slice(0,120)),'error');else showToast('已强制上传 '+n+' 个数据项到云端','success')}catch(e){console.warn('强制上传失败',e);showToast('强制上传失败：'+(e&&e.message||e),'error')}finally{clearTimeout(wd);cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}}
 // 清空本机并以云端为准重新同步：本机数据乱了/缺一块时，把本机清空后直接从云端逐键原样拉取（不做墓碑过滤），
