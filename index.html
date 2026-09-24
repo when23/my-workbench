@@ -2458,7 +2458,10 @@ document.getElementById('saveEdit').addEventListener('click',async()=>{if(!S.edi
 document.getElementById('exportBtn').addEventListener('click',async()=>{const keys=await DB.keys();const data={version:'2.0',exportDate:nowISO()};for(const k of keys)data[k]=await DB.get(k);const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`daily-workspace-backup-${fmtYMD(new Date())}.json`;a.click();URL.revokeObjectURL(url);showToast('备份已导出','success')});
 document.getElementById('importBtn').addEventListener('click',()=>document.getElementById('importFile').click());
 document.getElementById('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;
-try{const text=await file.text();const data=JSON.parse(text);
+let data;
+try{const text=await file.text();data=JSON.parse(text);}
+catch(err){showToast('导入失败：文件无法读取或不是合法 JSON','error');e.target.value='';return;}
+try{
 if(data.version==='2.0'){
   // v2.0 完整备份：整库覆盖。先清空本机，再以「直接写入」方式写入（不走 DB.set，避免把备份里没有的项误记成删除墓碑，反向把手机数据删掉）；跳过/重置同步内部键
   if(!confirm('导入将以备份文件内容【整库覆盖】本机（若已连云端，也会一并覆盖云端）。\n请确认备份来自数据最完整的设备（如手机）。\n此操作不可恢复，建议先点「导出备份」备份当前数据。')){e.target.value='';return}
@@ -2467,18 +2470,20 @@ if(data.version==='2.0'){
   for(const[k,v]of Object.entries(data)){if(k==='version'||k==='exportDate'||k==='__tombstones'||k==='__syncsnap')continue;await DB._localRawSet(k,v);keys.push(k)}
   await DB._localRawSet('__tombstones',[]);await DB._localRawSet('__syncsnap',{});
   try{localStorage.removeItem('tombMigrated')}catch(_){}
-  if(CLOUD.enabled){try{await cloudSet('__tombstones',[])}catch(_){}for(const k of keys){try{await cloudSet(k,await DB._localGet(k))}catch(_){}}}
-  showToast('导入成功（已整库覆盖）','success');await init();
+  let cloudN=0;
+  if(CLOUD.enabled){try{await cloudSet('__tombstones',[])}catch(_){}for(const k of keys){try{await cloudSet(k,await DB._localGet(k));cloudN++}catch(_){}}}
+  showToast('导入成功：已整库覆盖 '+keys.length+' 个数据项'+(CLOUD.enabled?('，云端已同步 '+cloudN+' 项'):''),'success');await init();
 }else{
   // 旧格式（仅含 board/daily/inspirations/organizing 的增量备份）：不整库清空，按「合并」方式仅恢复其中模块，避免误删本机其他数据（如阶段计划/成长记录）
-  if(!confirm('检测到旧格式备份（可能不含全部模块，如阶段计划/成长记录）。\n将以「合并」方式仅恢复其中的板块/灵感/物品，不会清空本机其他数据。\n确定继续吗？')){e.target.value='';return}
+  if(!confirm('检测到旧格式备份（不含全部模块，如阶段计划/成长记录）。\n将以「合并」方式仅恢复其中的板块/灵感/物品，\n【注意】它不会清空本机其他数据——你手机上原有的多余/重复内容不会被本次导入清除。\n确定继续吗？')){e.target.value='';return}
   if(data.boards)await DB.set('boards',data.boards);
   if(data.daily){for(const[date,tasks]of Object.entries(data.daily))await DB.set('daily:'+date,tasks)}
   if(data.inspirations)await DB.set('inspirations',data.inspirations);
   if(data.organizing)await DB.set('organizing',data.organizing);
-  showToast('导入成功（旧格式，已合并）','success');await init();
+  showToast('导入成功（旧格式·仅合并板块/灵感/物品，未整库覆盖）','success');await init();
 }
-}catch(err){showToast('导入失败：文件格式错误','error')}e.target.value=''});
+}catch(err){console.error('导入异常',err);showToast('导入失败：'+(err&&err.message?err.message.slice(0,120):'未知错误'),'error')}e.target.value=''});
+
 
 // ===== Excel Import for Organizing =====
 function downloadOrgTemplate(){
