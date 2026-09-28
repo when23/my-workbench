@@ -1422,8 +1422,13 @@ async function resetFromCloud(){
   if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}
   if(!confirm('确定【清空本机全部数据】并以云端最新数据重新同步吗？\n此操作会删除本机所有本地数据，再从云端原样拉取（以云端为准）。\n请先确保云端数据是你想要的版本（若不确定，先在「数据最完整」的设备上点「强制上传」）。'))return;
   try{
+    // 1) 先拉云端全部数据（【不先清本机】）：若云端读取失败，本机数据原样保留，绝不发生"清空本地却没拉回"的数据丢失
+    const {map,failed}=await cloudGetAll({}, true); // 强制全量：不增量跳过，确保拿到所有云端键
+    const got=Object.keys(map).length;
+    if(got===0&&failed.size>0)throw new Error('云端读取失败（'+failed.size+' 项），本次未改动本机数据，请稍后重试');
+    if(got===0&&failed.size===0)throw new Error('云端当前没有可拉取的数据，本次未改动本机数据');
+    // 2) 拉取成功后再清空本机并写入（此时即便后续写入出错，云端仍有完整备份）
     await DB._localClearAll();
-    const {map,failed}=await cloudGetAll({}, true); // 强制全量：不增量跳过，确保本地拿到所有云端键
     for(const k in map){ if(k==='__syncsnap')continue; const v=map[k]; if(v===undefined||v===null)continue; await DB._localRawSet(k,v); } // 跳过读取失败的空值，避免往本地写 null 键
     let T=(map['__tombstones']||[]); if(!Array.isArray(T))T=[];
     const cleaned=T.filter(t=>!(typeof t==='string'&&t.startsWith('phasePlans::')));
@@ -1433,8 +1438,8 @@ async function resetFromCloud(){
     try{localStorage.removeItem('tombMigrated')}catch(_){}
     await init();
     const fmsg=failed.size?('；'+failed.size+' 个键云端读取失败，稍后自动同步会重试'):'';
-    showToast('已以云端为准重置本机（共拉取 '+Object.keys(map).length+' 项）'+fmsg,'success');
-  }catch(e){console.warn('以云端为准重置失败',e);showToast('重置失败：'+(e&&e.message||e),'error')}
+    showToast('已以云端为准重置本机（共拉取 '+got+' 项）'+fmsg,'success');
+  }catch(e){console.warn('以云端为准重置失败',e);showToast('重置失败（本机数据未改动）：'+(e&&e.message||e),'error')}
 }
 // 云端自检：读回 GitHub 仓库 data 目录、并做一次写-读往返，给出可读结论
 async function cloudSelfTest(){
