@@ -2642,7 +2642,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v126'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v127'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -2701,8 +2701,8 @@ document.getElementById('backupDismiss').addEventListener('click',()=>{
 });
 
 // ===== 阶段计划 =====
-async function loadPhasePlans(){const _pp=await DB.get('phasePlans');if(_pp===undefined){S.phasePlans=[];return;}S.phasePlans=_pp||[];S.phasePlans.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});migratePhaseItemChecks();await savePhasePlans()}
-function migratePhaseItemChecks(){for(const p of (S.phasePlans||[])){if(!p.itemChecks)continue;for(const itId in p.itemChecks){const byDate=p.itemChecks[itId];for(const d in byDate){const v=byDate[d];if(Array.isArray(v)){const o={};for(const tid of v)o[tid]=true;byDate[d]=o;}}}}}
+async function loadPhasePlans(){const _pp=await DB.get('phasePlans');if(_pp===undefined){S.phasePlans=[];return;}S.phasePlans=_pp||[];let dirty=false;S.phasePlans.forEach((x,i)=>{if(!x.color){x.color=BOARD_COLORS[i%BOARD_COLORS.length];dirty=true}});if(migratePhaseItemChecks())dirty=true;if(dirty)savePhasePlans()}
+function migratePhaseItemChecks(){let changed=false;for(const p of (S.phasePlans||[])){if(!p.itemChecks)continue;for(const itId in p.itemChecks){const byDate=p.itemChecks[itId];for(const d in byDate){const v=byDate[d];if(Array.isArray(v)){const o={};for(const tid of v)o[tid]=true;byDate[d]=o;changed=true;}}}}return changed;}
 async function savePhasePlans(){
   // 防御：按 id 去重，避免同步/导入混乱把同 id 条目持久化成两份（重复 id 会导致「删一条连带删另一条」）
   const byId={};
@@ -3203,7 +3203,7 @@ const TRIP_LIST_CATS=['重要物品','衣物','洗漱用品','药品','化妆品
 const TRIP_LIST_PAIRS=[['重要物品','药品'],['衣物','化妆品'],['洗漱用品','杂物']];
 const TRIP_ACCT_CATS=['交通','住宿','餐饮','门票','购物','其他'];
 const TRIP_MOODS=['😀','😊','😐','😟','😍','🤩','😴','😡'];
-async function loadTrips(){const _tr=await DB.get('trips');if(_tr===undefined){S.trips=[];return;}S.trips=_tr||[];S.trips.forEach(t=>{if(!t.list)t.list=[];if(!t.accounts)t.accounts=[];if(!t.nodes)t.nodes=[]});await saveTrips()}
+async function loadTrips(){const _tr=await DB.get('trips');if(_tr===undefined){S.trips=[];return;}S.trips=_tr||[];let dirty=false;S.trips.forEach(t=>{if(!t.list){t.list=[];dirty=true}if(!t.accounts){t.accounts=[];dirty=true}if(!t.nodes){t.nodes=[];dirty=true}});if(dirty)saveTrips()}
 async function saveTrips(){await DB.set('trips',S.trips)}
 function curTrip(){return S.trips.find(x=>x.id===S.tripCurrentId)}
 function renderTripList(){
@@ -3261,7 +3261,7 @@ async function delTripNode(id){const t=curTrip();if(!t)return;t.nodes=t.nodes.fi
 async function editTripAccount(id){const t=curTrip();if(!t)return;const a=t.accounts.find(x=>x.id===id);if(!a)return;const cats=TRIP_ACCT_CATS.map(c=>`<option value="${c}" ${c===a.category?'selected':''}>${c}</option>`).join('');openEditModal('编辑记账',`<label>日期</label><input type="date" id="tripAcctDate" value="${a.date||S.date}"><label>分类</label><select id="tripAcctCat">${cats}</select><label>金额（元）</label><input type="number" id="tripAcctAmt" step="0.01" min="0" placeholder="0.00" value="${a.amount||0}"><label>备注（选填）</label><input type="text" id="tripAcctNote" maxlength="40" value="${escapeHtml(a.note||'').replace(/"/g,'&quot;')}">`);document.getElementById('saveEdit').onclick=async()=>{const date=document.getElementById('tripAcctDate').value;const category=document.getElementById('tripAcctCat').value;const amtRaw=document.getElementById('tripAcctAmt').value.trim();const amount=amtRaw===''?'0':Number(amtRaw);const note=document.getElementById('tripAcctNote').value.trim();if(isNaN(amount)||amount<0){showToast('金额无效','error');return}a.date=date;a.category=category;a.amount=amount;a.note=note;await saveTrips();closeEditModal();renderTripSub();showToast('已更新','success')};}
 async function editTripNode(id){const t=curTrip();if(!t)return;const n=t.nodes.find(x=>x.id===id);if(!n)return;S.pendingImgs.trip=[...(n.images||[])];S._tripMood=n.mood||'';const moods=TRIP_MOODS.map(m=>`<span class="mood-chip${m===S._tripMood?' active':''}" data-m="${m}" onclick="setTripMood('${m}')">${m}</span>`).join('');openEditModal('编辑轨迹节点',`<label>节点名称</label><input type="text" id="tripNodeTitle" value="${escapeHtml(n.title||'').replace(/"/g,'&quot;')}" maxlength="40"><label>日期</label><input type="date" id="tripNodeDate" value="${n.date||S.date}"><label>心情</label><div class="tag-chips" id="tripNodeMoods">${moods}</div><label>备注</label><textarea id="tripNodeNote" rows="3">${escapeHtml(n.note||'')}</textarea><label>图片</label><div class="image-preview" id="tripNodeImgs"></div><label class="upload-btn" style="display:inline-flex;margin-top:8px">📷 添加图片<input type="file" accept="image/*" multiple id="tripNodeFile"></label>`);renderTripNodeImgs();document.getElementById('tripNodeFile').addEventListener('change',async e=>{const files=Array.from(e.target.files);for(const f of files){if(f.type.startsWith('image/'))S.pendingImgs.trip.push(await compressImage(f))}renderTripNodeImgs();e.target.value=''});document.getElementById('saveEdit').onclick=async()=>{const title=document.getElementById('tripNodeTitle').value.trim();const date=document.getElementById('tripNodeDate').value;const note=document.getElementById('tripNodeNote').value.trim();if(!title){showToast('请输入节点名称','error');return}const idx=t.nodes.findIndex(x=>x.id===id);if(idx>=0)t.nodes[idx]={id,title,date,mood:S._tripMood||'',note,images:[...S.pendingImgs.trip]};await saveTrips();closeEditModal();S.pendingImgs.trip=[];renderTripSub();showToast('已更新','success')};}
 // ===== 出行清单（全局通用，常驻模块首页上方，可反复复用） =====
-async function loadChecklist(){const _ck=await DB.get('tripChecklist');const cats=await DB.get('tripChecklistCats');S.tripChecklistCats=Array.isArray(cats)&&cats.length?cats:TRIP_LIST_PAIRS.flat();if(_ck===undefined){S.tripChecklist=[];return;}S.tripChecklist=_ck||[];if(S.tripChecklist.length===0&&S.trips.some(t=>(t.list||[]).length)){const seen=new Set();S.trips.forEach(t=>{(t.list||[]).forEach(it=>{const k=it.cat+'|'+it.text;if(!seen.has(k)){seen.add(k);S.tripChecklist.push({id:genId(),cat:it.cat,text:it.text,done:false})}});t.list=[]});await saveTrips()}await saveChecklist()}
+async function loadChecklist(){const _ck=await DB.get('tripChecklist');const cats=await DB.get('tripChecklistCats');let dirty=false;if(Array.isArray(cats)&&cats.length){S.tripChecklistCats=cats}else{S.tripChecklistCats=TRIP_LIST_PAIRS.flat();dirty=true}if(_ck===undefined){S.tripChecklist=[];return;}S.tripChecklist=_ck||[];if(S.tripChecklist.length===0&&S.trips.some(t=>(t.list||[]).length)){const seen=new Set();S.trips.forEach(t=>{(t.list||[]).forEach(it=>{const k=it.cat+'|'+it.text;if(!seen.has(k)){seen.add(k);S.tripChecklist.push({id:genId(),cat:it.cat,text:it.text,done:false})}});t.list=[]});saveTrips();dirty=true}if(dirty)saveChecklist()}
 async function saveChecklist(){await DB.set('tripChecklist',S.tripChecklist);await DB.set('tripChecklistCats',S.tripChecklistCats||[])}
 function renderTripChecklist(){const c=document.getElementById('tripGlobalList');if(!c)return;
   const cats=S.tripChecklistCats||[];
