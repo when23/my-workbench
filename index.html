@@ -2642,7 +2642,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v127'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v128'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -2650,12 +2650,21 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message',e=>{
     if(e.data&&e.data.type==='SW_VERSION'){
       SW_VER=e.data.ver;
-      // 徽章只显示部署版本 PAGE_VER（可靠）；SW 实际控制的版本差异在云同步面板里展示，避免误导
-      const ut=document.getElementById('updateText'); if(ut)ut.textContent='🔄 发现新版本 '+SW_VER+'，点击刷新以更新';
+      const b=document.getElementById('updateBanner');
+      const ut=document.getElementById('updateText');
+      // 只有当「控制页面的 SW 版本」与「已加载页面版本(PAGE_VER)」不一致时才提示刷新；
+      // 不再把旧 SW 的版本号当成"新版本"展示（否则会出现"顶部 v126、右下角 v127"的误导）。
+      if(SW_VER===PAGE_VER){
+        if(b)b.classList.remove('show');            // 已是最新，隐藏更新横幅
+        if(ut)ut.textContent='✅ 已是最新 '+PAGE_VER;
+      }else{
+        if(ut)ut.textContent='🔄 发现新版本，点击刷新以更新';
+        if(b)b.classList.add('show');
+      }
     }
   });
   const _hadSWController=!!navigator.serviceWorker.controller;
-  navigator.serviceWorker.register('sw.js').then(reg=>{
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
     // 主动强制检查更新：绕过浏览器对 SW 脚本的更新节流，确保新版本部署后能尽快生效（不再需要手动硬刷多次）
     const doUpdate=()=>{ try{ reg.update().catch(()=>{}); }catch(_){} };
     doUpdate();
