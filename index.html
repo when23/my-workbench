@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v128</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v130</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -867,7 +867,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v129</span>
+  <span id="updateText">✅ 已是最新 v130</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1437,6 +1437,9 @@ async function resetFromCloud(){
   if(!CLOUD.enabled){showToast('请先保存并连接','error');return}
   if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}
   if(!confirm('确定【清空本机全部数据】并以云端最新数据重新同步吗？\n此操作会删除本机所有本地数据，再从云端原样拉取（以云端为准）。\n请先确保云端数据是你想要的版本（若不确定，先在「数据最完整」的设备上点「强制上传」）。'))return;
+  // 加锁 + 可见反馈：重置需强制全量拉取（不做增量跳过）耗时较长，必须让按钮/面板显示"同步中"，否则页面静默、用户以为无响应
+  cloudSyncRunning=true; CLOUD.syncing=true; updateCloudStatus();
+  showToast('正在以云端为准重置：正在从云端拉取全部数据，请稍候（可能需要十几秒）…','info');
   try{
     // 1) 先拉云端全部数据（【不先清本机】）：若云端读取失败，本机数据原样保留，绝不发生"清空本地却没拉回"的数据丢失
     const {map,failed}=await cloudGetAll({}, true); // 强制全量：不增量跳过，确保拿到所有云端键
@@ -1455,7 +1458,7 @@ async function resetFromCloud(){
     await init();
     const fmsg=failed.size?('；'+failed.size+' 个键云端读取失败，稍后自动同步会重试'):'';
     showToast('已以云端为准重置本机（共拉取 '+got+' 项）'+fmsg,'success');
-  }catch(e){console.warn('以云端为准重置失败',e);showToast('重置失败（本机数据未改动）：'+(e&&e.message||e),'error')}
+  }catch(e){console.warn('以云端为准重置失败',e);showToast('重置失败（本机数据未改动）：'+(e&&e.message||e),'error')}finally{cloudSyncRunning=false;CLOUD.syncing=false;updateCloudStatus()}
 }
 // 云端自检：读回 GitHub 仓库 data 目录、并做一次写-读往返，给出可读结论
 async function cloudSelfTest(){
@@ -2643,7 +2646,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v129'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v130'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
