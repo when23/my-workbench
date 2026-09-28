@@ -1370,8 +1370,18 @@ function updateCloudStatus(){
     btn.textContent=txt;btn.classList.toggle('cloud-on',cls)
   }
   const st=document.getElementById('cloudStatusText');
-  // 只有"最近一次写确实失败"（lastWriteError 晚于 lastWriteOk 且 60s 内）才提示异常；异常显示真实错误，不再误报"Token/仓库/网络"
-  if(st)st.textContent=CLOUD.enabled?('状态：'+(CLOUD.syncing?'同步中':((CLOUD.lastWriteError>CLOUD.lastWriteOk && Date.now()-CLOUD.lastWriteError<60000)?('写入异常：'+(cloudLastErr.slice(0,120)||'临时失败，自动同步会后台重试')):'已连接'))):'状态：未连接（仅本地存储）'
+  // 同步（拉取/合并）错误也持久显示在面板里，不再只弹一闪而过的 toast
+  let syncErr='';
+  if(CLOUD.lastSyncError){ syncErr=CLOUD.lastSyncError; try{localStorage.setItem('lastCloudErr',syncErr)}catch(_){} }
+  else { try{localStorage.removeItem('lastCloudErr')}catch(_){} }
+  if(!syncErr){ try{ syncErr=localStorage.getItem('lastCloudErr')||''; }catch(_){} }
+  let stTxt;
+  if(CLOUD.syncing){ stTxt='同步中…'; }
+  else if(syncErr){ stTxt='同步出错：'+syncErr; }
+  else if(CLOUD.lastWriteError>CLOUD.lastWriteOk && Date.now()-CLOUD.lastWriteError<60000){ stTxt='写入异常：'+(cloudLastErr.slice(0,120)||'临时失败，自动同步会后台重试'); }
+  else if(CLOUD.enabled){ stTxt='已连接'; }
+  else { stTxt='未连接（仅本地存储）'; }
+  if(st)st.textContent='状态：'+stTxt;
 }
 async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
 function openCloudModal(){
@@ -1538,7 +1548,7 @@ function genId(){return new Date().toISOString().replace(/[-:T]/g,'').slice(0,14
 function nowISO(){return new Date().toISOString()}
 function fmtDate(iso){const d=new Date(iso);const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
 function fmtDateCN(s){if(!s)return'';const d=s.includes('T')?new Date(s):new Date(s+'T00:00:00');if(isNaN(d.getTime()))return'';const t=new Date();const diff=Math.floor((t.setHours(0,0,0,0)-new Date(d).setHours(0,0,0,0))/86400000);if(diff===0)return'今天';if(diff===1)return'昨天';if(diff===-1)return'明天';return`${d.getMonth()+1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`}
-function showToast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show '+type;setTimeout(()=>t.classList.remove('show'),2500)}
+function showToast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show '+type;const dur=(type==='error'||type==='warn')?6000:2500;setTimeout(()=>t.classList.remove('show'),dur)}
 function escapeHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
 function _canvasToJpeg(img,w,h,quality){const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',quality)}
