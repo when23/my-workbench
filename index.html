@@ -1185,9 +1185,10 @@ function _collectPaths(v,path,out){
 }
 // 计算"本机删除的条目"：旧值路径集合减去新值路径集合，结果即墓碑（含完整路径前缀）。
 function computeRemoved(oldV,newV,root){
-  const o=[],n=new Set();
+  const o=[],n=[]; // 注意：_collectPaths 内部用 out.push，故 n 必须是数组（不能是 Set），否则触发 "out.push is not a function"
   _collectPaths(oldV,root,o); _collectPaths(newV,root,n);
-  return o.filter(id=>!n.has(id));
+  const nset=new Set(n);
+  return o.filter(id=>!nset.has(id));
 }
 // 墓碑过滤：路径化，仅删除 tombSet 中存在的"完整路径"对应条目（递归到任意嵌套层）。
 // 计划级墓碑(phasePlans::<planId>)只删整计划；子项级(phasePlans::<planId>::items::<itemId>)只删那条子项——互不误伤。
