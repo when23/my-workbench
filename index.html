@@ -869,7 +869,7 @@ img{max-width:100%;display:block}
   <span id="updateText">🔄 发现新版本，点击刷新以更新</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
-<div id="verBadge" style="position:fixed;right:6px;bottom:4px;font-size:11px;color:#9aa0a6;opacity:.75;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
+<div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
 
 <div class="modal-overlay" id="cloudModal">
   <div class="modal">
@@ -882,6 +882,7 @@ img{max-width:100%;display:block}
       <input type="text" id="ghRepoInput" placeholder="如：when23/workbench-sync" autocomplete="off" spellcheck="false">
       <p style="font-size:12px;color:var(--text-3);margin:6px 0 12px;line-height:1.6">① 新建一个<strong>私有</strong>仓库（如 workbench-sync）；② 在 GitHub「Settings → Developer settings → Personal access tokens」生成 Token，勾选 <code>repo</code> 权限；③ 把 Token 和仓库名填上面。首次同步会自动在仓库里建 <code>data/</code> 目录，无需手动建。</p>
       <div id="cloudStatusText" style="font-size:13px;margin-bottom:12px"></div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px">当前版本：<span id="cloudVerText">—</span></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="ghAutoInput" onchange="CLOUD.auto=this.checked;localStorage.setItem('ghAuto',this.checked?'1':'0');updateCloudStatus()"> 自动同步（每 60 秒后台拉取；取消勾选后仅手动点「立即同步」）</label>
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="ghNoImgInput" onchange="CLOUD.noImages=this.checked;localStorage.setItem('ghNoImg',this.checked?'1':'0');updateCloudStatus()"> 同步不含图片（仅传文字，先把同步跑通；本地图片保留，云端只存文字版）</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1384,6 +1385,8 @@ function updateCloudStatus(){
   else if(CLOUD.enabled){ stTxt='已连接'; }
   else { stTxt='未连接（仅本地存储）'; }
   if(st)st.textContent='状态：'+stTxt;
+  const cv=document.getElementById('cloudVerText');
+  if(cv)cv.textContent=PAGE_VER+(SW_VER&&SW_VER!==PAGE_VER?(' · SW控制：'+SW_VER):'');
 }
 async function reloadAll(){await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints()}
 function openCloudModal(){
@@ -2639,13 +2642,15 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
+const PAGE_VER='v126'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
+try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message',e=>{
     if(e.data&&e.data.type==='SW_VERSION'){
       SW_VER=e.data.ver;
-      const av=document.getElementById('verBadge'); if(av)av.textContent=SW_VER;
+      // 徽章只显示部署版本 PAGE_VER（可靠）；SW 实际控制的版本差异在云同步面板里展示，避免误导
       const ut=document.getElementById('updateText'); if(ut)ut.textContent='🔄 发现新版本 '+SW_VER+'，点击刷新以更新';
     }
   });
