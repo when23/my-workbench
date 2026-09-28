@@ -2637,7 +2637,13 @@ if('serviceWorker' in navigator){
       const ut=document.getElementById('updateText'); if(ut)ut.textContent='🔄 发现新版本 '+SW_VER+'，点击刷新以更新';
     }
   });
+  const _hadSWController=!!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').then(reg=>{
+    // 主动强制检查更新：绕过浏览器对 SW 脚本的更新节流，确保新版本部署后能尽快生效（不再需要手动硬刷多次）
+    const doUpdate=()=>{ try{ reg.update().catch(()=>{}); }catch(_){} };
+    doUpdate();
+    window.addEventListener('online',doUpdate);
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden)doUpdate(); });
     reg.addEventListener('updatefound',()=>{
       const nw=reg.installing;
       if(!nw)return;
@@ -2651,6 +2657,12 @@ if('serviceWorker' in navigator){
     // 页面已受 SW 控制时，主动询问当前版本（首次加载即可显示，无需等下次更新）
     if(navigator.serviceWorker.controller){ try{navigator.serviceWorker.controller.postMessage({type:'GET_VERSION'})}catch(_){} }
   }).catch(()=>{});
+  // 新 Service Worker 接管控制权时自动刷新一次，确保页面运行的是最新版本（仅在"更新"场景触发；首次安装不自动刷，避免初次打开多刷一次；且仅触发一次防循环）
+  let _swRefreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!_hadSWController)return; // 首次安装不自动刷新
+    if(_swRefreshing)return; _swRefreshing=true; location.reload();
+  });
 }
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();S.deferredPrompt=e;document.getElementById('installBanner').classList.add('show')});
 document.getElementById('installBtn').addEventListener('click',async()=>{if(!S.deferredPrompt)return;S.deferredPrompt.prompt();const{outcome}=await S.deferredPrompt.userChoice;if(outcome==='accepted')showToast('安装成功！从桌面打开即可使用','success');S.deferredPrompt=null;document.getElementById('installBanner').classList.remove('show')});
