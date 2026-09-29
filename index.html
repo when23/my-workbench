@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v131</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v132</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -867,7 +867,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v131</span>
+  <span id="updateText">✅ 已是最新 v132</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1415,7 +1415,7 @@ function disconnectCloud(){
   CLOUD.ghToken='';CLOUD.ghRepo='';CLOUD.on=false;CLOUD.enabled=false;CLOUD.synced=false;CLOUD.ghFileSha={};
   closeCloudModal();showToast('已断开云同步，回退本地','success');updateCloudStatus();location.reload()
 }
-async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}CLOUD.lastSyncError='';let changed=false;try{changed=await syncFromCloud()}catch(e){CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步异常',e)}if(CLOUD.lastSyncError)showToast('同步出错：'+(CLOUD.lastSyncError.slice(0,140)),'error');else if(changed){await reloadAll();showToast('已与云端同步（有更新）','success')}else showToast('已与云端同步','success')}
+async function doCloudSync(){if(!CLOUD.enabled){showToast('请先保存并连接','error');return}if(cloudSyncRunning){showToast('同步进行中，请稍候','error');return}CLOUD.lastSyncError='';let changed=false;try{changed=await syncFromCloud()}catch(e){CLOUD.lastSyncError=cloudErrMsg(e);console.warn('同步异常',e)}if(CLOUD.lastSyncError){ if(/限流/.test(CLOUD.lastSyncError)) showToast('云端繁忙（限流），已自动重试，稍后再点同步即可','warn'); else showToast('同步出错：'+(CLOUD.lastSyncError.slice(0,140)),'error'); }else if(changed){await reloadAll();showToast('已与云端同步（有更新）','success')}else showToast('已与云端同步','success')}
 // 强制完整同步：解除「增量跳过」锁定。清空本机记录的 lastLocal/lastSha（localStorage + 内存），
 // 使下一轮 syncFromCloud 对所有键重新拉取并合并（并集合并，只增不删），让两端收敛到云端、解除同步死锁。
 async function forceFullSync(){
@@ -1605,13 +1605,14 @@ async function carryOverUncompleted(){
   const prevDates=allKeys.filter(k=>k.startsWith('daily:')).map(k=>k.slice(6)).filter(d=>d<S.date).sort().reverse();
   if(prevDates.length===0){if(changed)await saveDaily();return}
   const scanDates=prevDates.slice(0,60);
-  const taskMap={};
+  const taskMap={}, dismissedAny={};
   for(const d of scanDates){
     const data=await DB.get('daily:'+d);if(!data)continue;
     for(const boardId in data){
       const tasks=data[boardId];if(!Array.isArray(tasks))continue;
       for(const t of tasks){
         const tid=t.id||('txt:'+t.text);
+        if(!!t.dismissed)dismissedAny[tid]=true; // 任一历史出现被 dismissed → 视为用户已取消该循环任务
         if(!taskMap[tid]||d>taskMap[tid].date){taskMap[tid]={date:d,done:!!t.done,dismissed:!!t.dismissed,task:t,boardId}}
       }
     }
@@ -1619,7 +1620,7 @@ async function carryOverUncompleted(){
   // 3) 未完成的任务顺延到当天（使用稳定 id，不再生成随机 id，避免跨天复制产生重复）
   for(const tid in taskMap){
     const{date,done,dismissed,task,boardId}=taskMap[tid];
-    if(done||dismissed)continue; // 已完成或已删除，不再顺延
+    if(done||dismissed||dismissedAny[tid])continue; // 已完成/已删除/曾被取消，不再顺延（堵住"删除后隔天又被顺延复活"的时序漏洞）
     if(!S.daily[boardId])S.daily[boardId]=[];
     if(S.daily[boardId].some(t=>t.text===task.text))continue; // 当天已有同名任务则不重复添加
     S.daily[boardId].push({id:tid,text:task.text,done:false,carriedFrom:date});
@@ -1717,19 +1718,29 @@ async function toggleTask(boardId,idx){
 }
 async function deleteTask(boardId,idx){
   const task=S.daily[boardId]&&S.daily[boardId][idx];if(!task)return;
-  S.daily[boardId].splice(idx,1);renderBoards();saveDaily();
-  // 显式立即记录墓碑，确保删除跨设备同步：不依赖 saveDaily 的异步完成时序，避免"同步读到旧值→云端旧项被拉回→复活"
-  try{const tp='daily:'+S.date+'::'+boardId+'::'+_idPathOf(task);const T=(await DB._localGet('__tombstones'))||[];if(!Array.isArray(T))T.length=0;if(!T.includes(tp)){T.push(tp);await DB._localSet('__tombstones',T);try{await cloudSet('__tombstones',T)}catch(_){}}}catch(_){}
-  // 标记之前所有日期的同名任务为 dismissed，防止删除后再次顺延
+  S.daily[boardId].splice(idx,1);renderBoards();
+  // ① 先 await 落盘：确保本地 daily:日期 已写入「无此任务」状态，避免与后续同步读取竞态（否则同步可能读到旧值把云端旧项拉回）
+  await saveDaily();
+  // ② 显式立即记录墓碑（路径与 syncFromCloud 的 applyTombstones 完全一致：daily:<日期>::<boardId>::<id>），
+  //    兜底 _localSet 的自动墓碑时序，确保「删除」能跨设备传播，不再复活
+  try{
+    const tp='daily:'+S.date+'::'+boardId+'::'+_idPathOf(task);
+    const T=(await DB._localGet('__tombstones'))||[];
+    if(!Array.isArray(T))T.length=0;
+    if(!T.includes(tp)){T.push(tp);await DB._localSet('__tombstones',T);try{await cloudSet('__tombstones',T)}catch(_){}}
+  }catch(_){}
+  // ③ 标记之前所有日期的同名任务为 dismissed，防止删除后再次顺延复活
   const tid=task.id||('txt:'+task.text);
-  const allKeys=await DB.keys();
-  const prevDates=allKeys.filter(k=>k.startsWith('daily:')).map(k=>k.slice(6)).filter(d=>d<S.date);
-  for(const d of prevDates){
-    const data=await DB.get('daily:'+d);if(!data)continue;
-    let modified=false;
-    for(const bid in data){if(!Array.isArray(data[bid]))continue;for(const t of data[bid]){if((t.id||('txt:'+t.text))===tid&&!t.done){t.dismissed=true;modified=true}}}
-    if(modified)await DB.set('daily:'+d,data);
-  }
+  try{
+    const allKeys=await DB.keys();
+    const prevDates=allKeys.filter(k=>k.startsWith('daily:')).map(k=>k.slice(6)).filter(d=>d<S.date);
+    for(const d of prevDates){
+      const data=await DB.get('daily:'+d);if(!data)continue;
+      let modified=false;
+      for(const bid in data){if(!Array.isArray(data[bid]))continue;for(const t of data[bid]){if((t.id||('txt:'+t.text))===tid&&!t.done){t.dismissed=true;modified=true}}}
+      if(modified)await DB.set('daily:'+d,data);
+    }
+  }catch(_){}
 }
 function fmtYMD(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day}
 function shiftDate(days){const [y,m,dd]=S.date.split('-').map(Number);const d=new Date(y,m-1,dd);d.setDate(d.getDate()+days);S.date=fmtYMD(d);document.getElementById('datePicker').value=S.date;loadDaily()}
@@ -2656,7 +2667,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v131'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v132'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
