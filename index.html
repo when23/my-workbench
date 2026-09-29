@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v130</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v131</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -867,7 +867,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v130</span>
+  <span id="updateText">✅ 已是最新 v131</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1706,10 +1706,20 @@ function setPhaseColor(id,color){
 }
 async function saveDaily(){const data={};S.boards.forEach(b=>{if(S.daily[b.id]&&S.daily[b.id].length>0)data[b.id]=S.daily[b.id]});await DB.set('daily:'+S.date,data);S.daily=data}
 function addTask(boardId){const input=document.getElementById('add-input-'+boardId);const text=input.value.trim();if(!text)return;if(!S.daily[boardId])S.daily[boardId]=[];S.daily[boardId].push({id:genId(),text,done:false});input.value='';renderBoards();saveDaily()}
-function toggleTask(boardId,idx){S.daily[boardId][idx].done=!S.daily[boardId][idx].done;renderBoards();saveDaily()}
+async function toggleTask(boardId,idx){
+  const arr=S.daily[boardId]; if(!arr||!arr[idx])return;
+  arr[idx].done=!arr[idx].done;
+  // 只更新该任务项的勾选样式，不重建整个 boards：避免移动端 iOS 对"innerHTML 动态重建元素"的 click 不稳定（电脑用鼠标不受影响，所以电脑一次就好）
+  const card=document.querySelector('.board-card[data-board="'+boardId+'"]');
+  if(card){const items=card.querySelectorAll('.task-item');const item=items[idx];
+    if(item){item.classList.toggle('done',arr[idx].done);const cb=item.querySelector('.task-checkbox');if(cb)cb.classList.toggle('checked',arr[idx].done);}}
+  await saveDaily(); // 确保本地写入完成后再返回，减少与自动同步读取的竞态（避免"刚勾选又被云端旧值覆盖")
+}
 async function deleteTask(boardId,idx){
   const task=S.daily[boardId]&&S.daily[boardId][idx];if(!task)return;
   S.daily[boardId].splice(idx,1);renderBoards();saveDaily();
+  // 显式立即记录墓碑，确保删除跨设备同步：不依赖 saveDaily 的异步完成时序，避免"同步读到旧值→云端旧项被拉回→复活"
+  try{const tp='daily:'+S.date+'::'+boardId+'::'+_idPathOf(task);const T=(await DB._localGet('__tombstones'))||[];if(!Array.isArray(T))T.length=0;if(!T.includes(tp)){T.push(tp);await DB._localSet('__tombstones',T);try{await cloudSet('__tombstones',T)}catch(_){}}}catch(_){}
   // 标记之前所有日期的同名任务为 dismissed，防止删除后再次顺延
   const tid=task.id||('txt:'+task.text);
   const allKeys=await DB.keys();
@@ -2646,7 +2656,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v130'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v131'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
