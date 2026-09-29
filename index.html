@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v132</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v133</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -867,7 +867,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v132</span>
+  <span id="updateText">✅ 已是最新 v133</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1594,6 +1594,9 @@ async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};await car
 // 未完成的任务自动顺延到下一天，直到完成
 async function carryOverUncompleted(){
   let changed=false;
+  // 加载本地墓碑：被删除（含跨设备删除）的任务不应再被顺延复活（顺延是经 saveDaily 直传云端、绕不过 syncFromCloud 的墓碑过滤，故这里单独拦截）
+  let tombSet=null;
+  try{ const T=(await DB._localGet('__tombstones'))||[]; if(Array.isArray(T))tombSet=new Set(T); }catch(_){}
   // 1) 清理当天可能存在的同文本重复（修复旧数据/跨天复制产生的重复）
   for(const bid in S.daily){
     const seen={};const before=(S.daily[bid]||[]).length;
@@ -1621,6 +1624,7 @@ async function carryOverUncompleted(){
   for(const tid in taskMap){
     const{date,done,dismissed,task,boardId}=taskMap[tid];
     if(done||dismissed||dismissedAny[tid])continue; // 已完成/已删除/曾被取消，不再顺延（堵住"删除后隔天又被顺延复活"的时序漏洞）
+    if(tombSet&&tombSet.has('daily:'+S.date+'::'+boardId+'::'+tid))continue; // 该任务已被删除（墓碑存在）→ 不再顺延复活
     if(!S.daily[boardId])S.daily[boardId]=[];
     if(S.daily[boardId].some(t=>t.text===task.text))continue; // 当天已有同名任务则不重复添加
     S.daily[boardId].push({id:tid,text:task.text,done:false,carriedFrom:date});
@@ -2667,7 +2671,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v132'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v133'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
