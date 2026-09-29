@@ -82,7 +82,7 @@ img{max-width:100%;display:block}
 .board-name:hover{border-color:var(--border)}
 .board-name:focus{outline:none;border-color:var(--primary);background:var(--primary-light)}
 .task-list{display:flex;flex-direction:column;gap:4px}
-.task-item{display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:var(--r-xs);transition:background .15s}
+.task-item{display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:var(--r-xs);transition:background .15s;cursor:pointer}
 .task-item:hover{background:var(--border-l)}
 .task-item.done .task-text{text-decoration:line-through;color:var(--text-3)}
 .task-checkbox{width:20px;height:20px;border:2px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;cursor:pointer}
@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v134</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v135</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -867,7 +867,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v134</span>
+  <span id="updateText">✅ 已是最新 v135</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1641,7 +1641,25 @@ async function carryOverUncompleted(){
   }
   if(changed)await saveDaily();
 }
-function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card" data-board="${board.id}" style="--bc:${board.color||'#74C0FC'}"><div class="board-header"><span class="board-drag" title="拖动排序" onpointerdown="onBoardDragStart(event,'${board.id}')">⠿</span><span class="board-color" title="选择颜色" onclick="openBoardColor(event,'${board.id}')" style="background:${board.color||'#74C0FC'}"></span><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" onclick="deleteBoard('${board.id}')" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}"><div class="task-checkbox ${t.done?'checked':''}" onclick="toggleTask('${board.id}',${i})"></div><span class="task-text" onclick="toggleTask('${board.id}',${i})">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" onclick="deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button onclick="addTask('${board.id}')">+</button></div></div>`}).join('')+'<div class="board-add" onclick="addBoard()">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})})}
+let _boardsDelegated=false;
+// 事件委托：在稳定的 boardsGrid 容器上只挂一次 click 监听器，靠冒泡触发。
+// 关键修复：iOS Safari 对「innerHTML 动态插入元素的 onclick 属性」首点只触发 :hover、不派发 click（表现为要点两次）。
+// 改为冒泡到稳定父元素的 click，iOS 才能首点即生效。各交互元素用 data-* 标记，由本处理器分发。
+function onBoardsClick(e){
+  const del=e.target.closest('.task-delete');
+  if(del){deleteTask(del.dataset.board,+del.dataset.idx);return;}
+  const bd=e.target.closest('.board-delete');
+  if(bd){deleteBoard(bd.dataset.board);return;}
+  const co=e.target.closest('.board-color');
+  if(co){openBoardColor(e,co.dataset.board);return;}
+  const ad=e.target.closest('[data-add]');
+  if(ad){addTask(ad.dataset.add);return;}
+  const ba=e.target.closest('.board-add');
+  if(ba){addBoard();return;}
+  const ti=e.target.closest('.task-item');
+  if(ti){toggleTask(ti.dataset.board,+ti.dataset.idx);return;}
+}
+function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card" data-board="${board.id}" style="--bc:${board.color||'#74C0FC'}"><div class="board-header"><span class="board-drag" title="拖动排序" onpointerdown="onBoardDragStart(event,'${board.id}')">⠿</span><span class="board-color" title="选择颜色" data-board="${board.id}" style="background:${board.color||'#74C0FC'}"></span><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" data-board="${board.id}" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}" data-board="${board.id}" data-idx="${i}"><div class="task-checkbox ${t.done?'checked':''}"></div><span class="task-text">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" data-board="${board.id}" data-idx="${i}">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button data-add="${board.id}">+</button></div></div>`}).join('')+'<div class="board-add">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})});if(!_boardsDelegated){g.addEventListener('click',onBoardsClick);_boardsDelegated=true;}}
 async function saveBoards(){await DB.set('boards',S.boards)}
 function addBoard(){const id=genId();S.boards.push({id,name:'新板块'});saveBoards();renderBoards();setTimeout(()=>{const inp=document.querySelector('.board-name[data-board="'+id+'"]');if(inp){inp.focus();inp.select()}},0)}
 async function deleteBoard(id){
@@ -1689,7 +1707,7 @@ function openBoardColor(e,id){
   const pop=document.getElementById('boardColorPop');
   pop.innerHTML=BOARD_COLORS.map(c=>'<button class="bc-swatch" style="background:'+c+'" onclick="setBoardColor(\''+id+'\',\''+c+'\')"></button>').join('');
   pop.style.display='flex';
-  const r=e.currentTarget.getBoundingClientRect();
+  const r=(e.target&&e.target.closest?e.target.closest('.board-color'):e.target).getBoundingClientRect();
   pop.style.top=(r.bottom+6)+'px';
   pop.style.left=r.left+'px';
   setTimeout(()=>document.addEventListener('click',closeBoardColor),0);
@@ -2680,7 +2698,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v134'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v135'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
