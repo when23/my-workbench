@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v135</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v136</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -867,7 +867,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v135</span>
+  <span id="updateText">✅ 已是最新 v136</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1628,6 +1628,23 @@ async function carryOverUncompleted(){
         if(!taskMap[tid]||d>taskMap[tid].date){taskMap[tid]={date:d,done:!!t.done,dismissed:!!t.dismissed,task:t,boardId}}
       }
     }
+  }
+  // 2.5) 本地历史扫描后仍无可顺延任务，但已连接云端 → 从云端补齐最近一个「小于今天」的 daily 文件
+  // 覆盖两类本地缺失场景：① 设备冷启动本地无历史 daily ② 本地 daily 键为空的「空壳」——这两种情况下仅扫本地会丢失昨日未完成项，导致每日执行整片空白
+  // 正常情况（本地有历史）taskMap 非空，此分支不触发，无额外网络开销。CLOUD 配置在脚本加载时已就绪，无需等待 initCloudIfNeeded 的网络验证。
+  if(Object.keys(taskMap).length===0 && CLOUD.on && CLOUD.ghToken && CLOUD.ghRepo){
+    try{
+      const jr=await _ghGetJson('/repos/'+CLOUD.ghRepo+'/contents/'+CLOUD.ghPath+'/');
+      if(Array.isArray(jr)){
+        const cd=jr.filter(f=>f.name&&f.name.startsWith('daily:')&&f.name.endsWith('.json')).map(f=>f.name.slice(6,-5)).filter(d=>d<S.date).sort();
+        if(cd.length){
+          const cv=await cloudGet('daily:'+cd[cd.length-1]);
+          if(cv&&typeof cv==='object'){
+            for(const boardId in cv){const tasks=cv[boardId];if(!Array.isArray(tasks))continue;for(const t of tasks){const tid=t.id||('txt:'+t.text);if(!!t.dismissed)dismissedAny[tid]=true;if(!taskMap[tid]||cd[cd.length-1]>taskMap[tid].date){taskMap[tid]={date:cd[cd.length-1],done:!!t.done,dismissed:!!t.dismissed,task:t,boardId}}}}
+          }
+        }
+      }
+    }catch(_){}
   }
   // 3) 未完成的任务顺延到当天（使用稳定 id，不再生成随机 id，避免跨天复制产生重复）
   for(const tid in taskMap){
@@ -2698,7 +2715,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v135'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v136'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
