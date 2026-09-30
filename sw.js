@@ -1,12 +1,15 @@
 // Service Worker - 网络优先策略，确保刷新能看到最新版本
-const CACHE = 'daily-workspace-v137';
+const CACHE = 'daily-workspace-v138';
 const VER = CACHE.replace('daily-workspace-', ''); // 页面显示用的版本号，如 'v118'
-const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
+const ASSETS = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
-  );
+  // 关键：先 skipWaiting 确保新 SW 必定激活，避免 addAll 任一资源失败导致整段 reject、
+  // 新 SW 卡在 waiting、旧 SW 永远控制页面、用户卡在旧版本（v137→v138 升级时曾出现"硬刷都刷不出新版"即此因）
+  e.waitUntil((async () => {
+    await self.skipWaiting();
+    try { const cache = await caches.open(CACHE); await cache.addAll(ASSETS); } catch (_) {}
+  })());
 });
 
 self.addEventListener('activate', e => {
