@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v140</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v141</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -868,7 +868,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v140</span>
+  <span id="updateText">✅ 已是最新 v141</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1598,6 +1598,7 @@ async function carryOverUncompleted(){
   _diag('启动 cloud='+(CLOUD.on&&CLOUD.ghToken&&CLOUD.ghRepo?'on':'off'));
   try{
   let changed=false;
+  const cloudForce={}; // 云端明确拉到的「未完成」任务：以云端真相为准，绕过本地墓碑（避免 v137 防复活修复残留的误删墓碑把昨日未完成项拦死）
   // 加载本地墓碑：被删除（含跨设备删除）的任务不应再被顺延复活（顺延是经 saveDaily 直传云端、绕不过 syncFromCloud 的墓碑过滤，故这里单独拦截）
   let tombSet=null;
   try{ const T=(await DB._localGet('__tombstones'))||[]; if(Array.isArray(T))tombSet=new Set(T); }catch(_){}
@@ -1654,7 +1655,7 @@ async function carryOverUncompleted(){
                 if(!!t.done||!!t.dismissed){ dismissedAny[tid]=true; continue; } // 云端已完成/已取消 → 视为用户已了结，不再顺延
                 if(dismissedAny[tid])continue; // 历史任一出现被取消
                 // 云端未完成 → 以云端为准覆盖本地任何状态，保证今日顺延（修复"本地副本误标 done 导致拉不回"）
-                taskMap[tid]={date:srcDate,done:false,dismissed:false,task:t,boardId};
+                taskMap[tid]={date:srcDate,done:false,dismissed:false,task:t,boardId}; cloudForce[tid]=true;
               }
               _diag('云端源='+srcDate+' taskMap='+Object.keys(taskMap).length);
             }
@@ -1664,18 +1665,20 @@ async function carryOverUncompleted(){
     }catch(_){}
   }
   // 3) 未完成的任务顺延到当天（使用稳定 id，不再生成随机 id，避免跨天复制产生重复）
-  let _added=0;
+  let _added=0,_ndone=0,_skipDone=0,_skipTomb=0,_skipDup=0,_curToday=0;
+  for(const tid in taskMap){const m=taskMap[tid]; if(!(m.done||m.dismissed||dismissedAny[tid]))_ndone++;}
+  for(const bid in S.daily){_curToday+=(S.daily[bid]||[]).length;}
   for(const tid in taskMap){
     const{date,done,dismissed,task,boardId}=taskMap[tid];
-    if(done||dismissed||dismissedAny[tid])continue; // 已完成/已删除/曾被取消，不再顺延（堵住"删除后隔天又被顺延复活"的时序漏洞）
-    if(tombSet&&tombSet.has('daily:'+S.date+'::'+boardId+'::'+tid))continue; // 该任务已被删除（墓碑存在）→ 不再顺延复活
+    if(done||dismissed||dismissedAny[tid]){_skipDone++;continue;} // 已完成/已删除/曾被取消，不再顺延（堵住"删除后隔天又被顺延复活"的时序漏洞）
+    if(tombSet&&tombSet.has('daily:'+S.date+'::'+boardId+'::'+tid)&&!cloudForce[tid]){_skipTomb++;continue;} // 该任务已被删除（墓碑存在）→ 不再顺延复活（云端权威未完成的除外）
     if(!S.daily[boardId])S.daily[boardId]=[];
-    if(S.daily[boardId].some(t=>t.text===task.text))continue; // 当天已有同名任务则不重复添加
+    if(S.daily[boardId].some(t=>t.text===task.text)){_skipDup++;continue;} // 当天已有同名任务则不重复添加
     S.daily[boardId].push({id:tid,text:task.text,done:false,carriedFrom:date});
     changed=true; _added++;
   }
   if(changed)await saveDaily();
-  _diag('完成(changed='+changed+' 今日新增='+_added+' 看板='+S.boards.map(b=>b.id).join(','));
+  _diag('完成(changed='+changed+' 今日新增='+_added+' 看板='+S.boards.map(b=>b.id).join(',')+' | 候选可顺延='+_ndone+' 已完成/取消='+_skipDone+' 墓碑='+_skipTomb+' 今天已有='+_skipDup+' 今天原有='+_curToday);
   }catch(e){ _diag('致命异常:'+(e&&e.message||e)); console.error('carryOver',e); }
 }
 let _boardsDelegated=false;
@@ -2735,7 +2738,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v140'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v141'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
