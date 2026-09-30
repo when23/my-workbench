@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v141</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v142</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -868,7 +868,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v141</span>
+  <span id="updateText">✅ 已是最新 v142</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1652,12 +1652,11 @@ async function carryOverUncompleted(){
             for(const boardId in cv){const tasks=cv[boardId];if(!Array.isArray(tasks))continue;
               for(const t of tasks){
                 const tid=t.id||('txt:'+t.text);
-                if(!!t.done||!!t.dismissed){ dismissedAny[tid]=true; continue; } // 云端已完成/已取消 → 视为用户已了结，不再顺延
-                if(dismissedAny[tid])continue; // 历史任一出现被取消
-                // 云端未完成 → 以云端为准覆盖本地任何状态，保证今日顺延（修复"本地副本误标 done 导致拉不回"）
+                if(!!t.done||!!t.dismissed)continue; // 仅以云端自身状态为准：云端已完成/已取消才跳过；本地历史曾 dismissed 不计（避免误标把云端未完成拦掉）
+                // 云端未完成 → 强制覆盖本地任何状态（含本地误标 done 或历史 dismissed），保证今日顺延（云端真相优先）
                 taskMap[tid]={date:srcDate,done:false,dismissed:false,task:t,boardId}; cloudForce[tid]=true;
               }
-              _diag('云端源='+srcDate+' taskMap='+Object.keys(taskMap).length);
+              _diag('云端源='+srcDate+' taskMap='+Object.keys(taskMap).length+' force='+Object.keys(cloudForce).length);
             }
           }
         }
@@ -1670,7 +1669,7 @@ async function carryOverUncompleted(){
   for(const bid in S.daily){_curToday+=(S.daily[bid]||[]).length;}
   for(const tid in taskMap){
     const{date,done,dismissed,task,boardId}=taskMap[tid];
-    if(done||dismissed||dismissedAny[tid]){_skipDone++;continue;} // 已完成/已删除/曾被取消，不再顺延（堵住"删除后隔天又被顺延复活"的时序漏洞）
+    if(done||dismissed||(dismissedAny[tid]&&!cloudForce[tid])){_skipDone++;continue;} // 已完成/已删除/曾被取消（云端权威未完成的除外）
     if(tombSet&&tombSet.has('daily:'+S.date+'::'+boardId+'::'+tid)&&!cloudForce[tid]){_skipTomb++;continue;} // 该任务已被删除（墓碑存在）→ 不再顺延复活（云端权威未完成的除外）
     if(!S.daily[boardId])S.daily[boardId]=[];
     if(S.daily[boardId].some(t=>t.text===task.text)){_skipDup++;continue;} // 当天已有同名任务则不重复添加
