@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v145</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v146</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -782,31 +782,6 @@ img{max-width:100%;display:block}
         </div>
       </div>
       <div class="tab-content" id="tab-health">
-        <div class="health-section" id="healthWeightSection">
-          <h2 class="health-h2">⚖️ 体重记录</h2>
-          <div class="health-weight-form">
-            <input type="date" id="hwDate" class="health-input">
-            <input type="number" id="hwWeight" placeholder="体重 kg" step="0.1" min="0" class="health-input">
-            <input type="text" id="hwNote" placeholder="备注（选填）" class="health-input health-note">
-            <button class="btn btn-primary" onclick="saveWeight()">记录</button>
-          </div>
-          <div class="health-range-bar">
-            <span>趋势：</span>
-            <button class="btn btn-sm health-range-btn active" data-r="week" onclick="setWeightRange('week')">周</button>
-            <button class="btn btn-sm health-range-btn" data-r="month" onclick="setWeightRange('month')">月</button>
-            <button class="btn btn-sm health-range-btn" data-r="year" onclick="setWeightRange('year')">年</button>
-            <button class="btn btn-sm health-range-btn" data-r="custom" onclick="setWeightRange('custom')">自定义</button>
-            <span id="hwCustomWrap" style="display:none">
-              <input type="date" id="hwFrom" class="health-input health-input-sm">
-              <span>至</span>
-              <input type="date" id="hwTo" class="health-input health-input-sm">
-              <button class="btn btn-sm btn-primary" onclick="renderWeightChart()">查看</button>
-            </span>
-          </div>
-          <div class="health-chart-wrap" id="hwChart"></div>
-          <div class="health-weight-list-head collapsed" id="hwListHead" onclick="toggleWeightList()"><span class="wl-title">📋 记录明细</span><span class="wl-stat" id="hwListStat"></span><span class="wl-arrow">▾</span></div>
-          <div class="health-weight-list" id="hwList" style="display:none"></div>
-        </div>
         <div class="health-section" id="healthRecOverviewSection">
           <div class="org-list-header">
             <h3>🩺 健康记录</h3>
@@ -832,6 +807,31 @@ img{max-width:100%;display:block}
           </div>
           <div class="input-card" id="healthRecFormCard" style="margin-bottom:14px"></div>
           <div class="record-list" id="healthRecList"></div>
+        </div>
+        <div class="health-section" id="healthWeightSection">
+          <h2 class="health-h2">⚖️ 体重记录</h2>
+          <div class="health-weight-form">
+            <input type="date" id="hwDate" class="health-input">
+            <input type="number" id="hwWeight" placeholder="体重 kg" step="0.1" min="0" class="health-input">
+            <input type="text" id="hwNote" placeholder="备注（选填）" class="health-input health-note">
+            <button class="btn btn-primary" onclick="saveWeight()">记录</button>
+          </div>
+          <div class="health-range-bar">
+            <span>趋势：</span>
+            <button class="btn btn-sm health-range-btn active" data-r="week" onclick="setWeightRange('week')">周</button>
+            <button class="btn btn-sm health-range-btn" data-r="month" onclick="setWeightRange('month')">月</button>
+            <button class="btn btn-sm health-range-btn" data-r="year" onclick="setWeightRange('year')">年</button>
+            <button class="btn btn-sm health-range-btn" data-r="custom" onclick="setWeightRange('custom')">自定义</button>
+            <span id="hwCustomWrap" style="display:none">
+              <input type="date" id="hwFrom" class="health-input health-input-sm">
+              <span>至</span>
+              <input type="date" id="hwTo" class="health-input health-input-sm">
+              <button class="btn btn-sm btn-primary" onclick="renderWeightChart()">查看</button>
+            </span>
+          </div>
+          <div class="health-chart-wrap" id="hwChart"></div>
+          <div class="health-weight-list-head collapsed" id="hwListHead" onclick="toggleWeightList()"><span class="wl-title">📋 记录明细</span><span class="wl-stat" id="hwListStat"></span><span class="wl-arrow">▾</span></div>
+          <div class="health-weight-list" id="hwList" style="display:none"></div>
         </div>
         <div class="health-section" id="healthReminderSection">
           <h2 class="health-h2">⏰ 健康提醒</h2>
@@ -894,7 +894,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v145</span>
+  <span id="updateText">✅ 已是最新 v146</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -2975,7 +2975,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v145'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v146'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
