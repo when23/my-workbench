@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v142</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v143</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -808,6 +808,32 @@ img{max-width:100%;display:block}
           <div class="health-weight-list" id="hwList" style="display:none"></div>
         </div>
         <div class="health-section">
+          <h2 class="health-h2">😴 睡眠记录</h2>
+          <div class="health-range-bar" id="healthFilter_sleep">
+            <span>筛选：</span>
+            <button class="btn btn-sm health-range-btn active" data-ft="all" onclick="healthSetFilter('sleep','all')">全部</button>
+            <button class="btn btn-sm health-range-btn" data-ft="7d" onclick="healthSetFilter('sleep','7d')">近7天</button>
+            <button class="btn btn-sm health-range-btn" data-ft="30d" onclick="healthSetFilter('sleep','30d')">近30天</button>
+            <button class="btn btn-sm health-range-btn" data-ft="month" onclick="healthSetFilter('sleep','month')">本月</button>
+            <span class="growth-row" style="margin-left:8px">📊 区间 <span id="healthFilterLabel_sleep">全部</span> · <span id="healthCount_sleep">0 条</span></span>
+          </div>
+          <div class="input-card" id="healthForm_sleep" style="margin-bottom:14px"></div>
+          <div class="record-list" id="healthList_sleep"></div>
+        </div>
+        <div class="health-section">
+          <h2 class="health-h2">🍽️ 饮食记录</h2>
+          <div class="health-range-bar" id="healthFilter_diet">
+            <span>筛选：</span>
+            <button class="btn btn-sm health-range-btn active" data-ft="all" onclick="healthSetFilter('diet','all')">全部</button>
+            <button class="btn btn-sm health-range-btn" data-ft="7d" onclick="healthSetFilter('diet','7d')">近7天</button>
+            <button class="btn btn-sm health-range-btn" data-ft="30d" onclick="healthSetFilter('diet','30d')">近30天</button>
+            <button class="btn btn-sm health-range-btn" data-ft="month" onclick="healthSetFilter('diet','month')">本月</button>
+            <span class="growth-row" style="margin-left:8px">📊 区间 <span id="healthFilterLabel_diet">全部</span> · <span id="healthCount_diet">0 条</span></span>
+          </div>
+          <div class="input-card" id="healthForm_diet" style="margin-bottom:14px"></div>
+          <div class="record-list" id="healthList_diet"></div>
+        </div>
+        <div class="health-section">
           <h2 class="health-h2">⏰ 健康提醒</h2>
           <div class="health-reminder-notify">
             <span id="hwNotifyStatus"></span>
@@ -868,7 +894,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v142</span>
+  <span id="updateText">✅ 已是最新 v143</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1548,7 +1574,7 @@ const DB={
   _localClearAll(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').clear();tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,orgSearch:'',outfits:[],outfitCart:[],outfitLocExpanded:{},outfitSearch:'',pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthDiary:[],growthCalMonth:'',growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,orgSearch:'',outfits:[],outfitCart:[],outfitLocExpanded:{},outfitSearch:'',pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthDiary:[],growthCalMonth:'',growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,healthSleep:[],healthDiet:[],healthSleepTags:[],healthDietTags:[],healthSleepFilter:{type:'all',start:'',end:''},healthDietFilter:{type:'all',start:'',end:''},trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
 const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
@@ -2170,6 +2196,17 @@ async function loadHealth(){
   renderReminders();
   updateNotifyStatus();
   scheduleReminders();
+  // 个人睡眠 / 饮食记录
+  S.healthSleep=(await DB.get('healthSleep'))||[];
+  S.healthDiet=(await DB.get('healthDiet'))||[];
+  S.healthSleepTags=(await DB.get('healthSleepTags'))||['失眠','夜醒','多梦','打鼾','早醒'];
+  S.healthDietTags=(await DB.get('healthDietTags'))||['外食','油腻','清淡','少油少盐','暴饮暴食'];
+  if(!S.healthSleepFilter)S.healthSleepFilter={type:'all',start:'',end:''};
+  if(!S.healthDietFilter)S.healthDietFilter={type:'all',start:'',end:''};
+  document.getElementById('healthForm_sleep').innerHTML=healthFormHTML('sleep',null,'')+'<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="healthSubmitAdd(\'sleep\')">+ 添加记录</button>';
+  document.getElementById('healthForm_diet').innerHTML=healthFormHTML('diet',null,'')+'<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="healthSubmitAdd(\'diet\')">+ 添加记录</button>';
+  healthSetFilter('sleep','all');
+  healthSetFilter('diet','all');
 }
 function saveWeight(){
   const date=document.getElementById('hwDate').value;
@@ -2366,6 +2403,158 @@ function fireReminder(r){
   if(r.repeat!=='once'){const [hh,mm]=r.time.split(':').map(Number);const next=new Date();next.setDate(next.getDate()+1);next.setHours(hh,mm,0,0);const delay=next-new Date();if(delay>0&&delay<25*3600*1000)_remTimers.push(setTimeout(()=>fireReminder(r),delay))}
 }
 function closeRemModal(){const m=document.getElementById('remModal');if(m)m.classList.remove('show')}
+
+// ===== 健康中心 · 个人睡眠 / 饮食记录 =====
+const HEALTH_REC_ICON={sleep:'😴',diet:'🍽️'};
+function healthRecordsOf(mod){return mod==='sleep'?S.healthSleep:S.healthDiet}
+function healthSaveRec(mod){return mod==='sleep'?DB.set('healthSleep',S.healthSleep):DB.set('healthDiet',S.healthDiet)}
+function healthTagListOf(mod){return mod==='sleep'?S.healthSleepTags:S.healthDietTags}
+function healthSort(arr){return [...arr].sort((a,b)=>{if((a.date||'')!==(b.date||''))return (b.date||'').localeCompare(a.date||'');return (b.timestamp||'').localeCompare(a.timestamp||'')})}
+function healthApplyFilter(mod){const f=mod==='sleep'?S.healthSleepFilter:S.healthDietFilter;const today=fmtYMD(new Date());if(f.type==='all'){f.start='';f.end=''}else if(f.type==='7d'){f.start=addDays(today,-6);f.end=today}else if(f.type==='30d'){f.start=addDays(today,-29);f.end=today}else if(f.type==='month'){const d=new Date();const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');f.start=y+'-'+m+'-01';f.end=y+'-'+m+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0')}else if(f.type==='custom'&&(!f.start||!f.end)){f.type='all'}}
+function healthInRange(mod,rec){const f=mod==='sleep'?S.healthSleepFilter:S.healthDietFilter;if(!f||f.type==='all'||!f.start||!f.end)return true;const d=rec.date;if(!d)return false;return d>=f.start&&d<=f.end}
+function healthFilteredRecords(mod){return healthRecordsOf(mod).filter(r=>healthInRange(mod,r))}
+function healthFilterLabel(mod){const f=mod==='sleep'?S.healthSleepFilter:S.healthDietFilter;if(!f||f.type==='all')return '全部';if(f.type==='7d')return '近7天';if(f.type==='30d')return '近30天';if(f.type==='month')return '本月';if(f.type==='custom')return (f.start||'?')+' 至 '+(f.end||'?');return '全部'}
+function healthFormHTML(mod,rec,p){
+  const today=fmtYMD(new Date());
+  if(mod==='sleep'){
+    const ab=rec?rec.abnormal||[]:[];
+    const sd=rec?rec.sleepDate||rec.date||'':fmtYMD(new Date());
+    const st=rec?rec.sleepTime||'':'';
+    const hasWake=rec&&rec.wakeDate;
+    const wd=hasWake?rec.wakeDate:addDays(sd,1);
+    const wt=rec?rec.wakeTime||'':'';
+    const autoAttr=hasWake?'':'data-auto="1"';
+    const tags=healthTagListOf('sleep');
+    return `<label>入睡日期</label><input type="date" id="${p}h-sleepDate" value="${sd}" onchange="onHealthSleepDateChange('${p}')"><label>入睡时间</label><input type="time" id="${p}h-sleepTime" value="${st}" onchange="updateHealthSleepPreview('${p}')"><label>醒来日期</label><input type="date" id="${p}h-wakeDate" value="${wd}" ${autoAttr} onchange="this.dataset.auto='';updateHealthSleepPreview('${p}')"><label>醒来时间</label><input type="time" id="${p}h-wakeTime" value="${wt}" onchange="updateHealthSleepPreview('${p}')"><div class="growth-dur-preview" id="${p}h-durPreview">⏱ 填写入睡和醒来时间后自动计算时长</div><label>睡眠质量（可选，1-5 星）</label><div class="gc-stars" id="${p}h-stars" data-rating="${rec&&rec.rating?rec.rating:0}">${[1,2,3,4,5].map(n=>`<span class="gc-star ${n<=(rec&&rec.rating||0)?'on':''}" onclick="gcSetRatingH('${p}',${n})">★</span>`).join('')}</div><label>异常情况(可多选)</label><div class="growth-chips" id="${p}h-abBox">${tags.map(t=>`<label class="growth-chk"><input type="checkbox" name="${p}h-ab" value="${escapeHtml(t)}" ${ab.includes(t)?'checked':''}><span>${escapeHtml(t)}</span></label>`).join('')}</div><button type="button" class="btn btn-ghost btn-sm" onclick="addHealthTag('sleep','${p}')" style="margin-top:8px">＋ 新增标签</button><label>备注(可选)</label><textarea id="${p}h-note" rows="2" placeholder="如：入睡较晚">${rec?escapeHtml(rec.note||''):''}</textarea>`;
+  }
+  const tags=healthTagListOf('diet');
+  const dsel=rec?rec.tags||[]:[];
+  return `<label>日期</label><input type="date" id="${p}h-date" value="${rec?rec.date:today}"><label>早餐(吃了什么)</label><textarea id="${p}h-break" rows="2" placeholder="如：燕麦+鸡蛋">${rec?escapeHtml(rec.breakfast||''):''}</textarea><label>中餐(吃了什么)</label><textarea id="${p}h-lunch" rows="2" placeholder="如：米饭+青菜+鱼">${rec?escapeHtml(rec.lunch||''):''}</textarea><label>晚餐(吃了什么)</label><textarea id="${p}h-dinner" rows="2" placeholder="如：面条">${rec?escapeHtml(rec.dinner||''):''}</textarea><div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:88px"><label>饮水(杯)</label><input type="number" id="${p}h-water" min="0" step="1" value="${rec&&rec.water!=null?rec.water:''}"></div></div><label>备注标签(可多选)</label><div class="growth-chips" id="${p}h-tagBox">${tags.map(t=>`<label class="growth-chk"><input type="checkbox" name="${p}h-tags" value="${escapeHtml(t)}" ${dsel.includes(t)?'checked':''}><span>${escapeHtml(t)}</span></label>`).join('')}</div><button type="button" class="btn btn-ghost btn-sm" onclick="addHealthTag('diet','${p}')" style="margin-top:8px">＋ 新增标签</button><label>备注(可选)</label><textarea id="${p}h-note" rows="2" placeholder="其他备注">${rec?escapeHtml(rec.note||''):''}</textarea>`;
+}
+function updateHealthSleepPreview(p){
+  const el=document.getElementById(p+'h-durPreview');if(!el)return;
+  const sd=document.getElementById(p+'h-sleepDate').value,st=document.getElementById(p+'h-sleepTime').value,wd=document.getElementById(p+'h-wakeDate').value,wt=document.getElementById(p+'h-wakeTime').value;
+  const d=computeSleepDuration(sd,st,wd,wt);
+  if(d==null){el.textContent='⏱ 填写入睡和醒来时间后自动计算时长';el.className='growth-dur-preview';return}
+  el.textContent='⏱ 本次睡眠时长：'+d+' 小时';el.className='growth-dur-preview active';
+}
+function onHealthSleepDateChange(p){
+  const sd=document.getElementById(p+'h-sleepDate').value;if(!sd)return;
+  const wdEl=document.getElementById(p+'h-wakeDate');
+  if(!wdEl.value||wdEl.dataset.auto==='1'){wdEl.value=addDays(sd,1);wdEl.dataset.auto='1'}
+  updateHealthSleepPreview(p);
+}
+function gcSetRatingH(p,n){const box=document.getElementById(p+'h-stars');if(!box)return;const cur=Number(box.dataset.rating||0);const v=cur===n?0:n;box.dataset.rating=v;box.querySelectorAll('.gc-star').forEach((s,i)=>s.classList.toggle('on',(i+1)<=v))}
+function addHealthTag(mod,p){
+  const boxId=mod==='sleep'?'abBox':'tagBox';
+  const box=document.getElementById(p+'h-'+boxId);if(!box||box.parentNode.querySelector('.ab-add-row'))return;
+  const row=document.createElement('div');row.className='ab-add-row';
+  row.innerHTML=`<input type="text" id="${p}h-${mod==='sleep'?'abNew':'tagNew'}" placeholder="输入新标签" maxlength="10"><button type="button" class="btn btn-primary btn-sm" onclick="confirmHealthTag('${mod}','${p}')">确认</button><button type="button" class="btn btn-ghost btn-sm" onclick="cancelHealthTag('${p}')">取消</button>`;
+  box.parentNode.insertBefore(row,box.nextSibling);
+  const inp=document.getElementById(p+'h-'+(mod==='sleep'?'abNew':'tagNew'));inp.focus();
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')confirmHealthTag(mod,p)});
+}
+async function confirmHealthTag(mod,p){
+  const inp=document.getElementById(p+'h-'+(mod==='sleep'?'abNew':'tagNew'));if(!inp)return;
+  const t=inp.value.trim();if(!t){showToast('请输入标签名','error');return}
+  const list=healthTagListOf(mod);
+  if(list.includes(t)){showToast('该标签已存在','error');return}
+  list.push(t);await DB.set(mod==='sleep'?'healthSleepTags':'healthDietTags',list);
+  const box=document.getElementById(p+'h-'+(mod==='sleep'?'abBox':'tagBox'));
+  const lab=document.createElement('label');lab.className='growth-chk';
+  lab.innerHTML=`<input type="checkbox" name="${p}h-${mod==='sleep'?'ab':'tags'}" value="${escapeHtml(t)}" checked><span>${escapeHtml(t)}</span>`;
+  box.appendChild(lab);cancelHealthTag(p);showToast('已新增标签：'+t,'success');
+}
+function cancelHealthTag(p){const box=document.querySelector('.ab-add-row');if(box)box.remove()}
+async function healthSubmitAdd(mod){
+  const rec={id:genId(),timestamp:nowISO()};
+  if(mod==='sleep'){
+    const sleepDate=document.getElementById('h-sleepDate').value;
+    const sleepTime=document.getElementById('h-sleepTime').value;
+    const wakeDate=document.getElementById('h-wakeDate').value;
+    const wakeTime=document.getElementById('h-wakeTime').value;
+    if(!sleepDate){showToast('请选择入睡日期','error');return}
+    if(!sleepTime||!wakeTime){showToast('请填写入睡和醒来时间','error');return}
+    const duration=computeSleepDuration(sleepDate,sleepTime,wakeDate,wakeTime)||0;
+    rec.date=sleepDate;rec.sleepDate=sleepDate;rec.sleepTime=sleepTime;rec.wakeDate=wakeDate;rec.wakeTime=wakeTime;rec.duration=duration;
+    rec.rating=Number(document.getElementById('h-stars').dataset.rating||0);
+    rec.abnormal=Array.from(document.querySelectorAll('[name="h-ab"]')).filter(c=>c.checked).map(c=>c.value);
+    rec.note=document.getElementById('h-note').value.trim();
+  }else{
+    const date=document.getElementById('h-date').value;
+    if(!date){showToast('请选择日期','error');return}
+    rec.date=date;
+    rec.breakfast=document.getElementById('h-break').value.trim();
+    rec.lunch=document.getElementById('h-lunch').value.trim();
+    rec.dinner=document.getElementById('h-dinner').value.trim();
+    rec.water=Number(document.getElementById('h-water').value)||0;
+    rec.tags=Array.from(document.querySelectorAll('[name="h-tags"]')).filter(c=>c.checked).map(c=>c.value);
+    rec.note=document.getElementById('h-note').value.trim();
+    if(!rec.breakfast&&!rec.lunch&&!rec.dinner&&!rec.water&&rec.tags.length===0){showToast('请至少填写一项内容','error');return}
+  }
+  if(mod==='sleep')S.healthSleep.unshift(rec);else S.healthDiet.unshift(rec);
+  await healthSaveRec(mod);
+  document.getElementById('healthForm_'+mod).innerHTML=healthFormHTML(mod,null,'')+'<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="healthSubmitAdd(\''+mod+'\')">+ 添加记录</button>';
+  healthRenderList(mod);showToast('记录成功','success');
+}
+function healthRenderList(mod){
+  healthApplyFilter(mod);
+  const arr=healthSort(healthFilteredRecords(mod));
+  const list=document.getElementById('healthList_'+mod);if(!list)return;
+  const allCount=healthRecordsOf(mod).length;
+  if(arr.length===0){list.innerHTML='<div class="empty"><div class="empty-icon">'+HEALTH_REC_ICON[mod]+'</div><p>'+(allCount>0?'所选时间段内暂无记录':'还没有记录')+'<br>'+(allCount>0?'换个时间范围或':'在上方')+'添加记录吧</p></div>';return}
+  list.innerHTML=arr.map(r=>{
+    let body='';
+    if(mod==='sleep'){
+      const ab=(r.abnormal||[]).map(t=>`<span class="growth-chip ab">${escapeHtml(t)}</span>`).join('')||'<span class="growth-chip">无异常</span>';
+      const timeInfo=(r.sleepTime||r.wakeTime)?`🌙 ${r.sleepTime||'?'} 睡 → ☀️ ${r.wakeTime||'?'} 醒`:'';
+      const rate=r.rating?`⭐ 质量 ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}`:'';
+      body=`<div class="record-text">😴 睡眠 ${r.duration!=null?r.duration:0} 小时</div>${timeInfo?`<div class="growth-row">${timeInfo}</div>`:''}${rate?`<div class="growth-row">${rate}</div>`:''}<div class="growth-chips">${ab}</div>${r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:''}`;
+    }else{
+      const meals=[];if(r.breakfast)meals.push('🌅 早餐：'+escapeHtml(r.breakfast));if(r.lunch)meals.push('☀️ 中餐：'+escapeHtml(r.lunch));if(r.dinner)meals.push('🌙 晚餐：'+escapeHtml(r.dinner));
+      const water=r.water?`<div class="growth-row">💧 饮水 ${r.water} 杯</div>`:'';
+      const tags=(r.tags||[]).map(t=>`<span class="growth-chip">${escapeHtml(t)}</span>`).join('');
+      body=(meals.length?meals.map(m=>`<div class="record-text">${m}</div>`).join(''):'<div class="record-text" style="color:var(--text-3)">当天未记录正餐</div>')+water+(tags?`<div class="growth-chips" style="margin-top:6px">${tags}</div>`:'')+(r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:'');
+    }
+    return `<div class="record-card"><div class="record-meta"><span class="growth-record-date">${r.date||''}</span><span class="record-time">${fmtDate(r.timestamp)}</span></div>${body}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="healthEditRecord('${mod}','${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="healthDelRecord('${mod}','${r.id}')">删除</button></div></div>`;
+  }).join('');
+}
+function healthSetFilter(mod,type){
+  const f=mod==='sleep'?S.healthSleepFilter:S.healthDietFilter;
+  f.type=type;f.start='';f.end='';
+  healthApplyFilter(mod);
+  document.querySelectorAll('#healthFilter_'+mod+' [data-ft]').forEach(b=>b.classList.toggle('active',b.dataset.ft===type));
+  const lbl=document.getElementById('healthFilterLabel_'+mod);if(lbl)lbl.textContent=healthFilterLabel(mod);
+  const cnt=document.getElementById('healthCount_'+mod);if(cnt)cnt.textContent=healthRecordsOf(mod).length+' 条';
+  healthRenderList(mod);
+}
+async function healthDelRecord(mod,id){if(!confirm('确定删除这条记录吗？'))return;const arr=healthRecordsOf(mod);const idx=arr.findIndex(r=>r.id===id);if(idx<0)return;arr.splice(idx,1);if(mod==='sleep')S.healthSleep=arr;else S.healthDiet=arr;await healthSaveRec(mod);healthRenderList(mod);showToast('已删除','success')}
+function healthEditRecord(mod,id){
+  const arr=healthRecordsOf(mod);const rec=arr.find(r=>r.id===id);if(!rec)return;
+  openEditModal('编辑'+HEALTH_REC_ICON[mod]+'记录',healthFormHTML(mod,rec,'edit-'));
+  document.getElementById('saveEdit').onclick=async()=>{
+    if(mod==='sleep'){
+      const sleepDate=document.getElementById('edit-h-sleepDate').value;
+      const sleepTime=document.getElementById('edit-h-sleepTime').value;
+      const wakeDate=document.getElementById('edit-h-wakeDate').value;
+      const wakeTime=document.getElementById('edit-h-wakeTime').value;
+      if(!sleepDate){showToast('请选择入睡日期','error');return}
+      const duration=computeSleepDuration(sleepDate,sleepTime,wakeDate,wakeTime);
+      rec.date=sleepDate;rec.sleepDate=sleepDate;rec.sleepTime=sleepTime;rec.wakeDate=wakeDate;rec.wakeTime=wakeTime;rec.duration=duration==null?(rec.duration!=null?rec.duration:0):duration;
+      rec.rating=Number(document.getElementById('edit-h-stars').dataset.rating||0);
+      rec.abnormal=Array.from(document.querySelectorAll('[name="edit-h-ab"]')).filter(c=>c.checked).map(c=>c.value);
+      rec.note=document.getElementById('edit-h-note').value.trim();
+    }else{
+      const date=document.getElementById('edit-h-date').value;
+      if(!date){showToast('请选择日期','error');return}
+      rec.date=date;rec.breakfast=document.getElementById('edit-h-break').value.trim();rec.lunch=document.getElementById('edit-h-lunch').value.trim();rec.dinner=document.getElementById('edit-h-dinner').value.trim();
+      rec.water=Number(document.getElementById('edit-h-water').value)||0;
+      rec.tags=Array.from(document.querySelectorAll('[name="edit-h-tags"]')).filter(c=>c.checked).map(c=>c.value);
+      rec.note=document.getElementById('edit-h-note').value.trim();
+    }
+    await healthSaveRec(mod);closeEditModal();healthRenderList(mod);showToast('已更新','success');
+  };
+}
 
 // ===== 日常穿搭模块 (Outfit) =====
 const OUTFIT_TAGS=['工作','日常','约会','旅游'];
@@ -2737,7 +2926,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v142'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v143'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
