@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v147</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v148</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -894,7 +894,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v147</span>
+  <span id="updateText">✅ 已是最新 v148</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1117,6 +1117,10 @@ async function cloudSet(key,val){
     if(!ok)throw new Error(lastErr||('PUT '+f.name+' 失败'));
   }
 }
+// 云端写入按 key 串行队列：同键写入排队（避免 fire-and-forget 后并发写同一键导致"后到携带旧数据覆盖新数据"），
+// 不同键并行（不影响吞吐）；全部后台执行不阻塞 UI，并天然避让 GitHub 二级限流（突发并发极敏感）。
+const _cloudKeyQ={};
+function _cloudEnqueue(fn,key){const prev=_cloudKeyQ[key]||Promise.resolve();const p=prev.then(fn);_cloudKeyQ[key]=p.catch(()=>{});return p}
 async function cloudDel(key){
   const names=[key+'.json'];
   const n=cloudChunkIndex[key];
@@ -1542,11 +1546,13 @@ const DB={
     await this._localSet(key,val);
     // 防「空集合覆盖云端真数据」：本地值是空数组/空对象时不向上传（云端优先），
     // 避免某设备本地残留空数组时，加载即把云端 3 条覆盖成空。删除同步本就靠墓碑（单条删除），整键清空极少且代价更低。
-    if(CLOUD.enabled && !_isEmptySync(val)){try{await cloudSet(key,val);cloudLastErr='';CLOUD.lastWriteOk=Date.now()}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)}}
+    // 本地写已完成后立即返回（UI 不阻塞）；云端写入经按 key 串行队列后台执行（v148：修复所有模块增删均等待云端 ~5 秒卡顿）。
+    if(CLOUD.enabled && !_isEmptySync(val)){_cloudEnqueue(()=>cloudSet(key,val),key).then(()=>{cloudLastErr='';CLOUD.lastWriteOk=Date.now()}).catch(e=>{const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端写入失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端写入失败',e)})}
   },
   async del(key){
     await this._localDel(key);
-    if(CLOUD.enabled){try{await cloudDel(key);cloudLastErr='';CLOUD.lastWriteOk=Date.now()}catch(e){const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端删除失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端删除失败',e)}}
+    // 本地删已完成后立即返回；云端删除经按 key 串行队列后台执行（v148：修复删除等待云端卡顿）
+    if(CLOUD.enabled){_cloudEnqueue(()=>cloudDel(key),key).then(()=>{cloudLastErr='';CLOUD.lastWriteOk=Date.now()}).catch(e=>{const m=cloudErrMsg(e);cloudLastErr=m;if(!CLOUD.lastWriteError||Date.now()-CLOUD.lastWriteError>8000){showToast('云端删除失败：'+(m.slice(0,140)),'error')}CLOUD.lastWriteError=Date.now();updateCloudStatus();console.warn('云端删除失败',e)})}
   },
   async keys(){return this._localKeys()},
   _localGet(key){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
@@ -1562,7 +1568,7 @@ const DB={
           const T=(await this._localGet('__tombstones'))||[];
           let ch=false;
           for(const t of removed){ if(!T.includes(t)){T.push(t);ch=true;} }
-          if(ch){ await this._localSet('__tombstones',T); try{await cloudSet('__tombstones',T)}catch(_){} }
+          if(ch){ await this._localSet('__tombstones',T); try{_cloudEnqueue(()=>cloudSet('__tombstones',T),'__tombstones').catch(_=>{})}catch(_){} }
         }
       }catch(_){}
     }
@@ -2975,7 +2981,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v147'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v148'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
