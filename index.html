@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v146</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v147</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -894,7 +894,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v146</span>
+  <span id="updateText">✅ 已是最新 v147</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -2546,7 +2546,7 @@ async function healthSubmitAdd(mod){
     if(!rec.breakfast&&!rec.lunch&&!rec.dinner&&!rec.water&&rec.tags.length===0){showToast('请至少填写一项内容','error');return}
   }
   if(mod==='sleep')S.healthSleep.unshift(rec);else S.healthDiet.unshift(rec);
-  await healthSaveRec(mod);
+  healthSaveRec(mod).catch(e=>console.warn('健康记录后台保存失败',e));
   document.getElementById('healthRecFormCard').innerHTML=healthFormHTML(mod,null,'')+'<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="healthSubmitAdd(\''+mod+'\')">+ 添加记录</button>';
   healthRenderList(mod);showToast('记录成功','success');
 }
@@ -2577,7 +2577,7 @@ function healthSetFilter(type){
   S.healthRecFilter={type:type,start:'',end:''};
   renderHealthRecOverview();
 }
-async function healthDelRecord(mod,id){if(!confirm('确定删除这条记录吗？'))return;const arr=healthRecordsOf(mod);const idx=arr.findIndex(r=>r.id===id);if(idx<0)return;arr.splice(idx,1);if(mod==='sleep')S.healthSleep=arr;else S.healthDiet=arr;await healthSaveRec(mod);healthRenderList(mod);showToast('已删除','success')}
+async function healthDelRecord(mod,id){if(!confirm('确定删除这条记录吗？'))return;const arr=healthRecordsOf(mod);const idx=arr.findIndex(r=>r.id===id);if(idx<0)return;arr.splice(idx,1);if(mod==='sleep')S.healthSleep=arr;else S.healthDiet=arr;healthSaveRec(mod).catch(e=>console.warn('健康记录后台保存失败',e));healthRenderList(mod);showToast('已删除','success')}
 function healthEditRecord(mod,id){
   const arr=healthRecordsOf(mod);const rec=arr.find(r=>r.id===id);if(!rec)return;
   openEditModal('编辑'+HEALTH_REC_ICON[mod]+'记录',healthFormHTML(mod,rec,'edit-'));
@@ -2601,7 +2601,7 @@ function healthEditRecord(mod,id){
       rec.tags=Array.from(document.querySelectorAll('[name="edit-h-tags"]')).filter(c=>c.checked).map(c=>c.value);
       rec.note=document.getElementById('edit-h-note').value.trim();
     }
-    await healthSaveRec(mod);closeEditModal();healthRenderList(mod);showToast('已更新','success');
+    healthSaveRec(mod).catch(e=>console.warn('健康记录后台保存失败',e));closeEditModal();healthRenderList(mod);showToast('已更新','success');
   };
 }
 
@@ -2975,7 +2975,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v146'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v147'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
