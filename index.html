@@ -82,15 +82,15 @@ img{max-width:100%;display:block}
 .board-name:hover{border-color:var(--border)}
 .board-name:focus{outline:none;border-color:var(--primary);background:var(--primary-light)}
 .task-list{display:flex;flex-direction:column;gap:4px}
-.task-item{display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:var(--r-xs);transition:background .15s;cursor:pointer}
-.task-item:hover{background:var(--border-l)}
+.task-item{display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:var(--r-xs);transition:background .15s;cursor:pointer;touch-action:manipulation}
+@media (hover:hover){.task-item:hover{background:var(--border-l)}}
 .task-item.done .task-text{text-decoration:line-through;color:var(--text-3)}
 .task-checkbox{width:20px;height:20px;border:2px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;cursor:pointer}
 .task-checkbox.checked{background:var(--success);border-color:var(--success);color:#fff}
 .task-checkbox.checked::after{content:'';width:6px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
 .task-text{flex:1;font-size:14px;word-break:break-word;cursor:pointer}
 .task-delete{opacity:0;width:24px;height:24px;border-radius:var(--r-xs);color:var(--text-3);font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
-.task-item:hover .task-delete{opacity:1}
+@media (hover:hover){.task-item:hover .task-delete{opacity:1}}
 .task-delete:hover{background:var(--danger-bg);color:var(--danger)}
 .task-carry{font-size:12px;opacity:.5;margin-right:2px;cursor:help}
 .add-task{display:flex;gap:6px;margin-top:6px}
@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v148</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v149</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -894,7 +894,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v148</span>
+  <span id="updateText">✅ 已是最新 v149</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1727,10 +1727,8 @@ function onBoardsClick(e){
   if(ad){addTask(ad.dataset.add);return;}
   const ba=e.target.closest('.board-add');
   if(ba){addBoard();return;}
-  const ti=e.target.closest('.task-item');
-  if(ti){toggleTask(ti.dataset.board,+ti.dataset.idx);return;}
 }
-function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card" data-board="${board.id}" style="--bc:${board.color||'#74C0FC'}"><div class="board-header"><span class="board-drag" title="拖动排序" onpointerdown="onBoardDragStart(event,'${board.id}')">⠿</span><span class="board-color" title="选择颜色" data-board="${board.id}" style="background:${board.color||'#74C0FC'}"></span><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" data-board="${board.id}" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}" data-board="${board.id}" data-idx="${i}"><div class="task-checkbox ${t.done?'checked':''}"></div><span class="task-text">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" data-board="${board.id}" data-idx="${i}">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button data-add="${board.id}">+</button></div></div>`}).join('')+'<div class="board-add">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})});if(!_boardsDelegated){g.addEventListener('click',onBoardsClick);_boardsDelegated=true;}}
+function renderBoards(){const g=document.getElementById('boardsGrid');g.innerHTML=S.boards.map(board=>{const tasks=(S.daily[board.id]||[]);return`<div class="board-card" data-board="${board.id}" style="--bc:${board.color||'#74C0FC'}"><div class="board-header"><span class="board-drag" title="拖动排序" onpointerdown="onBoardDragStart(event,'${board.id}')">⠿</span><span class="board-color" title="选择颜色" data-board="${board.id}" style="background:${board.color||'#74C0FC'}"></span><input class="board-name" value="${escapeHtml(board.name)}" data-board="${board.id}" maxlength="20"><button class="board-delete" data-board="${board.id}" title="删除版块">×</button></div><div class="task-list">${tasks.map((t,i)=>`<div class="task-item ${t.done?'done':''}" data-board="${board.id}" data-idx="${i}" onclick="onTaskItemClick(event,'${board.id}',${i})"><div class="task-checkbox ${t.done?'checked':''}"></div><span class="task-text">${t.carriedFrom?`<span class="task-carry" title="来自${fmtDateCN(t.carriedFrom)}的未完成事项">🔄</span> `:''}${escapeHtml(t.text)}</span><button class="task-delete" data-board="${board.id}" data-idx="${i}" onclick="event.stopPropagation();deleteTask('${board.id}',${i})">×</button></div>`).join('')}</div><div class="add-task"><input type="text" placeholder="添加待办事项..." id="add-input-${board.id}" onkeypress="if(event.key==='Enter')addTask('${board.id}')"><button data-add="${board.id}">+</button></div></div>`}).join('')+'<div class="board-add">＋ 添加版块</div>';g.querySelectorAll('.board-name').forEach(input=>{input.addEventListener('change',()=>{const bid=input.dataset.board;const board=S.boards.find(b=>b.id===bid);if(board){board.name=input.value.trim()||'未命名';input.value=board.name;saveBoards()}})});if(!_boardsDelegated){g.addEventListener('click',onBoardsClick);_boardsDelegated=true;}}
 async function saveBoards(){await DB.set('boards',S.boards)}
 function addBoard(){const id=genId();S.boards.push({id,name:'新板块'});saveBoards();renderBoards();setTimeout(()=>{const inp=document.querySelector('.board-name[data-board="'+id+'"]');if(inp){inp.focus();inp.select()}},0)}
 async function deleteBoard(id){
@@ -1817,6 +1815,11 @@ async function toggleTask(boardId,idx){
   if(card){const items=card.querySelectorAll('.task-item');const item=items[idx];
     if(item){item.classList.toggle('done',arr[idx].done);const cb=item.querySelector('.task-checkbox');if(cb)cb.classList.toggle('checked',arr[idx].done);}}
   await saveDaily(); // 确保本地写入完成后再返回，减少与自动同步读取的竞态（避免"刚勾选又被云端旧值覆盖")
+}
+function onTaskItemClick(e,boardId,idx){
+  // 删除按钮的 onclick 已 stopPropagation，正常不会进入此分支；兜底再判一次，避免误触删除
+  if(e.target.closest('.task-delete'))return;
+  toggleTask(boardId,idx);
 }
 async function deleteTask(boardId,idx){
   const task=S.daily[boardId]&&S.daily[boardId][idx];if(!task)return;
@@ -2981,7 +2984,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v148'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v149'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
