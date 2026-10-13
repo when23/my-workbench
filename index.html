@@ -585,7 +585,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v152</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v153</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -938,7 +938,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v152</span>
+  <span id="updateText">✅ 已是最新 v153</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3031,7 +3031,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v152'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v153'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -3446,7 +3446,7 @@ async function confirmSleepAbnormalTag(p){
   cancelSleepAbnormalTag(p);showToast('已新增标签：'+t,'success');
 }
 function cancelSleepAbnormalTag(p){const box=document.getElementById(p+'g-abBox');if(box){const r=box.parentNode.querySelector('.ab-add-row');if(r)r.remove()}}
-async function loadGrowth(){S.growthSleep=(await DB.get('growthSleep'))||[];S.growthDiet=(await DB.get('growthDiet'))||[];S.growthOut=(await DB.get('growthOut'))||[];S.growthStudy=(await DB.get('growthStudy'))||[];S.growthDiary=(await DB.get('growthDiary'))||[];S.sleepAbnTags=(await DB.get('sleepAbnTags'))||['夜醒','做梦哭闹','生病'];S.studyAbnTags=(await DB.get('studyAbnTags'))||['注意力不集中','理解困难','抗拒学习','书写潦草'];S.studyBooks=(await DB.get('studyBooks'))||[]}
+async function loadGrowth(){S.growthSleep=(await DB.get('growthSleep'))||[];S.growthDiet=(await DB.get('growthDiet'))||[];S.growthOut=(await DB.get('growthOut'))||[];S.growthStudy=(await DB.get('growthStudy'))||[];S.growthDiary=(await DB.get('growthDiary'))||[];S.sleepAbnTags=(await DB.get('sleepAbnTags'))||['夜醒','做梦哭闹','生病'];S.studyAbnTags=(await DB.get('studyAbnTags'))||['注意力不集中','理解困难','抗拒学习','书写潦草'];S.studyBooks=(await DB.get('studyBooks'))||[];let _mb=false;S.studyBooks.forEach(b=>{if(!b.cat){b.cat='想象力/童话故事';_mb=true}});if(_mb)await saveStudyBooks()}
 function saveGrowthSleep(){return DB.set('growthSleep',S.growthSleep)}
 function saveGrowthDiet(){return DB.set('growthDiet',S.growthDiet)}
 function saveGrowthOut(){return DB.set('growthOut',S.growthOut)}
