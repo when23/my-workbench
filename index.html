@@ -549,7 +549,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v149</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v150</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -894,7 +894,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v149</span>
+  <span id="updateText">✅ 已是最新 v150</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1251,7 +1251,7 @@ async function _migrateTombstonesV110(){
 // 不同 id 的条目都保留（并集，不丢数据）；无 id 的纯内容项按内容签名去重。
 // 删除不在此处处理，统一交给墓碑机制（applyTombstones）过滤。
 function _hasId(o){return o&&typeof o==='object'&&!Array.isArray(o)&&o.id!==undefined&&o.id!==null}
-function mergeArrays(local, cloud){
+function mergeArrays(local, cloud, key){
   const byId={}, noId={}, order=[];
   function ingest(side, arr){
     for(const it of arr){
@@ -1261,29 +1261,32 @@ function mergeArrays(local, cloud){
   }
   ingest('local', local); ingest('cloud', cloud);
   const out=[];
-  for(const id of order){const e=byId[id]; out.push((e.local!==undefined&&e.cloud!==undefined)?deepMerge(e.local,e.cloud):(e.local!==undefined?e.local:e.cloud));}
+  for(const id of order){const e=byId[id]; out.push((e.local!==undefined&&e.cloud!==undefined)?deepMerge(e.local,e.cloud,key):(e.local!==undefined?e.local:e.cloud));}
   for(const sig in noId)out.push(noId[sig]);
   return out;
 }
-function mergeObjects(local, cloud){
+function mergeObjects(local, cloud, key){
   const out={};
   for(const k in cloud)out[k]=cloud[k];
-  for(const k in local){ if(!(k in out))out[k]=local[k]; else out[k]=mergeValues(local[k], out[k]); }
+  for(const k in local){ if(!(k in out))out[k]=local[k]; else out[k]=mergeValues(local[k], out[k], k); }
   return out;
 }
 // 同 id 命中的两条记录深合并：数组/对象递归；标量冲突优先"非空更完整"，否则本地优先（同步设备为准）。
-function deepMerge(local, cloud){
-  if(Array.isArray(local)&&Array.isArray(cloud))return mergeArrays(local, cloud);
-  if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud))return mergeObjects(local, cloud);
+// 例外：done（完成态布尔）采用 OR 语义——任一端勾选即视为完成，避免"手机勾选→PC 拉取时被本地旧 false 覆盖、且回写污染云端"的丢失。
+function deepMerge(local, cloud, key){
+  if(Array.isArray(local)&&Array.isArray(cloud))return mergeArrays(local, cloud, key);
+  if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud))return mergeObjects(local, cloud, key);
   if(local===undefined||local===null||local===''||local===0||local===false)return cloud;
   if(cloud===undefined||cloud===null||cloud===''||cloud===0||cloud===false)return local;
+  if(key==='done' && typeof local==='boolean' && typeof cloud==='boolean')return local||cloud;
   return local;
 }
-function mergeValues(local, cloud){
-  if(Array.isArray(local)&&Array.isArray(cloud))return mergeArrays(local, cloud);
-  if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud))return mergeObjects(local, cloud);
+function mergeValues(local, cloud, key){
+  if(Array.isArray(local)&&Array.isArray(cloud))return mergeArrays(local, cloud, key);
+  if(local&&typeof local==='object'&&!Array.isArray(local)&&cloud&&typeof cloud==='object'&&!Array.isArray(cloud))return mergeObjects(local, cloud, key);
   if(local===undefined||local===null)return cloud;
   if(cloud===undefined||cloud===null)return local;
+  if(key==='done' && typeof local==='boolean' && typeof cloud==='boolean')return local||cloud;
   return dataSize(local)>=dataSize(cloud)?local:cloud; // 类型不一致（极少见）回退"更完整者胜"
 }
 async function syncFromCloud(){
@@ -2984,7 +2987,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v149'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v150'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
