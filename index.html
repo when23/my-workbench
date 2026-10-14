@@ -540,6 +540,8 @@ img{max-width:100%;display:block}
 .sb-status.done{background:#ecfdf5;color:var(--success)}
 .sb-del{flex:0 0 auto;color:var(--text-3);font-size:16px;cursor:pointer;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-xs)}
 .sb-del:hover{color:var(--danger)}
+.sb-edit{flex:0 0 auto;font-size:12px;padding:4px 10px;border-radius:16px;background:var(--border-l);color:var(--text-2);cursor:pointer;white-space:nowrap}
+.sb-edit:hover{background:var(--primary-light);color:var(--primary)}
 .study-reading-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
 .study-reading-add select,.study-reading-add input{width:auto;flex:1;min-width:80px}
 .study-readings{display:flex;flex-direction:column;gap:6px;margin-top:8px}
@@ -585,7 +587,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v155</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v156</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -938,7 +940,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v155</span>
+  <span id="updateText">✅ 已是最新 v156</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3031,7 +3033,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v155'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v156'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -3598,7 +3600,7 @@ function renderStudyReadings(p){const pf=p||'';const box=document.getElementById
 // 收集阅读记录：已点「＋ 添加」的草稿 + 选书/时长框里尚未点添加的那一条（防止漏点按钮导致阅读不入库）
 function collectStudyReadings(p){const pf=p||'';const list=(S.studyDraftReadings||[]).map(x=>({...x}));const bookSel=document.getElementById(pf+'g-book');const durInp=document.getElementById(pf+'g-rdur');const statSel=document.getElementById(pf+'g-rstat');if(bookSel&&durInp&&Number(durInp.value)>0){const bookId=bookSel.value;if(bookId){const b=S.studyBooks.find(x=>x.id===bookId);list.push({bookId,bookTitle:b?b.title:'',durationMin:Number(durInp.value),status:statSel?statSel.value:'reading'})}}return list}
 // 学习：书架管理
-function bookItemHTML(b){return `<div class="study-book-item"><div class="sb-main"><div class="sb-title">${escapeHtml(b.title)}</div><div class="sb-author">${escapeHtml(b.author||'佚名')}</div></div><span class="sb-status ${b.status==='finished'?'done':''}" onclick="toggleBookStatus('${b.id}')">${b.status==='finished'?'✓ 读完':'● 在读'}</span><span class="sb-del" onclick="delBook('${b.id}')">×</span></div>`}
+function bookItemHTML(b){return `<div class="study-book-item"><div class="sb-main"><div class="sb-title">${escapeHtml(b.title)}</div><div class="sb-author">${escapeHtml(b.author||'佚名')}</div></div><span class="sb-status ${b.status==='finished'?'done':''}" onclick="toggleBookStatus('${b.id}')">${b.status==='finished'?'✓ 读完':'● 在读'}</span><span class="sb-edit" onclick="openEditBook('${b.id}')">编辑</span><span class="sb-del" onclick="delBook('${b.id}')">×</span></div>`}
 function renderStudyBookshelf(forceOpenCat){
   const box=document.getElementById('studyBooksList');if(!box)return;
   if(!S.studyBooks||!S.studyBooks.length){box.innerHTML='<div class="study-books-empty">书架还是空的，点右上角“录入图书”添加第一本书吧</div>';updateShelfCount();return}
@@ -3613,6 +3615,7 @@ function toggleBookCat(gi){const body=document.getElementById('sbcat-'+gi);if(!b
 function toggleShelfBooks(){const box=document.getElementById('studyBooksList');if(!box)return;const hidden=box.style.display==='none';box.style.display=hidden?'block':'none';const c=document.getElementById('sbShelfCaret');if(c)c.textContent=hidden?'▾':'▸'}
 function updateShelfCount(){const el=document.getElementById('sbShelfCount');if(el)el.textContent=S.studyBooks&&S.studyBooks.length?('('+S.studyBooks.length+')'):''}
 function openAddBook(){const catOpts=STUDY_BOOK_CATS.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');openEditModal('录入图书',`<label>书名</label><input type="text" id="bookTitle" placeholder="如：小猪唏哩呼噜" maxlength="40"><label>作者</label><input type="text" id="bookAuthor" placeholder="如：孙幼军（选填）" maxlength="30"><label>一级分类</label><select id="bookCat">${catOpts}</select>`);document.getElementById('saveEdit').onclick=async()=>{const title=document.getElementById('bookTitle').value.trim();if(!title){showToast('请输入书名','error');return}const author=document.getElementById('bookAuthor').value.trim();const cat=document.getElementById('bookCat').value;if(!S.studyBooks)S.studyBooks=[];S.studyBooks.push({id:genId(),title,author,cat,status:'reading',addedAt:nowISO()});await saveStudyBooks();closeEditModal();renderStudyBookshelf(cat);showToast('已录入《'+title+'》','success')}}
+function openEditBook(id){const b=(S.studyBooks||[]).find(x=>x.id===id);if(!b)return;const catOpts=STUDY_BOOK_CATS.map(c=>`<option value="${escapeHtml(c)}" ${c===b.cat?'selected':''}>${escapeHtml(c)}</option>`).join('');openEditModal('编辑图书',`<label>书名</label><input type="text" id="bookTitle" placeholder="如：小猪唏哩呼噜" maxlength="40" value="${escapeHtml(b.title)}"><label>作者</label><input type="text" id="bookAuthor" placeholder="如：孙幼军（选填）" maxlength="30" value="${escapeHtml(b.author||'')}"><label>一级分类</label><select id="bookCat">${catOpts}</select>`);document.getElementById('saveEdit').onclick=async()=>{const title=document.getElementById('bookTitle').value.trim();if(!title){showToast('请输入书名','error');return}const author=document.getElementById('bookAuthor').value.trim();const cat=document.getElementById('bookCat').value;b.title=title;b.author=author;b.cat=cat;await saveStudyBooks();closeEditModal();renderStudyBookshelf(cat);showToast('已更新《'+title+'》','success')}}
 async function toggleBookStatus(id){const b=(S.studyBooks||[]).find(x=>x.id===id);if(!b)return;b.status=b.status==='finished'?'reading':'finished';await saveStudyBooks();renderStudyBookshelf();showToast(b.status==='finished'?'已标记读完':'已改回在读','success')}
 async function delBook(id){if(!confirm('确定从书架删除这本书吗？已绑定的阅读记录仍保留。'))return;S.studyBooks=S.studyBooks.filter(x=>x.id!==id);await saveStudyBooks();renderStudyBookshelf();showToast('已删除','success')}
 async function submitGrowthAdd(){
