@@ -587,7 +587,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v158</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v159</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -940,7 +940,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v158</span>
+  <span id="updateText">✅ 已是最新 v159</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -2939,11 +2939,11 @@ if(data.version==='2.0'){
 // ===== Excel Import for Organizing =====
 function downloadOrgTemplate(){
   const ws=XLSX.utils.json_to_sheet([
-    {'物品名称':'示例：羽绒服','描述':'黑色，冬季穿','分类':'衣物','存放位置':'大衣柜悬挂','状态':'无需处理'},
-    {'物品名称':'示例：充电器','描述':'USB-C 快充，线有点松','分类':'电子产品','存放位置':'抽屉A','状态':'待处理'},
-    {'物品名称':'示例：旧手机','描述':'已清理数据','分类':'电子产品','存放位置':'抽屉B','状态':'已处理'}
+    {'物品名称':'示例：羽绒服','描述':'黑色，冬季穿','分类':'衣物','存放位置':'大衣柜悬挂','状态':'无需处理','价格':599},
+    {'物品名称':'示例：充电器','描述':'USB-C 快充，线有点松','分类':'电子产品','存放位置':'抽屉A','状态':'待处理','价格':59},
+    {'物品名称':'示例：旧手机','描述':'已清理数据','分类':'电子产品','存放位置':'抽屉B','状态':'已处理','价格':''}
   ]);
-  ws['!cols']=[{wch:20},{wch:25},{wch:15},{wch:18},{wch:10}];
+  ws['!cols']=[{wch:20},{wch:25},{wch:15},{wch:18},{wch:10},{wch:10}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'物品清单');
   XLSX.writeFile(wb,'物品导入模板.xlsx');
@@ -2962,7 +2962,8 @@ document.getElementById('orgExcelInput').addEventListener('change',async e=>{
       '描述':'text','内容':'text','说明':'text','text':'text','Description':'text',
       '分类':'category','类别':'category','category':'category','Category':'category',
       '存放位置':'location','位置':'location','location':'location','Location':'location',
-      '状态':'status','status':'status','Status':'status'
+      '状态':'status','status':'status','Status':'status',
+      '价格':'price','金额':'price','价钱':'price','price':'price','Price':'price'
     };
     let imported=0,newCats=[];
     for(const row of rows){
@@ -2993,6 +2994,7 @@ document.getElementById('orgExcelInput').addEventListener('change',async e=>{
         title:rec.title||'',
         text:rec.text||'',
         location:rec.location||'',
+        price:(rec.price===''||rec.price===null||rec.price===undefined)?'':Number(rec.price),
         images:[],status
       };
       S.org.unshift(item);imported++;
@@ -3016,13 +3018,14 @@ async function exportOrgExcel(){
     const wb=new ExcelJS.Workbook();wb.creator='我的工作台';
     const ws=wb.addWorksheet('物品列表');
     let maxImg=0;recs.forEach(r=>{const n=(r.images||[]).length;if(n>maxImg)maxImg=n});
-    const headers=['物品名称','描述','分类','存放位置','状态'];
+    const headers=['物品名称','描述','分类','存放位置','状态','价格'];
     for(let i=0;i<maxImg;i++)headers.push('图片'+(i+1));
-    ws.columns=headers.map((h,i)=>({header:h,key:'k'+i,width:i<5?22:16}));
+    ws.columns=headers.map((h,i)=>({header:h,key:'k'+i,width:i<5?22:(i===5?12:16)}));
     const statusMap={none:'无需处理',pending:'待处理',done:'已处理'};
     let skipped=0;
     for(const r of recs){
-      const base=[r.title||'',r.text||'',r.category||'',r.location||'',statusMap[r.status||'none']||'无需处理'];
+      const priceVal=(r.price===''||r.price==null||r.price===undefined)?'':Number(r.price);
+      const base=[r.title||'',r.text||'',r.category||'',r.location||'',statusMap[r.status||'none']||'无需处理',priceVal];
       const row=ws.addRow(base);row.height=72;
       const imgs=r.images||[];
       for(let i=0;i<imgs.length;i++){
@@ -3048,7 +3051,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v158'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v159'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
