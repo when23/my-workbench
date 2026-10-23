@@ -593,6 +593,8 @@ img{max-width:100%;display:block}
 .org-rtab-cnt{display:inline-block;min-width:20px;text-align:center;font-weight:600;background:rgba(0,0,0,.08);border-radius:999px;padding:0 6px}
 .org-rtab.active .org-rtab-cnt{background:rgba(255,255,255,.25)}
 .org-reminder-list{display:flex;flex-direction:column;gap:8px}
+.record-card{cursor:default}
+.rc-edit-hint{font-size:12px;color:var(--text-3);margin-top:6px}
 .record-card.expired{border-left:4px solid #ef4444}
 .record-card.warn{border-left:4px solid #f59e0b}
 .record-card.ok{border-left:4px solid #22c55e}
@@ -610,7 +612,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v162</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v163</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -986,7 +988,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v162</span>
+  <span id="updateText">✅ 已是最新 v163</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -2293,9 +2295,9 @@ function renderOrgReminders(){
   const ec=document.getElementById('orgExpiryCount');if(ec)ec.textContent=attention;
   const rc=document.getElementById('orgRestockCount');if(rc)rc.textContent=restockItems.length;
   const exBox=document.getElementById('orgReminderExpiry');
-  if(exBox){exBox.innerHTML=expiryItems.length?expiryItems.map(x=>{const cls=x.expired?'expired':x.warn?'warn':'ok';const txt=x.expired?('已过期 '+Math.abs(x.days)+' 天'):(x.days===0?'今天到期':('还剩 '+x.days+' 天'));return `<div class="record-card ${cls}"><div class="record-meta"><span>📅 到期 ${escapeHtml(x.r.expiryDate)}</span></div>${x.r.title?`<div class="record-title">${escapeHtml(x.r.title)}</div>`:''}${x.r.location?`<div class="record-location">📍 ${escapeHtml(x.r.location)}</div>`:''}<div class="record-text" style="color:${x.expired?'#b91c1c':x.warn?'#b45309':'var(--text-2)'}">${txt}</div></div>`}).join(''):'<div class="empty" style="padding:20px"><p>暂无设置固定到期日的物品</p></div>'}
+  if(exBox){exBox.innerHTML=expiryItems.length?expiryItems.map(x=>{const cls=x.expired?'expired':x.warn?'warn':'ok';const txt=x.expired?('已过期 '+Math.abs(x.days)+' 天'):(x.days===0?'今天到期':('还剩 '+x.days+' 天'));return `<div class="record-card ${cls}" style="cursor:pointer" onclick="editOrg('${x.r.id}')"><div class="record-meta"><span>📅 到期 ${escapeHtml(x.r.expiryDate)}</span></div>${x.r.title?`<div class="record-title">${escapeHtml(x.r.title)}</div>`:''}${x.r.location?`<div class="record-location">📍 ${escapeHtml(x.r.location)}</div>`:''}<div class="record-text" style="color:${x.expired?'#b91c1c':x.warn?'#b45309':'var(--text-2)'}">${txt}</div><div class="rc-edit-hint">✎ 点击编辑</div></div>`}).join(''):'<div class="empty" style="padding:20px"><p>暂无设置固定到期日的物品</p></div>'}
   const rsBox=document.getElementById('orgReminderRestock');
-  if(rsBox){rsBox.innerHTML=restockItems.length?restockItems.map(r=>{const label=r.stock==='out'?'已用完需要补货':'即将用完';return `<div class="record-card ${r.stock==='out'?'expired':'warn'}"><div class="record-meta"><span class="stock-badge ${r.stock==='out'?'stock-out':'stock-low'}">${label}</span></div>${r.title?`<div class="record-title">${escapeHtml(r.title)}</div>`:''}${r.location?`<div class="record-location">📍 ${escapeHtml(r.location)}</div>`:''}<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="restockDone('${r.id}')">✓ 已补货</button></div>`}).join(''):'<div class="empty" style="padding:20px"><p>库存充足，无需补货 🎉</p></div>'}
+  if(rsBox){rsBox.innerHTML=restockItems.length?restockItems.map(r=>{const label=r.stock==='out'?'已用完需要补货':'即将用完';return `<div class="record-card ${r.stock==='out'?'expired':'warn'}" style="cursor:pointer" onclick="editOrg('${r.id}')"><div class="record-meta"><span class="stock-badge ${r.stock==='out'?'stock-out':'stock-low'}">${label}</span></div>${r.title?`<div class="record-title">${escapeHtml(r.title)}</div>`:''}${r.location?`<div class="record-location">📍 ${escapeHtml(r.location)}</div>`:''}<div class="rc-edit-hint">✎ 点击编辑</div><button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="event.stopPropagation();restockDone('${r.id}')">✓ 已补货</button></div>`}).join(''):'<div class="empty" style="padding:20px"><p>库存充足，无需补货 🎉</p></div>'}
 }
 function openOrgReminders(){
   document.getElementById('orgOverviewView').style.display='none';
@@ -3139,7 +3141,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v162'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v163'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
