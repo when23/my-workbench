@@ -580,7 +580,10 @@ img{max-width:100%;display:block}
 .gc-others{margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-l)}
 .gc-others-title{font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px}
 .gc-other-row{font-size:13px;color:var(--text-2);margin:3px 0;word-break:break-word}
-.org-reminder-center{border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-top:14px;background:var(--surface)}
+.org-reminder-center{border:1px solid var(--border);border-radius:var(--r);padding:14px;margin:14px 0 0;background:var(--surface)}
+.org-reminder-center.clickable{cursor:pointer;transition:all .15s}
+.org-reminder-center.clickable:hover{border-color:var(--primary);background:var(--primary-light)}
+.org-reminder-home-hint{font-size:13px;color:var(--text-2);margin-top:6px}
 .org-reminder-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .org-reminder-head h3{margin:0;font-size:15px}
 .org-reminder-badge{font-size:12px;background:#fef2f2;color:#b91c1c;padding:3px 10px;border-radius:999px;white-space:nowrap}
@@ -607,7 +610,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v161</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v162</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -724,6 +727,13 @@ img{max-width:100%;display:block}
             <div class="org-stat-card clickable" onclick="openOrgFilter('pending')"><div class="org-stat-num" id="orgPendingCount" style="color:#92400e">0</div><div class="org-stat-label">待处理 ›</div></div>
             <div class="org-stat-card clickable" onclick="openOrgFilter('done')"><div class="org-stat-num" id="orgDoneCount" style="color:#065f46">0</div><div class="org-stat-label">已处理 ›</div></div>
           </div>
+          <div class="org-reminder-center clickable" id="orgReminderCenter" onclick="openOrgReminders()">
+            <div class="org-reminder-head">
+              <h3>🔔 提醒中心</h3>
+              <span class="org-reminder-badge" id="orgReminderBadge">0 条待提醒</span>
+            </div>
+            <div class="org-reminder-home-hint">点击查看效期预警与补货清单 ›</div>
+          </div>
           <div class="org-list-section">
             <div class="org-list-header">
               <h3>物品列表</h3>
@@ -737,18 +747,19 @@ img{max-width:100%;display:block}
             <div class="org-cat-list" id="orgCatList"></div>
             <input type="file" id="orgExcelInput" accept=".xlsx,.xls,.csv" style="display:none">
           </div>
-          <div class="org-reminder-center" id="orgReminderCenter">
-            <div class="org-reminder-head">
-              <h3>🔔 提醒中心</h3>
-              <span class="org-reminder-badge" id="orgReminderBadge">0 条待提醒</span>
-            </div>
-            <div class="org-reminder-tabs">
-              <button class="org-rtab active" data-rtab="expiry" onclick="switchOrgReminder('expiry')">效期预警 <span class="org-rtab-cnt" id="orgExpiryCount">0</span></button>
-              <button class="org-rtab" data-rtab="restock" onclick="switchOrgReminder('restock')">补货清单 <span class="org-rtab-cnt" id="orgRestockCount">0</span></button>
-            </div>
-            <div class="org-reminder-list" id="orgReminderExpiry"></div>
-            <div class="org-reminder-list" id="orgReminderRestock" style="display:none"></div>
+        </div>
+        <!-- Layer 1.5: Reminder Center Detail -->
+        <div id="orgReminderView" style="display:none">
+          <div class="org-detail-header">
+            <button class="back-btn" id="orgReminderBack">‹</button>
+            <h2>🔔 提醒中心</h2>
           </div>
+          <div class="org-reminder-tabs">
+            <button class="org-rtab active" data-rtab="expiry" onclick="switchOrgReminder('expiry')">效期预警 <span class="org-rtab-cnt" id="orgExpiryCount">0</span></button>
+            <button class="org-rtab" data-rtab="restock" onclick="switchOrgReminder('restock')">补货清单 <span class="org-rtab-cnt" id="orgRestockCount">0</span></button>
+          </div>
+          <div class="org-reminder-list" id="orgReminderExpiry"></div>
+          <div class="org-reminder-list" id="orgReminderRestock" style="display:none"></div>
         </div>
         <!-- Layer 2: Location Groups -->
         <div id="orgLocationView" style="display:none">
@@ -975,7 +986,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v161</span>
+  <span id="updateText">✅ 已是最新 v162</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -2286,6 +2297,21 @@ function renderOrgReminders(){
   const rsBox=document.getElementById('orgReminderRestock');
   if(rsBox){rsBox.innerHTML=restockItems.length?restockItems.map(r=>{const label=r.stock==='out'?'已用完需要补货':'即将用完';return `<div class="record-card ${r.stock==='out'?'expired':'warn'}"><div class="record-meta"><span class="stock-badge ${r.stock==='out'?'stock-out':'stock-low'}">${label}</span></div>${r.title?`<div class="record-title">${escapeHtml(r.title)}</div>`:''}${r.location?`<div class="record-location">📍 ${escapeHtml(r.location)}</div>`:''}<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="restockDone('${r.id}')">✓ 已补货</button></div>`}).join(''):'<div class="empty" style="padding:20px"><p>库存充足，无需补货 🎉</p></div>'}
 }
+function openOrgReminders(){
+  document.getElementById('orgOverviewView').style.display='none';
+  document.getElementById('orgReminderView').style.display='block';
+  document.getElementById('orgLocationView').style.display='none';
+  document.getElementById('orgItemView').style.display='none';
+  switchOrgReminder('expiry');renderOrgReminders();
+}
+function closeOrgReminders(){
+  document.getElementById('orgOverviewView').style.display='block';
+  document.getElementById('orgReminderView').style.display='none';
+  document.getElementById('orgLocationView').style.display='none';
+  document.getElementById('orgItemView').style.display='none';
+  renderOrgOverview();
+}
+document.getElementById('orgReminderBack').addEventListener('click',closeOrgReminders);
 function editOrg(id){
   const r=S.org.find(x=>x.id===id);if(!r)return;S.edit={type:'org',id,images:[...(r.images||[])]};
   const catOptions=S.orgCategories.map(c=>`<option value="${c.name}" ${r.category===c.name?'selected':''}>${c.icon} ${c.name}</option>`).join('');
@@ -3113,7 +3139,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v161'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v162'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
