@@ -587,7 +587,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v159</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v160</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -940,7 +940,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v159</span>
+  <span id="updateText">✅ 已是最新 v160</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -2488,11 +2488,11 @@ const HEALTH_REC_MODULES={sleep:{icon:'😴',title:'睡眠记录'},diet:{icon:'�
 function healthRecStats(mod){
   const arr=healthFilteredRecords(mod);
   if(mod==='sleep'){const count=arr.length;const total=arr.reduce((s,r)=>s+(Number(r.duration)||0),0);const avg=count?(total/count).toFixed(1):'0.0';const tags=S.healthSleepTags||[];const ab={};tags.forEach(t=>{ab[t]=arr.filter(r=>(r.abnormal||[]).includes(t)).length});return{count,avg,ab,tags}}
-  const mealDays=arr.filter(r=>(r.breakfast||r.lunch||r.dinner)).length;const waterSum=arr.reduce((s,r)=>s+(Number(r.water)||0),0);const tags=S.healthDietTags||[];const tagCount={};tags.forEach(t=>{tagCount[t]=arr.filter(r=>(r.tags||[]).includes(t)).length});return{mealDays,waterSum,tagCount,tags};
+  const mealDays=arr.filter(r=>(r.breakfast||r.lunch||r.dinner)).length;const normalSum=arr.reduce((s,r)=>s+(Number(r.bowelNormal)||0),0);const abArr=arr.filter(r=>r.bowelAbnormalType&&r.bowelAbnormalType!=='无'&&(Number(r.bowelAbnormalCount)||0)>0);const abnormalSum=abArr.reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const tags=S.healthDietTags||[];const tagCount={};tags.forEach(t=>{tagCount[t]=arr.filter(r=>(r.tags||[]).includes(t)).length});return{mealDays,normalSum,abnormalSum,tagCount,tags};
 }
 function healthRecModuleStatsHTML(mod,st){
   if(mod==='sleep'){const chips=(st.tags||[]).filter(t=>st.ab[t]).map(t=>`<span class="growth-chip ab">${escapeHtml(t)} ${st.ab[t]}</span>`).join('');return `<div class="gm-stat"><span class="gm-stat-num">${st.count}</span><span class="gm-stat-label">睡眠记录(条)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.avg}h</span><span class="gm-stat-label">日均睡眠</span></div><div class="growth-chips">${chips||'<span class="growth-chip">暂无异常</span>'}</div>`}
-  const chips=(st.tags||[]).filter(t=>st.tagCount[t]).map(t=>`<span class="growth-chip">${escapeHtml(t)} ${st.tagCount[t]}</span>`).join('');return `<div class="gm-stat"><span class="gm-stat-num">${st.mealDays}</span><span class="gm-stat-label">正餐记录(天)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.waterSum}</span><span class="gm-stat-label">饮水合计(杯)</span></div><div class="growth-chips">${chips||'<span class="growth-chip">暂无记录</span>'}</div>`;
+  const chips=(st.tags||[]).filter(t=>st.tagCount[t]).map(t=>`<span class="growth-chip">${escapeHtml(t)} ${st.tagCount[t]}</span>`).join('');return `<div class="gm-stat"><span class="gm-stat-num">${st.mealDays}</span><span class="gm-stat-label">正餐记录(天)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.normalSum}</span><span class="gm-stat-label">正常排便(次)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.abnormalSum}</span><span class="gm-stat-label">异常排便(次)</span></div><div class="growth-chips">${chips||'<span class="growth-chip">暂无记录</span>'}</div>`;
 }
 function renderHealthRecOverview(){
   healthApplyFilter();
@@ -2521,7 +2521,7 @@ function healthRecCalGo(delta){const [yy,mm]=S.healthRecCalMonth.split('-').map(
 function openHealthRecDay(dateStr){
   const sleep=S.healthSleep.filter(r=>r.date===dateStr);const diet=S.healthDiet.filter(r=>r.date===dateStr);let html='';
   if(sleep.length){html+='<div class="gc-others-title">😴 睡眠</div>'+sleep.map(r=>{const ab=(r.abnormal||[]).map(t=>`<span class="growth-chip ab">${escapeHtml(t)}</span>`).join('')||'<span class="growth-chip">无异常</span>';const timeInfo=(r.sleepTime||r.wakeTime)?`🌙 ${r.sleepTime||'?'} → ☀️ ${r.wakeTime||'?'}`:'';const rate=r.rating?`⭐ ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}`:'';return `<div class="gc-other-row">😴 睡眠 ${r.duration!=null?r.duration:0}h ${timeInfo?('· '+timeInfo):''} ${rate}</div><div class="growth-chips" style="margin:2px 0 8px">${ab}</div>${r.note?`<div class="gc-other-row">📝 ${escapeHtml(r.note)}</div>`:''}`}).join('')}
-  if(diet.length){html+='<div class="gc-others-title">🍽️ 饮食</div>'+diet.map(r=>{const meals=[];if(r.breakfast)meals.push('🌅'+escapeHtml(r.breakfast));if(r.lunch)meals.push('☀️'+escapeHtml(r.lunch));if(r.dinner)meals.push('🌙'+escapeHtml(r.dinner));const water=r.water?`💧 ${r.water}杯`:'';const tags=(r.tags||[]).map(t=>`<span class="growth-chip">${escapeHtml(t)}</span>`).join('');return `<div class="gc-other-row">${meals.join(' · ')||'当天未记录正餐'}${water?(' · '+water):''}</div>${tags?`<div class="growth-chips" style="margin:2px 0 8px">${tags}</div>`:''}${r.note?`<div class="gc-other-row">📝 ${escapeHtml(r.note)}</div>`:''}`}).join('')}
+  if(diet.length){html+='<div class="gc-others-title">🍽️ 饮食</div>'+diet.map(r=>{const meals=[];if(r.breakfast)meals.push('🌅'+escapeHtml(r.breakfast));if(r.lunch)meals.push('☀️'+escapeHtml(r.lunch));if(r.dinner)meals.push('🌙'+escapeHtml(r.dinner));let bowel='';if(r.bowelNormal||(r.bowelAbnormalType&&r.bowelAbnormalType!=='无')){bowel='💩 排便：正常 '+(Number(r.bowelNormal)||0)+' 次'+(r.bowelAbnormalType&&r.bowelAbnormalType!=='无'?(' · 异常：'+r.bowelAbnormalType+' '+(Number(r.bowelAbnormalCount)||0)+' 次'):'')}const tags=(r.tags||[]).map(t=>`<span class="growth-chip">${escapeHtml(t)}</span>`).join('');return `<div class="gc-other-row">${meals.join(' · ')||'当天未记录正餐'}${bowel?(' · '+bowel):''}</div>${tags?`<div class="growth-chips" style="margin:2px 0 8px">${tags}</div>`:''}${r.note?`<div class="gc-other-row">📝 ${escapeHtml(r.note)}</div>`:''}`}).join('')}
   if(!sleep.length&&!diet.length)html='<p style="color:var(--text-3)">这一天还没有睡眠或饮食记录。</p>';
   html+='<div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-primary btn-sm" style="flex:1" onclick="closeEditModal();openHealthRecModule(\'sleep\')">➕ 添加睡眠</button><button class="btn btn-primary btn-sm" style="flex:1" onclick="closeEditModal();openHealthRecModule(\'diet\')">➕ 添加饮食</button></div>';
   openEditModal('健康记录 · '+dateStr,html);
@@ -2555,7 +2555,7 @@ function healthFormHTML(mod,rec,p){
   }
   const tags=healthTagListOf('diet');
   const dsel=rec?rec.tags||[]:[];
-  return `<label>日期</label><input type="date" id="${p}h-date" value="${rec?rec.date:today}"><label>早餐(吃了什么)</label><textarea id="${p}h-break" rows="2" placeholder="如：燕麦+鸡蛋">${rec?escapeHtml(rec.breakfast||''):''}</textarea><label>中餐(吃了什么)</label><textarea id="${p}h-lunch" rows="2" placeholder="如：米饭+青菜+鱼">${rec?escapeHtml(rec.lunch||''):''}</textarea><label>晚餐(吃了什么)</label><textarea id="${p}h-dinner" rows="2" placeholder="如：面条">${rec?escapeHtml(rec.dinner||''):''}</textarea><div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:88px"><label>饮水(杯)</label><input type="number" id="${p}h-water" min="0" step="1" value="${rec&&rec.water!=null?rec.water:''}"></div></div><label>备注标签(可多选)</label><div class="growth-chips" id="${p}h-tagBox">${tags.map(t=>`<label class="growth-chk"><input type="checkbox" name="${p}h-tags" value="${escapeHtml(t)}" ${dsel.includes(t)?'checked':''}><span>${escapeHtml(t)}</span></label>`).join('')}</div><button type="button" class="btn btn-ghost btn-sm" onclick="addHealthTag('diet','${p}')" style="margin-top:8px">＋ 新增标签</button><label>备注(可选)</label><textarea id="${p}h-note" rows="2" placeholder="其他备注">${rec?escapeHtml(rec.note||''):''}</textarea>`;
+  return `<label>日期</label><input type="date" id="${p}h-date" value="${rec?rec.date:today}"><label>早餐(吃了什么)</label><textarea id="${p}h-break" rows="2" placeholder="如：燕麦+鸡蛋">${rec?escapeHtml(rec.breakfast||''):''}</textarea><label>中餐(吃了什么)</label><textarea id="${p}h-lunch" rows="2" placeholder="如：米饭+青菜+鱼">${rec?escapeHtml(rec.lunch||''):''}</textarea><label>晚餐(吃了什么)</label><textarea id="${p}h-dinner" rows="2" placeholder="如：面条">${rec?escapeHtml(rec.dinner||''):''}</textarea><div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:88px"><label>正常排便(次)</label><input type="number" id="${p}h-bn" min="0" step="1" value="${rec&&rec.bowelNormal!=null?rec.bowelNormal:''}"></div><div style="flex:1;min-width:96px"><label>异常类型</label><select id="${p}h-bt"><option value="无" ${(!rec||rec.bowelAbnormalType==='无'||!rec.bowelAbnormalType)?'selected':''}>无</option><option value="腹泻" ${rec&&rec.bowelAbnormalType==='腹泻'?'selected':''}>腹泻</option><option value="便秘" ${rec&&rec.bowelAbnormalType==='便秘'?'selected':''}>便秘</option></select></div><div style="flex:1;min-width:88px"><label>异常次数</label><input type="number" id="${p}h-bc" min="0" step="1" value="${rec&&rec.bowelAbnormalCount!=null?rec.bowelAbnormalCount:''}"></div></div><label>备注标签(可多选)</label><div class="growth-chips" id="${p}h-tagBox">${tags.map(t=>`<label class="growth-chk"><input type="checkbox" name="${p}h-tags" value="${escapeHtml(t)}" ${dsel.includes(t)?'checked':''}><span>${escapeHtml(t)}</span></label>`).join('')}</div><button type="button" class="btn btn-ghost btn-sm" onclick="addHealthTag('diet','${p}')" style="margin-top:8px">＋ 新增标签</button><label>备注(可选)</label><textarea id="${p}h-note" rows="2" placeholder="其他备注">${rec?escapeHtml(rec.note||''):''}</textarea>`;
 }
 function updateHealthSleepPreview(p){
   const el=document.getElementById(p+'h-durPreview');if(!el)return;
@@ -2613,10 +2613,12 @@ async function healthSubmitAdd(mod){
     rec.breakfast=document.getElementById('h-break').value.trim();
     rec.lunch=document.getElementById('h-lunch').value.trim();
     rec.dinner=document.getElementById('h-dinner').value.trim();
-    rec.water=Number(document.getElementById('h-water').value)||0;
+    rec.bowelNormal=Number(document.getElementById('h-bn').value)||0;
+    rec.bowelAbnormalType=document.getElementById('h-bt').value;
+    rec.bowelAbnormalCount=Number(document.getElementById('h-bc').value)||0;
     rec.tags=Array.from(document.querySelectorAll('[name="h-tags"]')).filter(c=>c.checked).map(c=>c.value);
     rec.note=document.getElementById('h-note').value.trim();
-    if(!rec.breakfast&&!rec.lunch&&!rec.dinner&&!rec.water&&rec.tags.length===0){showToast('请至少填写一项内容','error');return}
+    if(!rec.breakfast&&!rec.lunch&&!rec.dinner&&(Number(rec.bowelNormal)||0)===0&&(Number(rec.bowelAbnormalCount)||0)===0&&rec.tags.length===0){showToast('请至少填写一项内容','error');return}
   }
   if(mod==='sleep')S.healthSleep.unshift(rec);else S.healthDiet.unshift(rec);
   healthSaveRec(mod).catch(e=>console.warn('健康记录后台保存失败',e));
@@ -2639,9 +2641,10 @@ function healthRenderList(mod){
       body=`<div class="record-text">😴 睡眠 ${r.duration!=null?r.duration:0} 小时</div>${timeInfo?`<div class="growth-row">${timeInfo}</div>`:''}${rate?`<div class="growth-row">${rate}</div>`:''}<div class="growth-chips">${ab}</div>${r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:''}`;
     }else{
       const meals=[];if(r.breakfast)meals.push('🌅 早餐：'+escapeHtml(r.breakfast));if(r.lunch)meals.push('☀️ 中餐：'+escapeHtml(r.lunch));if(r.dinner)meals.push('🌙 晚餐：'+escapeHtml(r.dinner));
-      const water=r.water?`<div class="growth-row">💧 饮水 ${r.water} 杯</div>`:'';
+      let bowel='';
+      if(r.bowelNormal||(r.bowelAbnormalType&&r.bowelAbnormalType!=='无')){bowel=`<div class="growth-row">💩 排便：正常 ${Number(r.bowelNormal)||0} 次${r.bowelAbnormalType&&r.bowelAbnormalType!=='无'?(' · 异常：'+r.bowelAbnormalType+' '+(Number(r.bowelAbnormalCount)||0)+' 次'):''}</div>`}
       const tags=(r.tags||[]).map(t=>`<span class="growth-chip">${escapeHtml(t)}</span>`).join('');
-      body=(meals.length?meals.map(m=>`<div class="record-text">${m}</div>`).join(''):'<div class="record-text" style="color:var(--text-3)">当天未记录正餐</div>')+water+(tags?`<div class="growth-chips" style="margin-top:6px">${tags}</div>`:'')+(r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:'');
+      body=(meals.length?meals.map(m=>`<div class="record-text">${m}</div>`).join(''):'<div class="record-text" style="color:var(--text-3)">当天未记录正餐</div>')+bowel+(tags?`<div class="growth-chips" style="margin-top:6px">${tags}</div>`:'')+(r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:'');
     }
     return `<div class="record-card"><div class="record-meta"><span class="growth-record-date">${r.date||''}</span><span class="record-time">${fmtDate(r.timestamp)}</span></div>${body}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="healthEditRecord('${mod}','${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="healthDelRecord('${mod}','${r.id}')">删除</button></div></div>`;
   }).join('');
@@ -2670,7 +2673,9 @@ function healthEditRecord(mod,id){
       const date=document.getElementById('edit-h-date').value;
       if(!date){showToast('请选择日期','error');return}
       rec.date=date;rec.breakfast=document.getElementById('edit-h-break').value.trim();rec.lunch=document.getElementById('edit-h-lunch').value.trim();rec.dinner=document.getElementById('edit-h-dinner').value.trim();
-      rec.water=Number(document.getElementById('edit-h-water').value)||0;
+      rec.bowelNormal=Number(document.getElementById('edit-h-bn').value)||0;
+      rec.bowelAbnormalType=document.getElementById('edit-h-bt').value;
+      rec.bowelAbnormalCount=Number(document.getElementById('edit-h-bc').value)||0;
       rec.tags=Array.from(document.querySelectorAll('[name="edit-h-tags"]')).filter(c=>c.checked).map(c=>c.value);
       rec.note=document.getElementById('edit-h-note').value.trim();
     }
@@ -3051,7 +3056,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v159'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v160'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
