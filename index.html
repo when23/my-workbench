@@ -612,7 +612,7 @@ img{max-width:100%;display:block}
 <body>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v163</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v164</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -988,7 +988,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v163</span>
+  <span id="updateText">✅ 已是最新 v164</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1796,8 +1796,11 @@ async function carryOverUncompleted(){
             for(const boardId in cv){const tasks=cv[boardId];if(!Array.isArray(tasks))continue;
               for(const t of tasks){
                 const tid=t.id||('txt:'+t.text);
-                if(!!t.done||!!t.dismissed)continue; // 仅以云端自身状态为准：云端已完成/已取消才跳过；本地历史曾 dismissed 不计（避免误标把云端未完成拦掉）
-                // 云端未完成 → 强制覆盖本地任何状态（含本地误标 done 或历史 dismissed），保证今日顺延（云端真相优先）
+                if(!!t.done||!!t.dismissed)continue; // 云端自身已完成/已取消 → 跳过
+                // 关键修复(v164)：云端补齐只应"补全本地丢失的未完成项"，绝不可把本地已完成的任务又拉回未完成。
+                // 若本地 60 天扫描已记录该任务 done=true（用户在更早日期真实勾选完成），保留本地完成态，不再强制 done:false（否则"同步后已完成事件又出现"）。
+                if(taskMap[tid]&&taskMap[tid].done)continue;
+                // 云端未完成 → 覆盖本地未完成的旧状态（含历史 dismissed 误标），保证今日顺延（云端真相优先）
                 taskMap[tid]={date:srcDate,done:false,dismissed:false,task:t,boardId}; cloudForce[tid]=true;
               }
               _diag('云端源='+srcDate+' taskMap='+Object.keys(taskMap).length+' force='+Object.keys(cloudForce).length);
@@ -3141,7 +3144,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v163'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v164'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
