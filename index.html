@@ -622,7 +622,7 @@ img{max-width:100%;display:block}
 .rc-expired{background:#fef2f2;color:#b91c1c}
 .rc-warn{background:#fffbeb;color:#b45309}
 .rc-ok{background:#ecfdf5;color:#047857}
-/* ===== 数据统计 / 资产台账 (v166) ===== */
+/* ===== 数据统计 / 资产台账 (v167) ===== */
 .form-input{width:100%;border:1px solid var(--border);border-radius:var(--r-xs);padding:9px 11px;font-size:14px;background:var(--surface);margin-bottom:4px}
 .form-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
 #statModalBody label{display:block;font-size:13px;color:var(--text-2);margin:10px 0 4px}
@@ -646,6 +646,9 @@ img{max-width:100%;display:block}
 .stat-cat-val{font-size:15px;font-weight:600}
 .stat-cat-pct{font-size:11px;color:var(--text-3);margin-left:6px}
 .stat-cat-item.debt .stat-cat-val{color:var(--danger)}
+.stat-cat-item.debt .stat-cat-pct{color:var(--danger)}
+.stat-cat-tag{font-size:10px;color:var(--danger);border:1px solid var(--danger);border-radius:4px;padding:0 4px;margin-left:6px;line-height:16px;vertical-align:middle}
+.stat-total-value.fall{color:var(--danger)}
 .stat-chart-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);margin-bottom:14px;overflow:hidden}
 .stat-sub-tabs{display:flex;border-bottom:1px solid var(--border-l)}
 .stat-sub-tab{flex:1;text-align:center;padding:11px;font-size:13px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
@@ -703,7 +706,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v166</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v167</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1063,8 +1066,12 @@ img{max-width:100%;display:block}
         </div>
 
         <div class="stat-total-card">
-          <div class="stat-total-label">当前总资产</div>
+          <div class="stat-total-label" id="statTotalLabel">当前净资产</div>
           <div class="stat-total-value" id="statTotal">¥0.00</div>
+          <div class="stat-total-row" id="statGrossRow" style="display:none">
+            <span>资产合计：<span id="statGross">¥0</span></span>
+            <span>负债合计：<span id="statDebt" class="fall">¥0</span></span>
+          </div>
           <div class="stat-total-row">
             <span>累计投入本金：<span id="statPrincipal">¥0</span></span>
             <span id="statProfit">总浮盈 ¥0</span>
@@ -1088,7 +1095,7 @@ img{max-width:100%;display:block}
 
         <div class="stat-chart-card">
           <div class="stat-sub-tabs">
-            <div class="stat-sub-tab active" id="statTabChart" onclick="statSwitchTab('chart')">📈 总资产趋势</div>
+            <div class="stat-sub-tab active" id="statTabChart" onclick="statSwitchTab('chart')">📈 净资产趋势</div>
             <div class="stat-sub-tab" id="statTabSnap" onclick="statSwitchTab('snap')">🗓 快照对比</div>
           </div>
           <div class="stat-panel" id="statPanelChart"></div>
@@ -1144,7 +1151,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v166</span>
+  <span id="updateText">✅ 已是最新 v167</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3325,7 +3332,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v166'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v167'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -4262,7 +4269,7 @@ async function boot(){
   }
 }
 
-// ===== 数据统计 / 资产台账 (v166) =====
+// ===== 数据统计 / 资产台账 (v167) =====
 function defaultAsset(){
   return {principal:0,baseline:0,cats:[
     {id:'cash',name:'货币资金',icon:'💳',value:0,auto:false},
@@ -4275,7 +4282,11 @@ function defaultAsset(){
 function migrateAsset(d){const base=defaultAsset();const m=Object.assign(base,d);if(!Array.isArray(m.cats)||!m.cats.length)m.cats=base.cats;if(!Array.isArray(m.positions))m.positions=[];if(!Array.isArray(m.flows))m.flows=[];if(!Array.isArray(m.snapshots))m.snapshots=[];return m}
 async function loadStat(){const d=await DB.get('assetLedger');S.asset=d?migrateAsset(d):defaultAsset()}
 async function saveStat(){await DB.set('assetLedger',S.asset)}
-function statTotal(){return (S.asset.cats||[]).reduce((s,c)=>s+(Number(c.value)||0),0)}
+// 负债分类统一按「正数存储、汇总取负」处理：填正数或负数都会正确扣减净资产（v167）
+function catSigned(c){const v=Number(c.value)||0;return c.debt?-Math.abs(v):v}
+function statTotal(){return (S.asset.cats||[]).reduce((s,c)=>s+catSigned(c),0)}
+function statGross(){return (S.asset.cats||[]).reduce((s,c)=>s+(c.debt?0:(Number(c.value)||0)),0)}
+function statDebt(){return (S.asset.cats||[]).reduce((s,c)=>s+(c.debt?Math.abs(Number(c.value)||0):0),0)}
 function statProfit(){return statTotal()-(Number(S.asset.principal)||0)}
 function fmtMoney(n){const neg=n<0;const a=Math.abs(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});return (neg?'-¥':'¥')+a}
 function fmtMoney0(n){const neg=n<0;const a=Math.abs(Math.round(n)).toLocaleString('zh-CN');return (neg?'-¥':'¥')+a}
@@ -4289,8 +4300,13 @@ function statChange(p){const base=statPeriodBaseline(p);const t=statTotal();cons
 
 function renderStat(){renderStatTotal();renderStatCats();renderStatChart();renderStatSnaps();renderStatFlows();renderStatHold()}
 function renderStatTotal(){
-  const t=statTotal();
+  const t=statTotal(),g=statGross(),d=statDebt();
   document.getElementById('statTotal').textContent=fmtMoney(t);
+  document.getElementById('statTotal').className=t<0?'stat-total-value fall':'stat-total-value';
+  document.getElementById('statTotalLabel').textContent=d>0?'当前净资产（资产 − 负债）':'当前总资产';
+  const gr=document.getElementById('statGrossRow');gr.style.display=d>0?'':'none';
+  document.getElementById('statGross').textContent=fmtMoney0(g);
+  document.getElementById('statDebt').textContent='-'+fmtMoney0(d);
   document.getElementById('statPrincipal').textContent=fmtMoney(S.asset.principal||0);
   const pf=statProfit();const pe=document.getElementById('statProfit');
   pe.textContent='总浮盈 '+fmtMoney(pf);pe.className=pf>=0?'rise':'fall';
@@ -4304,10 +4320,10 @@ function renderStatCats(){
   const net=statTotal();const wrap=document.getElementById('statCatList');
   if(!S.asset.cats.length){wrap.innerHTML='<div class="stat-empty">暂无分类，去「⚙️ 设置」添加</div>';return}
   wrap.innerHTML=S.asset.cats.map(c=>{
-    const v=Number(c.value)||0;const pct=net?(v/net*100):0;
+    const raw=Number(c.value)||0,sv=catSigned(c);const pct=net?(sv/net*100):0;
     return `<div class="stat-cat-item${c.debt?' debt':''}" onclick="openCatModal('${c.id}')">
-      <div class="stat-cat-left"><span class="stat-cat-icon">${c.icon||'📁'}</span><span>${escapeHtml(c.name)}</span></div>
-      <div class="stat-cat-right"><span class="stat-cat-val">${fmtMoney(v)}</span><span class="stat-cat-pct">${pct.toFixed(1)}%</span></div>
+      <div class="stat-cat-left"><span class="stat-cat-icon">${c.icon||'📁'}</span><span>${escapeHtml(c.name)}</span>${c.debt?'<span class="stat-cat-tag">负债</span>':''}</div>
+      <div class="stat-cat-right"><span class="stat-cat-val">${c.debt?('-'+fmtMoney(Math.abs(raw))):fmtMoney(raw)}</span><span class="stat-cat-pct">${pct.toFixed(1)}%</span></div>
     </div>`
   }).join('')+`<div class="stat-cat-item" onclick="openCatModal()" style="color:var(--primary)"><div class="stat-cat-left"><span class="stat-cat-icon">＋</span><span>添加分类</span></div></div>`
 }
@@ -4388,13 +4404,17 @@ function openFlowModal(){
     <label>类型</label><select id="flType" class="form-input" onchange="flTypeChange()">
       <option value="收益">收益</option><option value="市值变动">市值变动</option><option value="本金">本金投入</option><option value="调拨">内部调拨</option>
     </select>
-    <label>归属分类</label><select id="flCat" class="form-input">${cats}</select>
+    <label>归属分类</label><select id="flCat" class="form-input" onchange="flTypeChange()">${cats}</select>
     <div id="flHint" style="font-size:12px;color:var(--text-3);margin-top:6px"></div>
   `,submitFlow);flTypeChange();
 }
 function flTypeChange(){const t=document.getElementById('flType').value;const h=document.getElementById('flHint');
   const map={收益:'将增加所选分类余额',市值变动:'将增减所选分类余额（可为负）',本金:'将增加货币资金，并计入累计投入本金',调拨:'内部划转，总资产不变'};
-  h.textContent=map[t]||'';}
+  let txt=map[t]||'';
+  const cid=t==='本金'?'cash':(document.getElementById('flCat')||{}).value;
+  const c=S.asset.cats.find(x=>x.id===cid);
+  if(c&&c.debt)txt+='　⚠ 该分类是负债：填正数=负债增加（净资产减少），填负数=还款（净资产增加）';
+  h.textContent=txt;}
 async function submitFlow(){
   const date=document.getElementById('flDate').value||fmtYMD(new Date());
   const name=(document.getElementById('flName').value||'').trim()||'未命名';
@@ -4408,7 +4428,7 @@ async function submitFlow(){
   else addCat(catId,amt);
   await saveStat();closeStatModal();renderStat();showToast('已记录','success')
 }
-function addCat(id,amt){const c=S.asset.cats.find(x=>x.id===id);if(c)c.value=(Number(c.value)||0)+amt;}
+function addCat(id,amt){const c=S.asset.cats.find(x=>x.id===id);if(!c)return;let v=(Number(c.value)||0)+amt;if(c.debt&&v<0)v=0;c.value=v;} // 负债不为负，避免还款超额导致符号反转
 function openPositionModal(id){let p=null;if(id)p=S.asset.positions.find(x=>x.id===id);
   openStatModal(id?'编辑持仓':'添加持仓',`
     <label>标的名称</label><input type="text" id="poName" class="form-input" value="${p?escapeHtml(p.name):''}" placeholder="如：513530高股息ETF">
@@ -4428,13 +4448,17 @@ function openCatModal(id){let c=null;if(id)c=S.asset.cats.find(x=>x.id===id);
   openStatModal(id?'编辑分类':'添加分类',`
     <label>分类名称</label><input type="text" id="ctName" class="form-input" value="${c?escapeHtml(c.name):''}" placeholder="如：数字货币">
     <label>图标</label><select id="ctIcon" class="form-input">${iconOpts}</select>
-    <label>当前余额</label><input type="number" id="ctVal" class="form-input" step="0.01" value="${c?c.value:0}">
-    <label style="display:flex;align-items:center;gap:6px;color:var(--text-2)"><input type="checkbox" id="ctDebt" ${c&&c.debt?'checked':''}> 是否为负债（红色、扣减净资产）</label>
+    <label>当前余额</label><input type="number" id="ctVal" class="form-input" step="0.01" value="${c?Math.abs(Number(c.value)||0):0}">
+    <label style="display:flex;align-items:center;gap:6px;color:var(--text-2)"><input type="checkbox" id="ctDebt" ${c&&c.debt?'checked':''} onchange="ctDebtChange()"> 是否为负债</label>
+    <div id="ctHint" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>
     ${id?'<button class="btn btn-danger btn-sm" onclick="delCat(\''+id+'\')" style="margin-top:8px">🗑 删除该分类</button>':''}
-  `,()=>submitCat(id));}
+  `,()=>submitCat(id));ctDebtChange();}
+function ctDebtChange(){const d=document.getElementById('ctDebt').checked;const h=document.getElementById('ctHint');
+  h.textContent=d?'负债请填正数（如房贷 500000），系统按 −¥500,000.00 扣减净资产':'资产请填正数，直接计入净资产';}
 async function submitCat(id){
   const name=(document.getElementById('ctName').value||'').trim();if(!name){showToast('请填写分类名称','error');return}
-  const icon=document.getElementById('ctIcon').value,value=Number(document.getElementById('ctVal').value)||0,debt=document.getElementById('ctDebt').checked;
+  const icon=document.getElementById('ctIcon').value,debt=document.getElementById('ctDebt').checked;
+  const raw=Number(document.getElementById('ctVal').value)||0;const value=debt?Math.abs(raw):raw; // 负债统一存正数，展示与汇总时自动取负（v167）
   if(id){const c=S.asset.cats.find(x=>x.id===id);if(c)Object.assign(c,{name,icon,value,debt})}
   else S.asset.cats.push({id:'cat-'+genId(),name,icon,value,debt});
   await saveStat();closeStatModal();renderStat();showToast('已保存','success')
