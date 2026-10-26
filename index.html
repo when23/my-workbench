@@ -265,6 +265,23 @@ img{max-width:100%;display:block}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:3000;padding:20px;cursor:zoom-out}
 .lightbox.show{display:flex}
 .lightbox img{max-width:95%;max-height:95%;border-radius:8px}
+/* ===== 账号密码锁 (v165) ===== */
+.auth-gate{position:fixed;inset:0;z-index:9000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+.auth-gate.hide{display:none}
+.auth-card{background:var(--surface);border-radius:var(--r);padding:28px 24px;width:100%;max-width:380px;box-shadow:var(--shadow-lg)}
+.auth-logo{width:56px;height:56px;border-radius:14px;background:var(--primary);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.auth-card h2{font-size:18px;font-weight:700;text-align:center;margin-bottom:4px}
+.auth-sub{font-size:13px;color:var(--text-2);text-align:center;margin-bottom:18px}
+.auth-card label{display:block;font-size:13px;color:var(--text-2);margin:10px 0 4px}
+.auth-card input[type=text],.auth-card input[type=password]{width:100%;border:1px solid var(--border);border-radius:var(--r-s);padding:10px 12px;font-size:16px;background:var(--bg)}
+.auth-card input:focus{outline:none;border-color:var(--primary);background:var(--surface)}
+.auth-err{font-size:13px;color:var(--danger);min-height:20px;margin-top:8px;text-align:center}
+.auth-remember{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);margin:12px 0 4px;cursor:pointer}
+.auth-remember input{width:16px;height:16px;accent-color:var(--primary)}
+.auth-card .btn-primary{width:100%;justify-content:center;padding:10px;font-size:14px}
+.auth-links{display:flex;justify-content:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.auth-link{font-size:12px;color:var(--text-3);background:none;border:none;cursor:pointer;text-decoration:underline}
+.auth-tip{font-size:12px;color:var(--text-3);margin-top:14px;line-height:1.6;text-align:center}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text-3)}
@@ -610,13 +627,36 @@ img{max-width:100%;display:block}
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
 <body>
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="auth-logo">🔒</div>
+    <h2 id="authTitle">个人工作台</h2>
+    <p class="auth-sub" id="authSub">请设置账号和密码</p>
+    <label for="authUser">账号</label>
+    <input type="text" id="authUser" autocomplete="username" spellcheck="false" autocapitalize="off">
+    <label for="authPass">密码</label>
+    <input type="password" id="authPass" autocomplete="current-password">
+    <div id="authConfirmWrap">
+      <label for="authPass2">确认密码</label>
+      <input type="password" id="authPass2" autocomplete="new-password">
+    </div>
+    <div class="auth-err" id="authErr"></div>
+    <label class="auth-remember"><input type="checkbox" id="authRemember"> 记住登录 7 天</label>
+    <button class="btn btn-primary" id="authSubmit">设置并进入</button>
+    <div class="auth-links" id="authLinks">
+      <button class="auth-link" id="authForgot">忘记密码？</button>
+    </div>
+    <p class="auth-tip" id="authTip"></p>
+  </div>
+</div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v164</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v165</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
       <button class="btn btn-ghost" id="cloudBtn">☁ 云同步</button>
+      <button class="btn btn-ghost" id="secBtn">🔒 安全</button>
       <input type="file" id="importFile" accept=".json" style="display:none">
     </div>
   </div>
@@ -988,7 +1028,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v164</span>
+  <span id="updateText">✅ 已是最新 v165</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1039,6 +1079,24 @@ img{max-width:100%;display:block}
 
 <div class="board-color-pop" id="boardColorPop"></div>
 <div class="toast" id="toast"></div>
+<div class="modal-overlay" id="secModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header"><h3>🔒 安全设置</h3><button class="modal-close" onclick="closeSecModal()">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;line-height:1.6">修改登录密码，或立即锁定工作台（下次进入需重新输入密码）。密码仅以加密摘要形式存于本机，不会上传。</p>
+      <label>原密码</label>
+      <input type="password" id="secOld" autocomplete="current-password">
+      <label>新密码（至少 4 位）</label>
+      <input type="password" id="secNew" autocomplete="new-password">
+      <label>确认新密码</label>
+      <input type="password" id="secNew2" autocomplete="new-password">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="lockNow()">🔒 立即锁定</button>
+      <button class="btn btn-primary" onclick="changePass()">修改密码</button>
+    </div>
+  </div>
+</div>
 <div class="lightbox" id="lightbox"><img id="lightboxImg" src="" alt=""></div>
 
 <div class="modal-overlay" id="addCatModal">
@@ -3144,7 +3202,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v164'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v165'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -3937,6 +3995,150 @@ function updateFpStat(){const el=document.getElementById('fpStat');if(!el)return
 async function delCity(id){if(!confirm('删除该城市标记？'))return;S.footprints.cities=S.footprints.cities.filter(x=>x.id!==id);await saveFootprints();renderFootprint();showToast('已删除','success')}
 async function clearAllFootprints(){if(!confirm('清空所有足迹（省份与城市）？此操作不可恢复。'))return;S.footprints={provinces:{},cities:[]};await saveFootprints();renderFootprint();showToast('已清空','success')}
 
+// ===== 账号密码锁 (v165) =====
+// 说明：纯前端无后端，这是「本地访问门控」——防止他人直接打开浏览器看到内容；
+// 并非数据加密（懂技术者仍可从浏览器存储直接读取）。密码以 PBKDF2-SHA-256 摘要 + 随机盐存储，绝不存明文。
+const AUTH_KEY='wbAuth', AUTH_ITER=100000, AUTH_REMEMBER_DAYS=7;
+let AUTH_OK=false;
+function _authGet(){try{return JSON.parse(localStorage.getItem(AUTH_KEY)||'null')}catch(_){return null}}
+function _authSave(a){try{localStorage.setItem(AUTH_KEY,JSON.stringify(a))}catch(_){}}
+function _bufToB64(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
+function _randSalt(){const a=new Uint8Array(16);crypto.getRandomValues(a);return _bufToB64(a)}
+async function _derive(pass,salt,iter){
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(pass),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:iter,hash:'SHA-256'},km,256);
+  return _bufToB64(bits)
+}
+function _sessSet(remember){
+  const until=Date.now()+AUTH_REMEMBER_DAYS*86400000;
+  try{(remember?localStorage:sessionStorage).setItem('wbAuthSess',String(until))}catch(_){}
+}
+function _sessValid(){
+  for(const s of [localStorage,sessionStorage]){
+    try{const v=Number(s.getItem('wbAuthSess')||0);if(v&&v>Date.now())return true}catch(_){}
+  }
+  return false
+}
+function _sessClear(){try{localStorage.removeItem('wbAuthSess');sessionStorage.removeItem('wbAuthSess')}catch(_){}}
+function _cryptoOk(){return !!(window.crypto&&window.crypto.subtle&&window.crypto.subtle.deriveBits)}
+function authErr(m){const e=document.getElementById('authErr');if(e)e.textContent=m||''}
+function authMode(mode){
+  const a=_authGet();
+  const setup=(mode==='setup')||!a;
+  const t=id=>document.getElementById(id);
+  t('authTitle').textContent=setup?'欢迎使用':'个人工作台';
+  t('authSub').textContent=setup?'首次使用，请设置账号和密码':'请输入账号和密码';
+  t('authConfirmWrap').style.display=setup?'block':'none';
+  t('authSubmit').textContent=setup?'设置并进入':'进入工作台';
+  t('authLinks').style.display=setup?'none':'flex';
+  t('authTip').textContent=setup?'密码仅存本机（加密摘要），用于防止他人直接打开查看。请务必牢记——忘记将无法找回。':'忘记密码需重置本机数据；若已开启云同步，重置后重新连接即可拉回。';
+  authErr('');
+  t('authGate').classList.remove('hide');
+  try{t('authPass').value='';t('authPass2').value=''}catch(_){}
+  if(setup){try{t('authUser').focus()}catch(_){}}else{try{t('authPass').focus()}catch(_){}}
+}
+function _authBtn(b){
+  const s=document.getElementById('authSubmit');if(!s)return;
+  s.disabled=!!b;
+  s.textContent=b?'处理中…':(_authGet()?'进入工作台':'设置并进入')
+}
+async function authSubmit(){
+  const a=_authGet();
+  const setup=!a;
+  const user=(document.getElementById('authUser').value||'').trim();
+  const p1=document.getElementById('authPass').value||'';
+  if(!user){authErr('请填写账号');return}
+  if(setup){
+    const p2=document.getElementById('authPass2').value||'';
+    if(p1.length<4){authErr('密码至少 4 位');return}
+    if(p1!==p2){authErr('两次输入的密码不一致');return}
+    if(!_cryptoOk()){authErr('当前环境不支持加密（需 HTTPS 或 localhost），无法设置密码');return}
+    _authBtn(true);
+    try{
+      const salt=_randSalt();
+      const hash=await _derive(p1,salt,AUTH_ITER);
+      _authSave({user,salt,hash,iter:AUTH_ITER,ts:Date.now()});
+    }catch(e){_authBtn(false);authErr('设置失败：'+((e&&e.message)||e));return}
+  }else{
+    if(!p1){authErr('请填写密码');return}
+    _authBtn(true);
+    let ok=false;
+    try{
+      const h=await _derive(p1,a.salt,a.iter||AUTH_ITER);
+      ok=(h===a.hash)&&(user===a.user);
+    }catch(e){}
+    if(!ok){_authBtn(false);authErr('账号或密码不正确');return}
+  }
+  _sessSet(document.getElementById('authRemember').checked);
+  AUTH_OK=true;
+  try{document.getElementById('authPass').value='';document.getElementById('authPass2').value=''}catch(_){}
+  _authBtn(false);
+  document.getElementById('authGate').classList.add('hide');
+  await authAfterUnlock()
+}
+async function authAfterUnlock(){await init();startCloudPolling()}
+function lockNow(){
+  _sessClear();AUTH_OK=false;
+  closeSecModal();
+  try{document.getElementById('authUser').value='';document.getElementById('authPass').value='';document.getElementById('authPass2').value=''}catch(_){}
+  authMode('login');
+  showToast('已锁定','success')
+}
+function openSecModal(){
+  ['secOld','secNew','secNew2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  document.getElementById('secModal').classList.add('show')
+}
+function closeSecModal(){document.getElementById('secModal').classList.remove('show')}
+async function changePass(){
+  const a=_authGet();if(!a){showToast('尚未设置密码','error');return}
+  const old=document.getElementById('secOld').value||'';
+  const nw=document.getElementById('secNew').value||'';
+  const nw2=document.getElementById('secNew2').value||'';
+  if(nw.length<4){showToast('新密码至少 4 位','error');return}
+  if(nw!==nw2){showToast('两次输入的新密码不一致','error');return}
+  if(!_cryptoOk()){showToast('当前环境不支持加密，无法修改','error');return}
+  try{
+    const h=await _derive(old,a.salt,a.iter||AUTH_ITER);
+    if(h!==a.hash){showToast('原密码不正确','error');return}
+    const salt=_randSalt();
+    const hash=await _derive(nw,salt,AUTH_ITER);
+    _authSave(Object.assign({},a,{salt,hash,iter:AUTH_ITER,ts:Date.now()}));
+    closeSecModal();showToast('密码已修改','success')
+  }catch(e){showToast('修改失败：'+((e&&e.message)||e),'error')}
+}
+async function authReset(){
+  if(!confirm('⚠️ 忘记密码重置将清除本机全部数据（不可恢复）。\n\n建议先点顶部「导出备份」保存一份。若已开启云同步，重置后重新连接可从云端拉回数据。\n\n确定继续吗？'))return;
+  if(!confirm('再次确认：真的要清空本机全部数据并重新设置密码吗？此操作不可恢复。'))return;
+  try{
+    await DB.init();
+    const keys=await DB.keys();
+    // 关键：只用 _localDel（仅清本机），绝不能用 DB.del——后者会同步删除云端数据！
+    for(const k of keys){try{await DB._localDel(k)}catch(_){}}
+    try{localStorage.removeItem(AUTH_KEY)}catch(_){}
+    _sessClear();
+    showToast('已重置，请重新设置密码','success');
+    setTimeout(()=>location.reload(),700)
+  }catch(e){showToast('重置失败：'+((e&&e.message)||e),'error')}
+}
+async function boot(){
+  try{
+    if(!_cryptoOk()){
+      // 环境不支持加密时不把用户锁死：直接放行，并在控制台提示
+      console.warn('当前环境不支持 WebCrypto，密码锁未启用');
+      AUTH_OK=true;document.getElementById('authGate').classList.add('hide');
+      await init();startCloudPolling();return
+    }
+    if(!_authGet()){authMode('setup');return}
+    if(_sessValid()){AUTH_OK=true;document.getElementById('authGate').classList.add('hide');await init();startCloudPolling();return}
+    authMode('login')
+  }catch(e){
+    console.error('boot auth',e);
+    // 兜底：即使初始化异常，也要把登录页切到正确模式，避免卡在半初始化界面
+    try{authMode(_authGet()?'login':'setup')}catch(_){}
+  }
+}
+
 // ===== Init =====
 async function init(){await DB.init();document.getElementById('datePicker').value=S.date;
   // 关键：先渲染本地数据，保证页面立即可见，绝不被云同步阻塞
@@ -3945,9 +4147,12 @@ async function init(){await DB.init();document.getElementById('datePicker').valu
   // 开页即同步也受「自动同步」开关约束：关闭后只在用户手动点「立即同步」时才拉取，避免硬刷后立即合并造成混乱
   if(CLOUD.on){initCloudIfNeeded().then(async()=>{if(CLOUD.enabled&&CLOUD.auto){try{const changed=await syncFromCloud();if(changed)await reloadAll()}catch(e){console.warn('后台云同步异常',e);updateCloudStatus()}}}).catch(e=>{console.warn('云初始化异常',e);updateCloudStatus()})}
 }
-init();
-startCloudPolling();
+boot(); // 启动门控：先过账号密码锁，通过后才 init 加载数据
 document.getElementById('cloudBtn').addEventListener('click',openCloudModal);
+document.getElementById('secBtn').addEventListener('click',openSecModal);
+document.getElementById('authSubmit').addEventListener('click',()=>{authSubmit()});
+document.getElementById('authForgot').addEventListener('click',()=>{authReset()});
+['authUser','authPass','authPass2'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();authSubmit()}})});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&CLOUD.enabled&&CLOUD.auto&&!cloudSyncRunning&&!(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000)){syncFromCloud().then(()=>reloadAll())}});
 window.addEventListener('online',()=>{if(CLOUD.enabled&&CLOUD.auto&&!cloudSyncRunning&&!(CLOUD.lastWriteError&&Date.now()-CLOUD.lastWriteError<5*60*1000)){syncFromCloud().then(()=>reloadAll())}});
 </script>
