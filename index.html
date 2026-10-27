@@ -622,7 +622,7 @@ img{max-width:100%;display:block}
 .rc-expired{background:#fef2f2;color:#b91c1c}
 .rc-warn{background:#fffbeb;color:#b45309}
 .rc-ok{background:#ecfdf5;color:#047857}
-/* ===== 数据统计 / 资产台账 (v167) ===== */
+/* ===== 数据统计 / 资产台账 (v168) ===== */
 .form-input{width:100%;border:1px solid var(--border);border-radius:var(--r-xs);padding:9px 11px;font-size:14px;background:var(--surface);margin-bottom:4px}
 .form-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
 #statModalBody label{display:block;font-size:13px;color:var(--text-2);margin:10px 0 4px}
@@ -706,7 +706,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v167</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v168</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1151,7 +1151,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v167</span>
+  <span id="updateText">✅ 已是最新 v168</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3332,7 +3332,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v167'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v168'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -3940,7 +3940,8 @@ function renderGrowthDetail(){
     let body='';
     if(mod==='sleep'){const ab=(r.abnormal||[]).map(t=>`<span class="growth-chip ab">${t}</span>`).join('')||'<span class="growth-chip">无异常</span>';const timeInfo=(r.sleepTime||r.wakeTime)?`🌙 ${r.sleepTime||'?'} 睡 → ☀️ ${r.wakeTime||'?'} 醒`:'';body=`<div class="record-text">😴 睡眠 ${r.duration!=null?r.duration:0} 小时</div>${timeInfo?`<div class="growth-row">${timeInfo}</div>`:''}<div class="growth-chips">${ab}</div>${r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:''}`}
     else if(mod==='diet'){const meals=[];if(r.breakfast)meals.push('🌅 早餐：'+escapeHtml(r.breakfast));if(r.lunch)meals.push('☀️ 中餐：'+escapeHtml(r.lunch));if(r.dinner)meals.push('🌙 晚餐：'+escapeHtml(r.dinner));const bowel=`<div class="growth-row">💩 正常 ${r.bowelNormal||0} 次${r.bowelAbnormalType&&r.bowelAbnormalType!=='无'&&r.bowelAbnormalCount?` · 异常(${escapeHtml(r.bowelAbnormalType)}) ${r.bowelAbnormalCount} 次`:''}</div>`;const tags=(r.tags||[]).map(t=>`<span class="growth-chip ${t==='过敏'?'ab':''}">${t}</span>`).join('');body=(meals.length?meals.map(m=>`<div class="record-text">${m}</div>`).join(''):'<div class="record-text" style="color:var(--text-3)">当天未记录正餐</div>')+bowel+(tags?`<div class="growth-chips" style="margin-top:6px">${tags}</div>`:'')+(r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:'')}
-    else if(mod==='study'){const parts=[];if(r.langMin)parts.push('🗣️ 语言 '+r.langMin+' 分');if(r.mathMin)parts.push('🔢 数学 '+r.mathMin+' 分');if(r.penCount)parts.push('✍️ 控笔 '+r.penCount+' 次');const main=parts.length?parts.map(p=>`<div class="record-text">${p}</div>`).join(''):'<div class="record-text" style="color:var(--text-3)">当天未记录时长/次数</div>';const readings=(r.readings||[]).map(x=>{const b=S.studyBooks.find(y=>y.id===x.bookId);return `<div class="study-reading-line">📖 ${escapeHtml(b?b.title:x.bookTitle||'未知图书')} · ${x.durationMin}分 · ${x.status==='finished'?'读完':'在读'}</div>`}).join('');const langNote=r.langNote?`<div class="record-text" style="margin-top:4px;color:var(--text-2)">📝 语言内容：${escapeHtml(r.langNote)}</div>`:'';const mathNote=r.mathNote?`<div class="record-text" style="margin-top:4px;color:var(--text-2)">📝 数学内容：${escapeHtml(r.mathNote)}</div>`:'';const probs=(r.problems||[]).map(t=>`<span class="growth-chip ab">${escapeHtml(t)}</span>`).join('');body=main+(readings?`<div class="study-readings-block" style="margin-top:6px">${readings}</div>`:'')+langNote+mathNote+(probs?`<div class="growth-chips" style="margin-top:6px">${probs}</div>`:'')+(r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:'')}
+    else if(mod==='study'){const parts=[];if(r.langMin)parts.push('🗣️ 语言 '+r.langMin+' 分');if(r.mathMin)parts.push('🔢 数学 '+r.mathMin+' 分');if(r.penCount)parts.push('✍️ 控笔 '+r.penCount+' 次');const main=parts.length?parts.map(p=>`<div class="record-text">${p}</div>`).join(''):'<div class="record-text" style="color:var(--text-3)">当天未记录时长/次数</div>';const readings=(r.readings||[]).map(x=>{const b=S.studyBooks.find(y=>y.id===x.bookId);return `<div class="study-reading-line">📖 ${escapeHtml(b?b.title:x.bookTitle||'未知图书')} · ${x.durationMin}分 · ${x.status==='finished'?'读完':'在读'}</div>`}).join('');const langNote=r.langNote?`<div class="record-text" style="margin-top:4px;color:var(--text-2)">📝 语言内容：${escapeHtml(r.langNote)}</div>`:'';const mathNote=r.mathNote?`<div class="record-text" style="margin-top:4px;color:var(--text-2)">📝 数学内容：${escapeHtml(r.mathNote)}</div>`:'';    const probs=(r.problems||[]).map(t=>`<span class="growth-chip ab">${escapeHtml(t)}</span>`).join('');body=main+(readings?`<div class="study-readings-block" style="margin-top:6px">${readings}</div>`:'')+langNote+mathNote+(probs?`<div class="growth-chips" style="margin-top:6px">${probs}</div>`:'')+(r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:'')}
+    else if(mod==='out'){const parts=[];if(r.location)parts.push('📍 外出地点：'+escapeHtml(r.location));if(r.exerciseHours)parts.push('🏃 运动时长：'+r.exerciseHours+' 小时');const main=parts.length?parts.map(p=>`<div class="record-text">${p}</div>`).join(''):'<div class="record-text" style="color:var(--text-3)">未填写地点与运动时长</div>';body=main+(r.note?`<div class="record-text" style="margin-top:4px">📝 ${escapeHtml(r.note)}</div>`:'')}
     return `<div class="record-card"><div class="record-meta"><span class="growth-record-date">${r.date||''}</span><span class="record-time">${fmtDate(r.timestamp)}</span></div>${body}<div class="record-actions"><button class="btn btn-ghost btn-sm" onclick="editGrowthRecord('${mod}','${r.id}')">编辑</button><button class="btn btn-danger btn-sm" onclick="delGrowthRecord('${mod}','${r.id}')">删除</button></div></div>`;
   }).join('');
 }
@@ -4269,7 +4270,7 @@ async function boot(){
   }
 }
 
-// ===== 数据统计 / 资产台账 (v167) =====
+// ===== 数据统计 / 资产台账 (v168) =====
 function defaultAsset(){
   return {principal:0,baseline:0,cats:[
     {id:'cash',name:'货币资金',icon:'💳',value:0,auto:false},
