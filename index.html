@@ -766,7 +766,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v170</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v171</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1213,7 +1213,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v170</span>
+  <span id="updateText">✅ 已是最新 v171</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1332,6 +1332,7 @@ const CLOUD={
   ,noImages:localStorage.getItem('ghNoImg')==='1'   // 同步不含图片（仅传文字）：本地图片保留，云端只存文字版，彻底规避大图导致多分片写失败（先把同步跑通）
   ,lastLocal:(JSON.parse(localStorage.getItem('ghLastLocal')||'null'))||{}   // key->上次同步时本地内容签名（增量跳过用）
   ,lastSha:(JSON.parse(localStorage.getItem('ghLastSha')||'null'))||{}      // 文件名->上次同步时云端 sha（增量跳过用：服务端与本地都未变则跳过该键读写）
+  ,_syncedOnce:false  // 本会话是否已与云端完成至少一次同步；完成前 carryOver 不联网补齐/不写回云端，避免 PC/手机两端基于不同历史推出不同今天
 };
 let cloudLastErr='';
 // 提取可读错误信息
@@ -1985,72 +1986,69 @@ document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',asy
 
 // ===== Daily Execution =====
 async function loadBoards(){const b=await DB.get('boards');if(b===undefined){S.boards=[...DEFAULT_BOARDS];return;}if(b){S.boards=b}else{S.boards=[...DEFAULT_BOARDS];await DB.set('boards',S.boards)}S.boards.forEach((x,i)=>{if(!x.color)x.color=BOARD_COLORS[i%BOARD_COLORS.length]});await saveBoards()}
-async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};await carryOverUncompleted();renderBoards()}
+// 带超时的 promise 包装：用于云端补齐请求，弱网时不阻塞每日执行加载
+function withTimeout(p,ms){return Promise.race([Promise.resolve().then(()=>p),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))])}
+async function loadDaily(){S.daily=(await DB.get('daily:'+S.date))||{};renderBoards();carryOverUncompleted()}
 // 未完成的任务自动顺延到下一天，直到完成
 async function carryOverUncompleted(){
+  const TD=S.date;
+  const daily=S.daily; // 捕获当前日期本地数据（局部引用，避免与“切换日期后新 loadDaily”的异步并发互相污染 S.daily）
   const _d=[]; const _diag=s=>{_d.push(s); const _el=document.getElementById('dailyDiag'); if(_el)_el.textContent='每日补全诊断 ▸ '+_d.join(' · ');};
-  _diag('启动 cloud='+(CLOUD.on&&CLOUD.ghToken&&CLOUD.ghRepo?'on':'off'));
+  _diag('启动 cloud='+(CLOUD.on&&CLOUD.ghToken&&CLOUD.ghRepo?'on':'off')+(CLOUD._syncedOnce?' synced':' pre-sync'));
   try{
   let changed=false;
-  const cloudForce={}; // 云端明确拉到的「未完成」任务：以云端真相为准，绕过本地墓碑（避免 v137 防复活修复残留的误删墓碑把昨日未完成项拦死）
-  // 加载本地墓碑：被删除（含跨设备删除）的任务不应再被顺延复活（顺延是经 saveDaily 直传云端、绕不过 syncFromCloud 的墓碑过滤，故这里单独拦截）
+  const cloudForce={}; // 云端明确拉到的「未完成」任务：以云端真相为准，绕过本地墓碑
   let tombSet=null;
   try{ const T=(await DB._localGet('__tombstones'))||[]; if(Array.isArray(T))tombSet=new Set(T); }catch(_){}
-  // 1) 清理当天可能存在的同文本重复（修复旧数据/跨天复制产生的重复）
-  for(const bid in S.daily){
-    const seen={};const before=(S.daily[bid]||[]).length;
-    S.daily[bid]=(S.daily[bid]||[]).filter(t=>{const k=t.text;if(seen[k])return false;seen[k]=true;return true});
-    if((S.daily[bid]||[]).length!==before)changed=true;
+  // 1) 去重
+  for(const bid in daily){
+    const seen={};const before=(daily[bid]||[]).length;
+    daily[bid]=(daily[bid]||[]).filter(t=>{const k=t.text;if(seen[k])return false;seen[k]=true;return true});
+    if((daily[bid]||[]).length!==before)changed=true;
   }
-  // 1.5) 移除当天「已存在却被删除（墓碑命中）」的任务：跨设备删除在刷新时即生效，无需先手动同步
-  // （v133 前 loadDaily 只拦「新顺延」、不动已存在的本地旧副本，导致删除后刷新仍可见，必须同步才掉）
+  // 1.5) 墓碑
   if(tombSet){
-    for(const bid in S.daily){
-      const before=(S.daily[bid]||[]).length;
-      S.daily[bid]=(S.daily[bid]||[]).filter(t=>!tombSet.has('daily:'+S.date+'::'+bid+'::'+_idPathOf(t)));
-      if((S.daily[bid]||[]).length!==before)changed=true;
+    for(const bid in daily){
+      const before=(daily[bid]||[]).length;
+      daily[bid]=(daily[bid]||[]).filter(t=>!tombSet.has('daily:'+TD+'::'+bid+'::'+_idPathOf(t)));
+      if((daily[bid]||[]).length!==before)changed=true;
     }
   }
-  // 2) 扫描最近60天，按稳定 id（有 id 用 id，旧任务用 文本 兜底）追踪每个任务最近一次状态
+  // 2) 扫描最近60天（本地并行读取，避免串行 60 次 await 拖慢首屏）
   const allKeys=await DB.keys();
-  const prevDates=allKeys.filter(k=>k.startsWith('daily:')).map(k=>k.slice(6)).filter(d=>d<S.date).sort().reverse();
+  const prevDates=allKeys.filter(k=>k.startsWith('daily:')).map(k=>k.slice(6)).filter(d=>d<TD).sort().reverse();
   const scanDates=prevDates.slice(0,60);
   const taskMap={}, dismissedAny={};
-  for(const d of scanDates){
-    const data=await DB.get('daily:'+d);if(!data)continue;
+  const histAll=await Promise.all(scanDates.map(async d=>{ const data=await DB.get('daily:'+d); return {d,data}; }));
+  for(const {d,data} of histAll){
+    if(!data)continue;
     for(const boardId in data){
       const tasks=data[boardId];if(!Array.isArray(tasks))continue;
       for(const t of tasks){
         const tid=t.id||('txt:'+t.text);
-        if(!!t.dismissed)dismissedAny[tid]=true; // 任一历史出现被 dismissed → 视为用户已取消该循环任务
+        if(!!t.dismissed)dismissedAny[tid]=true;
         if(!taskMap[tid]||d>taskMap[tid].date){taskMap[tid]={date:d,done:!!t.done,dismissed:!!t.dismissed,task:t,boardId}}
       }
     }
   }
   _diag('本地taskMap='+Object.keys(taskMap).length);
-  // 注意：不得因「本地无历史 daily」在此处 early return——否则冷启动/历史未缓存的设备会跳过下方 2.5 的云端补齐，导致每日执行整片空白（v137 修复：原先 v136 的云端补齐分支被这个 return 挡死，刷新无效）。本地无历史且本地 changed（如步骤1去重）时，下方统一的 saveDaily 仍会兜底保存。
-  // 2.5) 云端补齐（始终尝试，不止于本地空）：只要已连接云端，就从云端取「最近一个小于今天」的 daily 文件，
-  //      将其未完成项并入 taskMap（以 stable id 去重），且云端未完成的优先于本地任何状态（含本地误标 done）。
-  //      这覆盖了三类本地拿不到昨日任务的情形：① 设备冷启动本地无历史 daily ② 本地 daily 键被清空/空壳
-  //      ③ 本地 daily:昨日 副本曾把任务标为 done（但云端仍未完成）。正常有完整本地历史时此分支仅作冗余兜底，无副作用。
-  //      注意：CLOUD 配置在脚本加载时已就绪，无需等待 initCloudIfNeeded 的网络验证。整段 try/catch 仅兜底网络异常。
-  if(CLOUD.on && CLOUD.ghToken && CLOUD.ghRepo){
+  // 2.5) 云端补齐（仅在本会话已完成首次云同步后；带超时，弱网不卡首屏）。
+  //      未同步前不联网补齐、也不写回云端：否则本端会用“昨天历史”重算今天并上传，污染云端真实状态，
+  //      导致 PC/手机两端基于不同历史推出不同今天（已完成项被覆盖）。syncFromCloud 先把云端“今天真相”拉回本地，再在此基础顺延 → 两端一致。
+  if(CLOUD._syncedOnce && CLOUD.on && CLOUD.ghToken && CLOUD.ghRepo){
     try{
-      const jr=await _ghGetJson('/repos/'+CLOUD.ghRepo+'/contents/'+CLOUD.ghPath+'/');
+      const jr=await withTimeout(_ghGetJson('/repos/'+CLOUD.ghRepo+'/contents/'+CLOUD.ghPath+'/'),1600).catch(()=>null);
       if(Array.isArray(jr)){
-        const cd=jr.filter(f=>f.name&&f.name.startsWith('daily:')&&f.name.endsWith('.json')).map(f=>f.name.slice(6,-5)).filter(d=>d<S.date).sort();
+        const cd=jr.filter(f=>f.name&&f.name.startsWith('daily:')&&f.name.endsWith('.json')).map(f=>f.name.slice(6,-5)).filter(d=>d<TD).sort();
         if(cd.length){
           const srcDate=cd[cd.length-1];
-          const cv=await cloudGet('daily:'+srcDate);
+          const cv=await withTimeout(cloudGet('daily:'+srcDate),1600).catch(()=>null);
           if(cv&&typeof cv==='object'){
             for(const boardId in cv){const tasks=cv[boardId];if(!Array.isArray(tasks))continue;
               for(const t of tasks){
                 const tid=t.id||('txt:'+t.text);
-                if(!!t.done||!!t.dismissed)continue; // 云端自身已完成/已取消 → 跳过
-                // 关键修复(v164)：云端补齐只应"补全本地丢失的未完成项"，绝不可把本地已完成的任务又拉回未完成。
-                // 若本地 60 天扫描已记录该任务 done=true（用户在更早日期真实勾选完成），保留本地完成态，不再强制 done:false（否则"同步后已完成事件又出现"）。
-                if(taskMap[tid]&&taskMap[tid].done)continue;
-                // 云端未完成 → 覆盖本地未完成的旧状态（含历史 dismissed 误标），保证今日顺延（云端真相优先）
+                if(!!t.done||!!t.dismissed)continue;
+                if(taskMap[tid]&&taskMap[tid].done)continue; // 关键修复(v164)：不把本地已完成的任务拉回未完成
                 taskMap[tid]={date:srcDate,done:false,dismissed:false,task:t,boardId}; cloudForce[tid]=true;
               }
               _diag('云端源='+srcDate+' taskMap='+Object.keys(taskMap).length+' force='+Object.keys(cloudForce).length);
@@ -2060,20 +2058,22 @@ async function carryOverUncompleted(){
       }
     }catch(_){}
   }
-  // 3) 未完成的任务顺延到当天（使用稳定 id，不再生成随机 id，避免跨天复制产生重复）
+  // 3) 顺延
   let _added=0,_ndone=0,_skipDone=0,_skipTomb=0,_skipDup=0,_curToday=0;
   for(const tid in taskMap){const m=taskMap[tid]; if(!(m.done||m.dismissed||dismissedAny[tid]))_ndone++;}
-  for(const bid in S.daily){_curToday+=(S.daily[bid]||[]).length;}
+  for(const bid in daily){_curToday+=(daily[bid]||[]).length;}
   for(const tid in taskMap){
     const{date,done,dismissed,task,boardId}=taskMap[tid];
-    if(done||dismissed||(dismissedAny[tid]&&!cloudForce[tid])){_skipDone++;continue;} // 已完成/已删除/曾被取消（云端权威未完成的除外）
-    if(tombSet&&tombSet.has('daily:'+S.date+'::'+boardId+'::'+tid)&&!cloudForce[tid]){_skipTomb++;continue;} // 该任务已被删除（墓碑存在）→ 不再顺延复活（云端权威未完成的除外）
-    if(!S.daily[boardId])S.daily[boardId]=[];
-    if(S.daily[boardId].some(t=>t.text===task.text)){_skipDup++;continue;} // 当天已有同名任务则不重复添加
-    S.daily[boardId].push({id:tid,text:task.text,done:false,carriedFrom:date});
+    if(done||dismissed||(dismissedAny[tid]&&!cloudForce[tid])){_skipDone++;continue;}
+    if(tombSet&&tombSet.has('daily:'+TD+'::'+boardId+'::'+tid)&&!cloudForce[tid]){_skipTomb++;continue;}
+    if(!daily[boardId])daily[boardId]=[];
+    if(daily[boardId].some(t=>t.text===task.text)){_skipDup++;continue;}
+    daily[boardId].push({id:tid,text:task.text,done:false,carriedFrom:date});
     changed=true; _added++;
   }
-  if(changed)await saveDaily();
+  if(S.date!==TD)return; // 补全期间用户已切换日期，本次结果作废，避免污染/写错日期
+  if(changed){ S.daily=daily; if(CLOUD._syncedOnce) await saveDaily(); }
+  renderBoards(); // 始终用最新 S.daily 渲染（含顺延结果）
   _diag('完成(changed='+changed+' 今日新增='+_added+' 看板='+S.boards.map(b=>b.id).join(',')+' | 候选可顺延='+_ndone+' 已完成/取消='+_skipDone+' 墓碑='+_skipTomb+' 今天已有='+_skipDup+' 今天原有='+_curToday);
   }catch(e){ _diag('致命异常:'+(e&&e.message||e)); console.error('carryOver',e); }
 }
@@ -3488,7 +3488,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v170'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v171'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -4648,7 +4648,19 @@ async function init(){await DB.init();document.getElementById('datePicker').valu
   await loadBoards();await loadDaily();await loadOrgCategories();await loadOutfits();await loadPhasePlans();await loadGrowth();await loadHealth();await loadTrips();await loadChecklist();await loadFootprints();maybeShowBackupHint();updateCloudStatus();
   // 云端同步放后台执行（不 await），完成后再按需刷新；若卡死有超时保护，不影响页面
   // 开页即同步也受「自动同步」开关约束：关闭后只在用户手动点「立即同步」时才拉取，避免硬刷后立即合并造成混乱
-  if(CLOUD.on){initCloudIfNeeded().then(async()=>{if(CLOUD.enabled&&CLOUD.auto){try{const changed=await syncFromCloud();if(changed)await reloadAll()}catch(e){console.warn('后台云同步异常',e);updateCloudStatus()}}}).catch(e=>{console.warn('云初始化异常',e);updateCloudStatus()})}
+  // 关键修复（v171）：未与云端完成首次同步前，carryOver 不联网补齐、也不写回云端。
+  // 否则本端会用“昨天历史”重算今天并上传，污染云端真实状态，导致 PC/手机两端基于不同历史推出不同今天（已完成项被覆盖）。
+  // 改为：首屏先显示本地数据（瞬时），后台 syncFromCloud 把云端“今天真相”拉到本地，再 reloadAll→carryOver（此时已 _syncedOnce）顺延并写回，两端收敛一致。
+  if(!CLOUD.on || !CLOUD.ghToken || !CLOUD.ghRepo){
+    CLOUD._syncedOnce=true; // 无云端：carryOver 直接本地写回
+  }else{
+    initCloudIfNeeded().then(async()=>{
+      try{ if(CLOUD.enabled&&CLOUD.auto){ await syncFromCloud(); } }catch(e){ console.warn('后台云同步异常',e); }
+      CLOUD._syncedOnce=true; // 同步（或连接）完成后，才允许 carryOver 写回云端
+      try{ await reloadAll(); }catch(e){ console.error('reload 异常',e); }
+      updateCloudStatus();
+    }).catch(e=>{ CLOUD._syncedOnce=true; console.warn('云初始化异常',e); updateCloudStatus(); });
+  }
 }
 boot(); // 启动门控：先过账号密码锁，通过后才 init 加载数据
 document.getElementById('cloudBtn').addEventListener('click',openCloudModal);
