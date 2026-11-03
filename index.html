@@ -766,7 +766,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v171</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v172</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1213,7 +1213,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v171</span>
+  <span id="updateText">✅ 已是最新 v172</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3006,6 +3006,16 @@ function healthSetFilter(type){
 async function healthDelRecord(mod,id){if(!confirm('确定删除这条记录吗？'))return;const arr=healthRecordsOf(mod);const idx=arr.findIndex(r=>r.id===id);if(idx<0)return;arr.splice(idx,1);if(mod==='sleep')S.healthSleep=arr;else S.healthDiet=arr;healthSaveRec(mod).catch(e=>console.warn('健康记录后台保存失败',e));healthRenderList(mod);showToast('已删除','success')}
 function healthEditRecord(mod,id){
   const arr=healthRecordsOf(mod);const rec=arr.find(r=>r.id===id);if(!rec)return;
+  if(mod==='diet'){
+    // v172 修复：饮食记录点“编辑”改为定位到顶部仪表盘对应日期，复用现有分餐编辑功能
+    // （加/删早中晚食物、当日补充），不再打开只含日期/排便/标签/备注的旧弹窗——那里面无法改早中晚餐内容
+    const dateInput=document.getElementById('calDate');
+    if(dateInput){dateInput.value=rec.date;renderCalorie();}
+    const dash=document.getElementById('dietCalorieDash');
+    if(dash)dash.scrollIntoView({behavior:'smooth',block:'start'});
+    showToast('已定位到 '+rec.date+'，可在上方仪表盘修改早/中/晚餐', 'success');
+    return;
+  }
   openEditModal('编辑'+HEALTH_REC_ICON[mod]+'记录',healthFormHTML(mod,rec,'edit-'));
   document.getElementById('saveEdit').onclick=async()=>{
     if(mod==='sleep'){
@@ -3044,7 +3054,7 @@ function healthEditRecord(mod,id){
 
 // ===== 健康中心 · 每日卡路里 (v170) =====
 const CAL_MEAL_META=[{key:'breakfast',name:'早餐',icon:'🌅',sub:'06:00-10:00'},{key:'lunch',name:'午餐',icon:'☀️',sub:'11:00-14:00'},{key:'dinner',name:'晚餐',icon:'🌙',sub:'17:00-21:00'},{key:'snack',name:'加餐',icon:'🍎',sub:'灵活时段'}];
-const CAL_FOODS={breakfast:[['水煮鸡蛋',70,6,5,1],['蒸红薯',90,2,0,20],['蒸芋头',80,2,0,18],['蒸玉米',130,5,2,27],['全麦面包片',80,3,1,14],['小瓶牛奶125g',65,4,4,5],['拿铁',120,6,5,12],['豆浆',45,3,2,3]],lunch:[['炒油麦菜',60,2,4,4],['炒白菜',55,2,4,4],['炒生菜',55,2,4,4],['炒西蓝花',70,4,4,5],['炒菠菜',60,3,4,4],['炒上海青',55,2,4,4],['凉拌黄瓜',30,1,2,3],['炒牛肉',180,26,8,2],['炒虾',120,20,5,1],['炒猪肉',200,20,13,2],['炒鱿鱼',100,15,2,2],['烤鸡',165,25,7,0],['卤鸭肉',210,18,15,1],['卤鸡肉',165,24,7,0],['米饭',180,4,0,40]],dinner:[['炒油麦菜',60,2,4,4],['炒白菜',55,2,4,4],['炒生菜',55,2,4,4],['炒西蓝花',70,4,4,5],['炒菠菜',60,3,4,4],['炒上海青',55,2,4,4],['红烧排骨',280,18,22,3],['炒牛肉',180,26,8,2],['炒虾仁',110,20,3,1],['炒鸡蛋',90,7,7,1],['炒鸡肉',165,25,7,0],['煎鱼',160,20,8,0],['蒸鱼',120,20,4,0],['面条',220,8,2,45],['饺子',45,2,2,6],['云吞',40,2,2,5]],snack:[['苹果',80,1,0,8],['香蕉',90,1,1,12],['酸奶',100,3,3,12],['坚果30g',180,5,4,15],['蓝莓',40,1,1,10]]};
+const CAL_FOODS={breakfast:[['水煮鸡蛋',70,6,5,1],['蒸红薯',90,2,0,20],['蒸芋头',80,2,0,18],['蒸玉米',130,5,2,27],['全麦面包片',80,3,1,14],['小瓶牛奶125g',65,4,4,5],['拿铁',120,6,5,12],['豆浆',45,3,2,3]],lunch:[['炒油麦菜',60,2,4,4],['炒白菜',55,2,4,4],['炒生菜',55,2,4,4],['炒西蓝花',70,4,4,5],['炒菠菜',60,3,4,4],['炒上海青',55,2,4,4],['凉拌黄瓜',30,1,2,3],['炒牛肉',180,26,8,2],['炒虾',120,20,5,1],['炒猪肉',200,20,13,2],['炒鱿鱼',100,15,2,2],['烤鸡',165,25,7,0],['卤鸭肉',210,18,15,1],['卤鸡肉',165,24,7,0],['米饭',180,4,0,40]],dinner:[['炒油麦菜',60,2,4,4],['炒白菜',55,2,4,4],['炒生菜',55,2,4,4],['炒西蓝花',70,4,4,5],['炒菠菜',60,3,4,4],['炒上海青',55,2,4,4],['红烧排骨',280,18,22,3],['炒牛肉',180,26,8,2],['炒虾仁',110,20,3,1],['炒鸡蛋',90,7,7,1],['炒鸡肉',165,25,7,0],['煎鱼',160,20,8,0],['蒸鱼',120,20,4,0],['面条',220,8,2,45],['饺子',45,2,2,6],['云吞',40,2,2,5]],snack:[['苹果',80,1,0,8],['香蕉',90,1,1,12],['酸奶',100,3,3,12],['坚果30g',180,5,4,15],['蓝莓',40,1,1,10],['全麦面包(1片)',70,3,1,13],['饼干(1块)',50,1,2,7]]};
 let CAL_GOAL=1800;
 function safeName(s){return (s||'').replace(/'/g,'').replace(/"/g,'')}
 function cloneMeals(m){const o={breakfast:[],lunch:[],dinner:[],snack:[]};if(!m)return o;['breakfast','lunch','dinner','snack'].forEach(k=>{o[k]=(m[k]||[]).map(f=>({name:f.name,kcal:Number(f.kcal)||0,protein:Number(f.protein)||0,fat:Number(f.fat)||0,carb:Number(f.carb)||0}))});return o;}
@@ -3488,7 +3498,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v171'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v172'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
