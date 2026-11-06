@@ -698,6 +698,8 @@ img{max-width:100%;display:block}
 .stat-total-card{background:var(--surface);border-radius:var(--r);padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px}
 .stat-total-label{font-size:13px;color:var(--text-2)}
 .stat-total-value{font-size:30px;font-weight:700;margin:2px 0 10px;letter-spacing:.5px}
+.stat-eye{margin-left:8px;border:none;background:transparent;cursor:pointer;font-size:14px;line-height:1;padding:2px 5px;border-radius:6px;vertical-align:middle}
+.stat-eye:hover{background:var(--primary-light)}
 .stat-total-row{display:flex;justify-content:space-between;font-size:13px;color:var(--text-2);margin-top:6px;gap:8px}
 .stat-total-row .rise{color:var(--success)}
 .stat-total-row .fall{color:var(--danger)}
@@ -773,7 +775,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v175</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v176</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1220,7 +1222,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v175</span>
+  <span id="updateText">✅ 已是最新 v176</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3511,7 +3513,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v175'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v176'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -4479,21 +4481,26 @@ function statPeriodBaseline(p){const ps=periodStartISO(p);const snaps=(S.asset.s
 function statChange(p){const base=statPeriodBaseline(p);const t=statTotal();const diff=t-base;const pct=base?(diff/base*100):0;return {diff,pct}}
 
 function renderStat(){renderStatTotal();renderStatCats();renderStatChart();renderStatSnaps();renderStatFlows();renderStatHold()}
+// v176 金额隐私：默认隐藏，点眼睛按钮才显示实际数值（每次刷新恢复隐藏，更私密）
+let statMoneyRevealed=false;
+function maskMoney(v){return statMoneyRevealed?fmtMoney(v):'****'}
+function maskMoney0(v){return statMoneyRevealed?fmtMoney0(v):'****'}
+function toggleStatReveal(){statMoneyRevealed=!statMoneyRevealed;renderStat();}
 function renderStatTotal(){
   const t=statTotal(),g=statGross(),d=statDebt();
-  document.getElementById('statTotal').textContent=fmtMoney(t);
+  document.getElementById('statTotal').textContent=maskMoney(t);
   document.getElementById('statTotal').className=t<0?'stat-total-value fall':'stat-total-value';
-  document.getElementById('statTotalLabel').textContent=d>0?'当前净资产（资产 − 负债）':'当前总资产';
+  document.getElementById('statTotalLabel').innerHTML=(d>0?'当前净资产（资产 − 负债）':'当前总资产')+'<button class="stat-eye" id="statEyeBtn" onclick="toggleStatReveal()" title="'+(statMoneyRevealed?'点击隐藏金额':'点击显示金额')+'" aria-label="'+(statMoneyRevealed?'隐藏金额':'显示金额')+'">'+(statMoneyRevealed?'🙈':'👁')+'</button>';
   const gr=document.getElementById('statGrossRow');gr.style.display=d>0?'':'none';
-  document.getElementById('statGross').textContent=fmtMoney0(g);
-  document.getElementById('statDebt').textContent='-'+fmtMoney0(d);
-  document.getElementById('statPrincipal').textContent=fmtMoney(S.asset.principal||0);
+  document.getElementById('statGross').textContent=maskMoney0(g);
+  document.getElementById('statDebt').textContent=statMoneyRevealed?('-'+fmtMoney0(d)):'****';
+  document.getElementById('statPrincipal').textContent=maskMoney(S.asset.principal||0);
   const pf=statProfit();const pe=document.getElementById('statProfit');
-  pe.textContent='总浮盈 '+fmtMoney(pf);pe.className=pf>=0?'rise':'fall';
-  document.getElementById('statBaseline').textContent=fmtMoney(S.asset.baseline||0);
+  pe.textContent='总浮盈 '+maskMoney(pf);pe.className=pf>=0?'rise':'fall';
+  document.getElementById('statBaseline').textContent=maskMoney(S.asset.baseline||0);
   const p=document.getElementById('statPeriod').value||'month';const c=statChange(p);const sign=c.diff>=0?'+':'';
   const ce=document.getElementById('statChange');
-  ce.textContent='本期变动 '+sign+fmtMoney(c.diff)+' ('+sign+c.pct.toFixed(2)+'%)';
+  ce.textContent=statMoneyRevealed?('本期变动 '+sign+fmtMoney(c.diff)+' ('+sign+c.pct.toFixed(2)+'%)'):'****';
   ce.className=c.diff>=0?'rise':'fall';
 }
 function renderStatCats(){
@@ -4503,7 +4510,7 @@ function renderStatCats(){
     const raw=Number(c.value)||0,sv=catSigned(c);const pct=net?(sv/net*100):0;
     return `<div class="stat-cat-item${c.debt?' debt':''}" onclick="openCatModal('${c.id}')">
       <div class="stat-cat-left"><span class="stat-cat-icon">${c.icon||'📁'}</span><span>${escapeHtml(c.name)}</span>${c.debt?'<span class="stat-cat-tag">负债</span>':''}</div>
-      <div class="stat-cat-right"><span class="stat-cat-val">${c.debt?('-'+fmtMoney(Math.abs(raw))):fmtMoney(raw)}</span><span class="stat-cat-pct">${pct.toFixed(1)}%</span></div>
+      <div class="stat-cat-right"><span class="stat-cat-val">${c.debt?('-'+maskMoney0(Math.abs(raw))):maskMoney0(raw)}</span><span class="stat-cat-pct">${pct.toFixed(1)}%</span></div>
     </div>`
   }).join('')+`<div class="stat-cat-item" onclick="openCatModal()" style="color:var(--primary)"><div class="stat-cat-left"><span class="stat-cat-icon">＋</span><span>添加分类</span></div></div>`
 }
@@ -4520,7 +4527,7 @@ function renderStatChart(){
   const pts=vals.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const area=`${pad},${H-pad} ${pts} ${W-pad},${H-pad}`;
   const dots=vals.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5" style="fill:var(--primary)"/>`).join('');
-  const lineLbls=vals.map((v,i)=>`<text x="${x(i).toFixed(1)}" y="${(y(v)-7).toFixed(1)}" style="fill:var(--text-3);font-size:8px" text-anchor="middle">${fmtMoney0(v)}</text>`).join('');
+  const lineLbls=vals.map((v,i)=>`<text x="${x(i).toFixed(1)}" y="${(y(v)-7).toFixed(1)}" style="fill:var(--text-3);font-size:8px" text-anchor="middle">${maskMoney0(v)}</text>`).join('');
   const xLbls=labels.map((l,i)=>`<text x="${x(i).toFixed(1)}" y="${H-9}" style="fill:var(--text-3);font-size:8px" text-anchor="middle">${l}</text>`).join('');
   box.innerHTML=`<div class="stat-chart-wrap"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     <polygon points="${area}" style="fill:var(--primary-light);opacity:.55"/>
@@ -4532,7 +4539,7 @@ function renderStatSnaps(){
   const box=document.getElementById('statPanelSnap');
   const snaps=(S.asset.snapshots||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
   if(!snaps.length){box.innerHTML='<div class="stat-empty">暂无快照，点「💾 快照」记录当前总资产</div>';return}
-  box.innerHTML='<div class="stat-snap-list">'+snaps.map(s=>`<div class="stat-snap-item"><span>${s.date}</span><span>${fmtMoney(s.total)} <span class="stat-flow-del" onclick="delSnapshot('${s.date}')">✕</span></span></div>`).join('')+'</div>'
+  box.innerHTML='<div class="stat-snap-list">'+snaps.map(s=>`<div class="stat-snap-item"><span>${s.date}</span><span>${maskMoney(s.total)} <span class="stat-flow-del" onclick="delSnapshot('${s.date}')">✕</span></span></div>`).join('')+'</div>'
 }
 function delSnapshot(date){if(!confirm('删除 '+date+' 的快照？'))return;S.asset.snapshots=S.asset.snapshots.filter(s=>s.date!==date);saveStat().then(renderStat);showToast('已删除','success')}
 function renderStatFlows(){
@@ -4557,15 +4564,15 @@ function renderStatHold(){
     const plc=pl>=0?'rise':'fall';
     rows+=`<tr>
       <td>${escapeHtml(p.name)}</td><td>${qty}</td><td>${cost}</td><td>${price}</td>
-      <td>${fmtMoney0(tc)}</td><td>${fmtMoney0(tm)}</td>
-      <td class="${plc}">${pl>=0?'+':''}${fmtMoney0(pl)}</td><td class="${plc}">${pl>=0?'+':''}${plr.toFixed(2)}%</td>
+      <td>${maskMoney0(tc)}</td><td>${maskMoney0(tm)}</td>
+      <td class="${plc}">${pl>=0?'+':''}${maskMoney0(pl)}</td><td class="${plc}">${pl>=0?'+':''}${plr.toFixed(2)}%</td>
       <td style="white-space:nowrap"><span class="stat-flow-del" onclick="openPositionModal('${p.id}')">✎</span> <span class="stat-flow-del" onclick="delPosition('${p.id}')">✕</span></td>
     </tr>`});
   const spl=sumMkt-sumCost,splr=sumCost?spl/sumCost*100:0,splc=spl>=0?'rise':'fall';
   rows+=`<tr style="font-weight:600;border-top:2px solid var(--border)">
     <td>合计</td><td></td><td></td><td></td>
-    <td>${fmtMoney0(sumCost)}</td><td>${fmtMoney0(sumMkt)}</td>
-    <td class="${splc}">${spl>=0?'+':''}${fmtMoney0(spl)}</td><td class="${splc}">${spl>=0?'+':''}${splr.toFixed(2)}%</td><td></td></tr>`;
+    <td>${maskMoney0(sumCost)}</td><td>${maskMoney0(sumMkt)}</td>
+    <td class="${splc}">${spl>=0?'+':''}${maskMoney0(spl)}</td><td class="${splc}">${spl>=0?'+':''}${splr.toFixed(2)}%</td><td></td></tr>`;
   t.innerHTML='<thead><tr><th>标的</th><th>数量</th><th>成本</th><th>现价</th><th>总成本</th><th>市值</th><th>浮盈</th><th>浮盈率</th><th>操作</th></tr></thead><tbody>'+rows+'</tbody>'
 }
 function delPosition(id){if(!confirm('删除该持仓？'))return;S.asset.positions=S.asset.positions.filter(x=>x.id!==id);saveStat().then(renderStat);showToast('已删除','success')}
