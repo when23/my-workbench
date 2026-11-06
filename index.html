@@ -773,7 +773,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v174</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v175</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1220,7 +1220,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v174</span>
+  <span id="updateText">✅ 已是最新 v175</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3511,7 +3511,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v174'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v175'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -4582,29 +4582,26 @@ function openFlowModal(){
     <label>备注</label><input type="text" id="flName" class="form-input" placeholder="如：股票分红">
     <label>金额（正数增加，负数减少）</label><input type="number" id="flAmt" class="form-input" step="0.01">
     <label>类型</label><select id="flType" class="form-input" onchange="flTypeChange()">
-      <option value="收益">收益</option><option value="市值变动">市值变动</option><option value="本金">本金投入</option><option value="调拨">内部调拨</option>
-    </select>
+      <option value="收益">收益</option><option value="市值变动">市值变动</option><option value="本金">本金投入</option><option value="调拨">内部调拨</option><option value="还款">还款</option>
+      </select>
     <label>归属分类</label><select id="flCat" class="form-input" onchange="flTypeChange()">${cats}</select>
     <div id="flHint" style="font-size:12px;color:var(--text-3);margin-top:6px"></div>
   `,submitFlow);flTypeChange();
 }
-function flTypeChange(){const t=document.getElementById('flType').value;const h=document.getElementById('flHint');
-  const map={收益:'将增加所选分类余额',市值变动:'将增减所选分类余额（可为负）',本金:'将增加货币资金，并计入累计投入本金',调拨:'内部划转，总资产不变'};
-  let txt=map[t]||'';
-  const cid=t==='本金'?'cash':(document.getElementById('flCat')||{}).value;
-  const c=S.asset.cats.find(x=>x.id===cid);
-  if(c&&c.debt)txt+='　⚠ 该分类是负债：填正数=负债增加（净资产减少），填负数=还款（净资产增加）';
-  h.textContent=txt;}
+function flTypeChange(){const t=document.getElementById('flType').value;const h=document.getElementById('flHint');const sel=document.getElementById('flCat');if(sel){const all=S.asset.cats||[];const opts=t==='还款'?all.filter(c=>c.debt):all;sel.innerHTML=(opts.length?opts:[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')||'<option value="">（无可用负债分类）</option>';const cur=sel.value;if(!cur&&opts.length)sel.value=opts[0].id;}const map={收益:'将增加所选分类余额',市值变动:'将增减所选分类余额（可为负）',本金:'将增加货币资金，并计入累计投入本金',调拨:'内部划转，总资产不变',还款:'选择负债分类，填还款金额（正数），将减少该负债余额'};let txt=map[t]||'';const cid=t==='本金'?'cash':(sel?sel.value:'');const c=(S.asset.cats||[]).find(x=>x.id===cid);if(c&&c.debt&&t!=='还款')txt+='　⚠ 该分类是负债：填正数=负债增加（净资产减少），填负数=还款（净资产增加）';h.textContent=txt;}
 async function submitFlow(){
   const date=document.getElementById('flDate').value||fmtYMD(new Date());
   const name=(document.getElementById('flName').value||'').trim()||'未命名';
-  const amt=Number(document.getElementById('flAmt').value)||0;
+  let amt=Number(document.getElementById('flAmt').value)||0;
   const type=document.getElementById('flType').value;
   let catId=document.getElementById('flCat').value;if(type==='本金')catId='cash';
   const cat=S.asset.cats.find(c=>c.id===catId);
-  S.asset.flows.push({id:genId(),date,name,amount:amt,type,catId,catName:cat?cat.name:type});
+  // 还款：用户输入正数=还款金额，统一以负数存储/记账（与"市值变动填负=还款"同口径，流水展示为减少）
+  let signed=amt; if(type==='还款'){ if(!cat){showToast('还款需先选择负债分类','error');return;} signed=-Math.abs(amt); }
+  S.asset.flows.push({id:genId(),date,name,amount:signed,type,catId,catName:cat?cat.name:type});
   if(type==='调拨'){}
   else if(type==='本金'){addCat('cash',amt);S.asset.principal=(Number(S.asset.principal)||0)+amt}
+  else if(type==='还款'){addCat(catId,signed)}
   else addCat(catId,amt);
   await saveStat();closeStatModal();renderStat();showToast('已记录','success')
 }
