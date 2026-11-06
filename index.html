@@ -246,6 +246,13 @@ img{max-width:100%;display:block}
 .cal-manual input:nth-child(n+2){flex:1;min-width:64px}
 .diet-meal-editor{display:flex;flex-direction:column;gap:12px;margin:6px 0 4px}
 .diet-meal-editor .cal-meal-card{cursor:default}
+.cal-lib{margin-top:12px;border-top:1px dashed var(--border);padding-top:10px}
+.cal-lib-search{width:100%;margin-bottom:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px}
+.cal-lib-list{display:flex;flex-direction:column;gap:6px;max-height:184px;overflow:auto}
+.cal-lib-item{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;border:1px solid var(--border);background:#fff;color:var(--text);font-size:12px;padding:7px 10px;border-radius:8px;cursor:pointer}
+.cal-lib-item:hover{background:var(--primary-light);border-color:var(--primary)}
+.cal-lib-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-lib-nut{color:var(--text-3);font-size:11px;white-space:nowrap;margin-left:6px}
 .cal-meta-form{margin-top:6px}
 .cal-meta-form h3{margin:16px 0 8px;font-size:14px;font-weight:600}
 .cal-meta-form label{display:block;font-size:12px;color:var(--text-2);margin:10px 0 4px}
@@ -766,7 +773,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v173</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v174</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1213,7 +1220,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v173</span>
+  <span id="updateText">✅ 已是最新 v174</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -1943,7 +1950,7 @@ const DB={
   _localClearAll(){return new Promise((resolve,reject)=>{const tx=this._db.transaction('kv','readwrite');tx.objectStore('kv').clear();tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})}
 };
 
-const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,orgSearch:'',outfits:[],outfitCart:[],outfitLocExpanded:{},outfitSearch:'',pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthDiary:[],growthCalMonth:'',growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,healthSleep:[],healthDiet:[],healthSleepTags:[],healthDietTags:[],healthRecFilter:{type:'all',start:'',end:''},healthRecCalMonth:'',healthRecModule:null,trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
+const S={tab:'daily',date:fmtYMD(new Date()),boards:[],daily:{},insp:[],org:[],orgCategories:[],orgCurrentCat:null,orgCurrentLocation:null,orgFilter:null,orgSearch:'',outfits:[],outfitCart:[],outfitLocExpanded:{},outfitSearch:'',pendingImgs:{insp:[],org:[],trip:[]},edit:null,deferredPrompt:null,phasePlans:[],phaseCurrentId:null,phaseSelDate:null,phaseCalMonth:null,growthSleep:[],growthDiet:[],growthOut:[],growthDiary:[],growthCalMonth:'',growthModule:null,growthFilter:{type:'all'},sleepAbnTags:[],healthWeight:[],healthReminders:[],healthRemTags:[],healthChartRange:'week',healthWeightListOpen:false,healthRemType:'med',notifyEnabled:false,healthSleep:[],healthDiet:[],healthSleepTags:[],healthDietTags:[],healthRecFilter:{type:'all',start:'',end:''},healthRecCalMonth:'',healthRecModule:null,calFoodLib:[],trips:[],tripCurrentId:null,tripSub:'account',_tripMood:'',tripChecklist:[],tripChecklistCats:[],footprints:{provinces:{},cities:[]}};
 const DEFAULT_BOARDS=[{id:'b1',name:'工作',color:'#74C0FC'},{id:'b2',name:'学习',color:'#8CE99A'},{id:'b3',name:'健康',color:'#FFD166'},{id:'b4',name:'生活',color:'#FF8FA3'}];
 const BOARD_COLORS=['#74C0FC','#8CE99A','#FFD166','#FF8FA3','#B197FC','#63E6BE','#FFA94D','#FAA2C1','#9775FA','#FFC9DE'];
 const DEFAULT_ORG_CATEGORIES=[{id:'cat-clothes',name:'衣物',icon:'👕'},{id:'cat-makeup',name:'化妆用品',icon:'💄'},{id:'cat-kitchen',name:'厨房用品',icon:'🍳'},{id:'cat-books',name:'书籍',icon:'📚'},{id:'cat-digital',name:'数码产品',icon:'📱'},{id:'cat-other',name:'其他',icon:'📦'}];
@@ -2612,6 +2619,7 @@ async function loadHealth(){
   S.healthDiet=(await DB.get('healthDiet'))||[];
   S.healthSleepTags=(await DB.get('healthSleepTags'))||['失眠','夜醒','多梦','打鼾','早醒'];
   S.healthDietTags=(await DB.get('healthDietTags'))||['外食','油腻','清淡','少油少盐','暴饮暴食'];
+  S.calFoodLib=(await DB.get('healthCalFoodLib'))||[];
   if(!S.healthRecFilter)S.healthRecFilter={type:'all',start:'',end:''};
   if(!S.healthRecCalMonth)S.healthRecCalMonth='';
   migrateDietToMeals();
@@ -2828,11 +2836,11 @@ function healthFilterLabel(){const f=S.healthRecFilter||{type:'all'};if(!f||f.ty
 const HEALTH_REC_MODULES={sleep:{icon:'😴',title:'睡眠记录'},diet:{icon:'🍽️',title:'饮食与卡路里'}};
 function healthRecStats(mod){
   const arr=healthFilteredRecords(mod);
-  if(mod==='sleep'){const count=arr.length;const total=arr.reduce((s,r)=>s+(Number(r.duration)||0),0);const avg=count?(total/count).toFixed(1):'0.0';const tags=S.healthSleepTags||[];const ab={};tags.forEach(t=>{ab[t]=arr.filter(r=>(r.abnormal||[]).includes(t)).length});return{count,avg,ab,tags}}
+  if(mod==='sleep'){const count=arr.length;const total=arr.reduce((s,r)=>s+(Number(r.duration)||0),0);const avg=count?(total/count).toFixed(1):'0.0';const tags=S.healthSleepTags||[];const ab={};tags.forEach(t=>{ab[t]=arr.filter(r=>(r.abnormal||[]).includes(t)).length});const goodSleepDays=new Set(arr.filter(r=>(Number(r.rating)||0)>=4).map(r=>r.date)).size;return{count,avg,ab,tags,goodSleepDays}}
   const mealDays=arr.filter(r=>recHasMeal(r)).length;const normalSum=arr.reduce((s,r)=>s+(Number(r.bowelNormal)||0),0);const abArr=arr.filter(r=>r.bowelAbnormalType&&r.bowelAbnormalType!=='无'&&(Number(r.bowelAbnormalCount)||0)>0);const abnormalSum=abArr.reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const tags=S.healthDietTags||[];const tagCount={};tags.forEach(t=>{tagCount[t]=arr.filter(r=>(r.tags||[]).includes(t)).length});return{mealDays,normalSum,abnormalSum,tagCount,tags};
 }
 function healthRecModuleStatsHTML(mod,st){
-  if(mod==='sleep'){const chips=(st.tags||[]).filter(t=>st.ab[t]).map(t=>`<span class="growth-chip ab">${escapeHtml(t)} ${st.ab[t]}</span>`).join('');return `<div class="gm-stat"><span class="gm-stat-num">${st.count}</span><span class="gm-stat-label">睡眠记录(条)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.avg}h</span><span class="gm-stat-label">日均睡眠</span></div><div class="growth-chips">${chips||'<span class="growth-chip">暂无异常</span>'}</div>`}
+  if(mod==='sleep'){const chips=(st.tags||[]).filter(t=>st.ab[t]).map(t=>`<span class="growth-chip ab">${escapeHtml(t)} ${st.ab[t]}</span>`).join('');return `<div class="gm-stat"><span class="gm-stat-num">${st.count}</span><span class="gm-stat-label">睡眠记录(条)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.avg}h</span><span class="gm-stat-label">日均睡眠</span></div><div class="gm-stat"><span class="gm-stat-num">${st.goodSleepDays}</span><span class="gm-stat-label">睡眠质量≥4★(天)</span></div><div class="growth-chips">${chips||'<span class="growth-chip">暂无异常</span>'}</div>`}
   const chips=(st.tags||[]).filter(t=>st.tagCount[t]).map(t=>`<span class="growth-chip">${escapeHtml(t)} ${st.tagCount[t]}</span>`).join('');const todayKcal=dietDayTotals(dietRecordFor(fmtYMD(new Date()))).kcal;return `<div class="gm-stat"><span class="gm-stat-num">${st.mealDays}</span><span class="gm-stat-label">正餐记录(天)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.normalSum}</span><span class="gm-stat-label">正常排便(次)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.abnormalSum}</span><span class="gm-stat-label">异常排便(次)</span></div><div class="gm-stat"><span class="gm-stat-num">${Math.round(todayKcal)}</span><span class="gm-stat-label">今日摄入(千卡)</span></div><div class="growth-chips">${chips||'<span class="growth-chip">暂无记录</span>'}</div>`;
 }
 function renderHealthRecOverview(){
@@ -3116,14 +3124,19 @@ function calMealCardHTML(date){
     const total=items.reduce((s,f)=>s+(Number(f.kcal)||0),0);
     const itemsHTML=items.length?items.map((f,i)=>`<div class="cal-food"><span class="cal-food-name">${escapeHtml(f.name)}</span><span class="cal-food-kcal">${Math.round(Number(f.kcal)||0)} 千卡</span><button class="cal-food-del" onclick="calRemoveFood('${date}','${m.key}',${i})">×</button></div>`).join(''):'<div class="cal-food-empty">还没有记录</div>';
     const chips=CAL_FOODS[m.key].map(f=>`<button class="cal-chip" onclick="calAddFood('${date}','${m.key}','${safeName(f[0])}',${f[1]},${f[2]},${f[3]},${f[4]})">${escapeHtml(f[0])} <b>${f[1]}</b></button>`).join('');
-    return `<div class="cal-meal-card"><div class="cal-meal-head"><div class="cal-meal-name">${m.icon} ${m.name}<span>${m.sub}</span></div><div class="cal-meal-kcal">${Math.round(total)}</div></div><div class="cal-meal-items">${itemsHTML}</div><button class="cal-add-food" onclick="calTogglePanel('${date}','${m.key}')">＋ 添加${m.name}食物</button><div class="cal-food-panel" id="calPanel-${date}-${m.key}"><div class="cal-panel-title">快速添加（参考热量，可手动修改）</div><div class="cal-chips">${chips}</div><div class="cal-manual"><input type="text" id="calName-${date}-${m.key}" placeholder="食物名称"><input type="number" id="calKcal-${date}-${m.key}" placeholder="千卡" step="1"><input type="number" id="calP-${date}-${m.key}" placeholder="蛋白g" step="0.1"><input type="number" id="calF-${date}-${m.key}" placeholder="脂肪g" step="0.1"><input type="number" id="calC-${date}-${m.key}" placeholder="碳水g" step="0.1"><button class="btn btn-primary btn-sm" onclick="calAddManual('${date}','${m.key}')">添加</button></div></div></div>`;
+    return `<div class="cal-meal-card"><div class="cal-meal-head"><div class="cal-meal-name">${m.icon} ${m.name}<span>${m.sub}</span></div><div class="cal-meal-kcal">${Math.round(total)}</div></div><div class="cal-meal-items">${itemsHTML}</div><button class="cal-add-food" onclick="calTogglePanel('${date}','${m.key}')">＋ 添加${m.name}食物</button><div class="cal-food-panel" id="calPanel-${date}-${m.key}"><div class="cal-panel-title">快速添加（参考热量，可手动修改）</div><div class="cal-chips">${chips}</div><div class="cal-manual"><input type="text" id="calName-${date}-${m.key}" placeholder="食物名称"><input type="number" id="calKcal-${date}-${m.key}" placeholder="千卡" step="1"><input type="number" id="calP-${date}-${m.key}" placeholder="蛋白g" step="0.1"><input type="number" id="calF-${date}-${m.key}" placeholder="脂肪g" step="0.1"><input type="number" id="calC-${date}-${m.key}" placeholder="碳水g" step="0.1"><button class="btn btn-primary btn-sm" onclick="calAddManual('${date}','${m.key}')">添加</button><div class="cal-lib"><div class="cal-panel-title">我的食品库（自动记录你添加过的食物，点选可填入）</div><input type="text" id="calLibSearch-${date}-${m.key}" class="health-input health-input-sm cal-lib-search" placeholder="搜索食品库" oninput="calLibFilter('${date}','${m.key}')"><div class="cal-lib-list" id="calLibList-${date}-${m.key}">${calLibListHTML(date,m.key,'')}</div></div></div></div></div>`;
   }).join('');
 }
 function calTogglePanel(date,meal){const p=document.getElementById('calPanel-'+date+'-'+meal);if(!p)return;const open=!p.classList.contains('open');document.querySelectorAll('.cal-food-panel').forEach(x=>x.classList.remove('open'));if(open)p.classList.add('open');}
-function calAddFood(date,meal,name,kcal,protein,fat,carb){const rec=ensureDietRecord(date);rec.meals[meal].push({name,kcal:Number(kcal)||0,protein:Number(protein)||0,fat:Number(fat)||0,carb:Number(carb)||0});DB.set('healthDiet',S.healthDiet).catch(()=>{});renderCalorie();if(S.healthRecModule==='diet'){const l=document.getElementById('healthRecList');if(l)healthRenderList('diet');}}
+function calAddFood(date,meal,name,kcal,protein,fat,carb){const rec=ensureDietRecord(date);rec.meals[meal].push({name,kcal:Number(kcal)||0,protein:Number(protein)||0,fat:Number(fat)||0,carb:Number(carb)||0});DB.set('healthDiet',S.healthDiet).catch(()=>{});calLibUpsert(name,Number(kcal)||0,Number(protein)||0,Number(fat)||0,Number(carb)||0);renderCalorie();if(S.healthRecModule==='diet'){const l=document.getElementById('healthRecList');if(l)healthRenderList('diet');}}
 function calAddManual(date,meal){const n=(document.getElementById('calName-'+date+'-'+meal)||{}).value||'';const n2=n.trim();if(!n2){showToast('请输入食物名称','error');return;}const k=Number((document.getElementById('calKcal-'+date+'-'+meal)||{}).value)||0;calAddFood(date,meal,n2,k,Number((document.getElementById('calP-'+date+'-'+meal)||{}).value)||0,Number((document.getElementById('calF-'+date+'-'+meal)||{}).value)||0,Number((document.getElementById('calC-'+date+'-'+meal)||{}).value)||0);}
 function calRemoveFood(date,meal,idx){const rec=dietRecordFor(date);if(!rec)return;rec.meals[meal].splice(idx,1);DB.set('healthDiet',S.healthDiet).catch(()=>{});renderCalorie();if(S.healthRecModule==='diet'){const l=document.getElementById('healthRecList');if(l)healthRenderList('diet');}}
 // 饮食分餐编辑器已合并到每日卡路里仪表盘（calMealCardHTML / calAddFood / calRemoveFood）
+// v174 个人食品库：自动收录 + 点选填入
+function calLibListHTML(date,meal,q){const all=S.calFoodLib||[];const ql=(q||'').trim().toLowerCase();let html='';let li=0;for(let i=0;i<all.length;i++){const f=all[i];if(ql&&!f.name.toLowerCase().includes(ql))continue;html+=`<button class="cal-lib-item" onclick="calLibPick('${date}','${meal}',${i})"><span class="cal-lib-name">${escapeHtml(f.name)}</span><span class="cal-lib-nut">${Math.round(Number(f.kcal)||0)}千卡 · 蛋${Math.round(Number(f.protein)||0)} 脂${Math.round(Number(f.fat)||0)} 碳${Math.round(Number(f.carb)||0)}</span></button>`;li++}if(!li)return '<div class="cal-food-empty">食品库暂无记录，添加食物后会自动收录</div>';return html;}
+function calLibFilter(date,meal){const q=(document.getElementById('calLibSearch-'+date+'-'+meal)||{}).value||'';const box=document.getElementById('calLibList-'+date+'-'+meal);if(box)box.innerHTML=calLibListHTML(date,meal,q);}
+function calLibPick(date,meal,idx){const f=(S.calFoodLib||[])[idx];if(!f)return;const setV=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};setV('calName-'+date+'-'+meal,f.name);setV('calKcal-'+date+'-'+meal,Math.round(Number(f.kcal)||0));setV('calP-'+date+'-'+meal,Math.round(Number(f.protein)||0));setV('calF-'+date+'-'+meal,Math.round(Number(f.fat)||0));setV('calC-'+date+'-'+meal,Math.round(Number(f.carb)||0));showToast('已填入「'+f.name+'」，可修改后点添加','');}
+async function calLibUpsert(name,kcal,protein,fat,carb){if(!name||!name.trim())return;if(kcal<=0)return;S.calFoodLib=S.calFoodLib||[];const n=name.trim();const ex=S.calFoodLib.find(f=>f.name.trim().toLowerCase()===n.toLowerCase());if(ex){ex.kcal=kcal;ex.protein=protein;ex.fat=fat;ex.carb=carb;}else S.calFoodLib.push({name:n,kcal,protein,fat,carb});DB.set('healthCalFoodLib',S.calFoodLib).catch(()=>{});}
 
 // ===== 日常穿搭模块 (Outfit) =====
 const OUTFIT_TAGS=['工作','日常','约会','旅游'];
@@ -3498,7 +3511,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v173'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v174'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
