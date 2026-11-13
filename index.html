@@ -700,6 +700,13 @@ img{max-width:100%;display:block}
 .stat-total-value{font-size:30px;font-weight:700;margin:2px 0 10px;letter-spacing:.5px}
 .stat-eye{margin-left:8px;border:none;background:transparent;cursor:pointer;font-size:14px;line-height:1;padding:2px 5px;border-radius:6px;vertical-align:middle}
 .stat-eye:hover{background:var(--primary-light)}
+.stat-help{font-size:13px;line-height:1.7;color:var(--text);max-height:62vh;overflow:auto}
+.stat-help h4{margin:16px 0 6px;font-size:14px;color:var(--text)}
+.stat-help h4:first-of-type{margin-top:4px}
+.stat-help ul{margin:4px 0;padding-left:20px}
+.stat-help li{margin:5px 0}
+.stat-help-ex{background:var(--primary-light);border-radius:8px;padding:8px 10px;margin:8px 0;color:var(--text-2);font-size:12px}
+.stat-help-intro{margin:0 0 6px;color:var(--text-2)}
 .stat-total-row{display:flex;justify-content:space-between;font-size:13px;color:var(--text-2);margin-top:6px;gap:8px}
 .stat-total-row .rise{color:var(--success)}
 .stat-total-row .fall{color:var(--danger)}
@@ -775,7 +782,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v177</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v178</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1132,6 +1139,7 @@ img{max-width:100%;display:block}
             <button class="btn btn-primary btn-sm" onclick="openFlowModal()">➕ 流水</button>
             <button class="btn btn-ghost btn-sm" onclick="saveSnapshot()">💾 快照</button>
             <button class="btn btn-ghost btn-sm" onclick="openStatSettings()">⚙️ 设置</button>
+            <button class="btn btn-ghost btn-sm" onclick="openStatHelp()">📖 说明</button>
             <button class="btn btn-ghost btn-sm" onclick="exportStat()">📤 导出</button>
           </div>
         </div>
@@ -1222,7 +1230,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v177</span>
+  <span id="updateText">✅ 已是最新 v178</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3513,7 +3521,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v177'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v178'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -4580,7 +4588,7 @@ function statSwitchTab(t){const c=document.getElementById('statPanelChart'),s=do
   if(t==='chart'){c.style.display='';s.style.display='none';document.getElementById('statTabChart').classList.add('active');document.getElementById('statTabSnap').classList.remove('active')}
   else{c.style.display='none';s.style.display='';document.getElementById('statTabSnap').classList.add('active');document.getElementById('statTabChart').classList.remove('active')}}
 function toggleStatHold(){const p=document.getElementById('statHoldPanel');const i=document.getElementById('statHoldIcon');if(p.style.display==='none'){p.style.display='';i.textContent='▲'}else{p.style.display='none';i.textContent='▼'}}
-function openStatModal(title,bodyHtml,onSave){document.getElementById('statModalTitle').textContent=title;document.getElementById('statModalBody').innerHTML=bodyHtml;document.getElementById('statModal').classList.add('show');document.body.style.overflow='hidden';document.getElementById('statModalSave').onclick=onSave;}
+function openStatModal(title,bodyHtml,onSave){document.getElementById('statModalTitle').textContent=title;document.getElementById('statModalBody').innerHTML=bodyHtml;const sb=document.getElementById('statModalSave');sb.textContent='保存';sb.style.display='';sb.onclick=onSave;document.getElementById('statModal').classList.add('show');document.body.style.overflow='hidden';}
 function closeStatModal(){document.getElementById('statModal').classList.remove('show');document.body.style.overflow='';document.getElementById('statModalSave').onclick=null;}
 function openFlowModal(){
   const cats=(S.asset.cats||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
@@ -4672,6 +4680,50 @@ async function resetStatToDefault(){
   S.asset=defaultAsset();
   await saveStat();closeStatModal();renderStat();showToast('已恢复初始值','success')
 }
+const STAT_HELP_HTML=`<div class="stat-help">
+  <p class="stat-help-intro">资产台账帮你记录「净资产 = 资产 − 负债」，并跟踪每笔变动。下面按页面区块说明每个字段怎么填，并附例子，照着填即可。</p>
+  <h4>① 顶部总资产卡</h4>
+  <ul>
+    <li><b>当前净资产</b>：所有分类余额相加（负债取负），是你真正「拥有」的净值。</li>
+    <li><b>👁 眼睛按钮</b>：默认把金额隐藏成 ****，点一下才显示真实数值（刷新后恢复隐藏）。</li>
+    <li><b>资产合计 / 负债合计</b>：只有存在「负债」分类时才显示。</li>
+    <li><b>累计投入本金</b>：你一共投进去多少钱（如每月攒下的本金），用于算「总浮盈」。</li>
+    <li><b>总浮盈</b> = 当前净资产 − 累计投入本金。</li>
+    <li><b>期初基准</b>：作为「本期变动」的起点参考（在 ⚙️ 设置里填）。</li>
+    <li><b>本期变动</b> = 当前净资产 − 所选统计周期开始时的快照值（没快照则用期初基准）。</li>
+    <li><b>统计周期</b>（本月/本周/本季度/本年）：控制「本期变动」和趋势图的数据范围。</li>
+  </ul>
+  <p class="stat-help-ex">例：期初基准设 100000，今天净资产 120000 → 本期变动 +20000 (+20%)。</p>
+  <h4>② 分类余额</h4>
+  <ul>
+    <li>每个分类是一个「科目」，value 是它的当前余额。</li>
+    <li><b>普通分类</b>（货币资金、权益资产…）：填正数 = 资产金额。</li>
+    <li><b>负债分类</b>（勾选「负债」）：填正数 = 欠款金额，显示自动变负（−¥xxx）并从净资产扣减。</li>
+    <li>点「＋ 添加分类」新建；点已有分类行可编辑 / 删除。</li>
+  </ul>
+  <p class="stat-help-ex">例：银行卡有 5 万 → 货币资金 value 填 50000；房贷还欠 100 万 → 新增「房贷」(负债)，value 填 1000000，净资产自动 −100 万。</p>
+  <h4>③ 近期流水</h4>
+  <p>流水是「发生的动作」，提交后会<b>自动调整对应分类余额</b>。类型区别：</p>
+  <ul>
+    <li><b>收益</b>：工资外的收益（利息 / 分红 / 卖出盈利）→ 增加所选分类余额。<br>例：基金分红 200 → 选「货币资金」，金额 200。</li>
+    <li><b>市值变动</b>：资产本身涨跌 → 正数增加、负数减少所选分类余额。<br>例：股票账户 10 万涨到 11 万 → 选「权益资产」，金额 +10000。</li>
+    <li><b>本金投入</b>：新投入的本金 → 增加「货币资金」并计入累计本金。<br>例：月初转 1 万进账户 → 金额 10000。</li>
+    <li><b>内部调拨</b>：仅作为一条记录留存，<b>不会自动调整任何分类余额</b>（总资产不变）。若想真实互转，请分别用两笔「市值变动」手动一减一增。</li>
+    <li><b>还款</b>：选中负债分类，填正数 = 还款金额 → 自动减少该负债余额。<br>例：还信用卡 3000 → 选「信用卡」(负债)，类型还款，金额 3000。</li>
+  </ul>
+  <p class="stat-help-ex">注意：删除一条流水<b>只删记录，不会自动回滚分类余额</b>。若填错，用相反金额再记一笔流水即可修正（如多记了 +1000，再记一笔 −1000 的「市值变动」）。</p>
+  <h4>④ 持仓明细</h4>
+  <ul>
+    <li>填 数量 / 成本(单价) / 现价(单价)，自动算 总成本、市值、浮盈、浮盈率。</li>
+    <li>这里<b>只展示、不自动并入</b>上方分类余额；如需计入净资产，请同步在对应分类用「市值变动」更新余额。</li>
+  </ul>
+  <p class="stat-help-ex">例：持有基金 1000 份，成本 1.2、现价 1.5 → 总成本 1200、市值 1500、浮盈 300 (+25%)。</p>
+  <h4>⑤ 快照</h4>
+  <p>点「💾 快照」记录当前总资产的一个时间点，用于趋势对比。建议每月末保存一次。</p>
+  <h4>⑥ 设置（⚙️）</h4>
+  <p>修改本金 / 期初基准、导入导出数据；「清空并恢复初始值」会归零所有余额、清空流水 / 持仓 / 快照（危险操作，建议先导出备份）。</p>
+</div>`;
+function openStatHelp(){openStatModal('数据统计 · 使用说明',STAT_HELP_HTML,closeStatModal);document.getElementById('statModalSave').textContent='关闭';}
 async function saveSnapshot(){const date=fmtYMD(new Date());const total=statTotal();const ex=S.asset.snapshots.find(s=>s.date===date);if(ex)ex.total=total;else S.asset.snapshots.push({date,total});await saveStat();renderStat();showToast('已保存快照 '+date+'：'+fmtMoney(total),'success')}
 function exportStat(){const blob=new Blob([JSON.stringify(S.asset,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='asset-ledger-'+fmtYMD(new Date())+'.json';a.click();URL.revokeObjectURL(a.href);showToast('已导出','success')}
 function importStatFile(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();
