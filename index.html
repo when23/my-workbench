@@ -775,7 +775,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v176</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v177</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1222,7 +1222,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v176</span>
+  <span id="updateText">✅ 已是最新 v177</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3513,7 +3513,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v176'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v177'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -4657,11 +4657,20 @@ function openStatSettings(){
     <button class="btn btn-ghost btn-sm" onclick="exportStat()">📤 导出本模块数据</button>
     <label class="btn btn-ghost btn-sm" style="margin-left:8px">📥 导入<input type="file" id="stImport" accept="application/json" style="display:none" onchange="importStatFile(event)"></label>
     <div style="font-size:11px;color:var(--text-3);margin-top:8px">导入会覆盖当前资产台账全部数据，建议先导出备份。</div>
+    <hr style="border:none;border-top:1px solid var(--border-l);margin:14px 0">
+    <div style="font-size:13px;color:var(--danger);margin-bottom:8px">危险操作</div>
+    <button class="btn btn-danger btn-sm" onclick="resetStatToDefault()">🗑 清空并恢复初始值</button>
+    <div style="font-size:11px;color:var(--text-3);margin-top:8px">将清除所有分类余额（归零）、持仓、流水、快照、本金与期初基准，仅保留 5 个默认分类（余额 0）。自定义分类也会被移除。操作前建议先导出备份。</div>
   `,submitStatSettings);}
 async function submitStatSettings(){
   S.asset.principal=Number(document.getElementById('stPrincipal').value)||0;
   S.asset.baseline=Number(document.getElementById('stBaseline').value)||0;
   await saveStat();closeStatModal();renderStat();showToast('已保存','success')
+}
+async function resetStatToDefault(){
+  if(!confirm('确定清空资产台账并恢复到初始值吗？\n\n将清除：所有分类余额（归零）、持仓、流水、快照、本金、期初基准，仅保留 5 个默认分类（余额 0）。\n此操作不可撤销，建议先导出备份。'))return;
+  S.asset=defaultAsset();
+  await saveStat();closeStatModal();renderStat();showToast('已恢复初始值','success')
 }
 async function saveSnapshot(){const date=fmtYMD(new Date());const total=statTotal();const ex=S.asset.snapshots.find(s=>s.date===date);if(ex)ex.total=total;else S.asset.snapshots.push({date,total});await saveStat();renderStat();showToast('已保存快照 '+date+'：'+fmtMoney(total),'success')}
 function exportStat(){const blob=new Blob([JSON.stringify(S.asset,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='asset-ledger-'+fmtYMD(new Date())+'.json';a.click();URL.revokeObjectURL(a.href);showToast('已导出','success')}
