@@ -782,7 +782,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v181</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v182</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1231,7 +1231,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v181</span>
+  <span id="updateText">✅ 已是最新 v182</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3522,7 +3522,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v181'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v182'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
@@ -3968,13 +3968,13 @@ function growthFilterLabel(){
 function growthStats(mod){
   const arr=growthFilteredRecords(mod);
   if(mod==='study'){const langTotal=arr.reduce((s,r)=>s+(Number(r.langMin)||0),0);const mathTotal=arr.reduce((s,r)=>s+(Number(r.mathMin)||0),0);const penTotal=arr.reduce((s,r)=>s+(Number(r.penCount)||0),0);let readings=[];arr.forEach(r=>(r.readings||[]).forEach(x=>readings.push(x)));const readDurTotal=readings.reduce((s,x)=>s+(Number(x.durationMin)||0),0);const finishedBookIds=new Set();(S.studyBooks||[]).forEach(b=>{if(b.status==='finished')finishedBookIds.add(b.id)});readings.forEach(x=>{if(x.status==='finished'&&x.bookId)finishedBookIds.add(x.bookId)});const readBookCount=finishedBookIds.size;const probCount={};arr.forEach(r=>(r.problems||[]).forEach(t=>probCount[t]=(probCount[t]||0)+1));return{langTotal,mathTotal,penTotal,readBookCount,readDurTotal,probCount}}
-  if(mod==='sleep'){const count=arr.length;const total=arr.reduce((s,r)=>s+(Number(r.duration)||0),0);const avg=count?(total/count).toFixed(1):'0.0';const nightWake=arr.filter(r=>(r.abnormal||[]).includes('夜醒')).length;const nightmare=arr.filter(r=>(r.abnormal||[]).includes('做梦哭闹')).length;const sick=arr.filter(r=>(r.abnormal||[]).includes('生病')).length;return{count,avg,nightWake,nightmare,sick}}
+  if(mod==='sleep'){const count=arr.length;const total=arr.reduce((s,r)=>s+(Number(r.duration)||0),0);const avg=count?(total/count).toFixed(1):'0.0';const ab={};arr.forEach(r=>(r.abnormal||[]).forEach(t=>{ab[t]=(ab[t]||0)+1}));const tags=(S.sleepAbnTags||[]).filter(t=>ab[t]);Object.keys(ab).forEach(t=>{if(!tags.includes(t))tags.push(t)});return{count,avg,ab,tags}}
   if(mod==='diet'){const mealDays=arr.filter(r=>(r.breakfast||r.lunch||r.dinner)).length;const normalSum=arr.reduce((s,r)=>s+(Number(r.bowelNormal)||0),0);const abArr=arr.filter(r=>r.bowelAbnormalType&&r.bowelAbnormalType!=='无'&&(Number(r.bowelAbnormalCount)||0)>0);const abnormalSum=abArr.reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const diarrhea=abArr.filter(r=>r.bowelAbnormalType==='腹泻').reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const constipation=abArr.filter(r=>r.bowelAbnormalType==='便秘').reduce((s,r)=>s+(Number(r.bowelAbnormalCount)||0),0);const picky=arr.filter(r=>(r.tags||[]).includes('挑食')).length;const vomit=arr.filter(r=>(r.tags||[]).includes('呕吐')).length;const allergy=arr.filter(r=>(r.tags||[]).includes('过敏')).length;return{mealDays,normalSum,abnormalSum,diarrhea,constipation,picky,vomit,allergy}}
   const dates=new Set(arr.map(r=>r.date).filter(Boolean));const outDays=dates.size;const exHours=arr.reduce((s,r)=>s+(Number(r.exerciseHours)||0),0).toFixed(1);const locCount={};arr.forEach(r=>{if(r.location)locCount[r.location]=(locCount[r.location]||0)+1});const topLocations=Object.entries(locCount).map(([loc,count])=>({loc,count})).sort((a,b)=>b.count-a.count).slice(0,3);return{outDays,exHours,topLocations}
 }
 function growthModuleStatsHTML(mod,st){
   if(mod==='study'){const probs=Object.entries(st.probCount||{});return `<div class="gm-stat"><span class="gm-stat-num">${st.langTotal}分</span><span class="gm-stat-label">语言总时长</span></div><div class="gm-stat"><span class="gm-stat-num">${st.mathTotal}分</span><span class="gm-stat-label">数学总时长</span></div><div class="gm-stat"><span class="gm-stat-num">${st.penTotal}</span><span class="gm-stat-label">识字数量(个)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.readBookCount}</span><span class="gm-stat-label">读完书本</span></div><div class="gm-stat"><span class="gm-stat-num">${st.readDurTotal}分</span><span class="gm-stat-label">累计阅读</span></div><div class="growth-chips">${probs.length?probs.map(([t,c])=>`<span class="growth-chip ab">${escapeHtml(t)} ${c}</span>`).join(''):'<span class="growth-chip">暂无问题</span>'}</div>`}
-  if(mod==='sleep'){return `<div class="gm-stat"><span class="gm-stat-num">${st.count}</span><span class="gm-stat-label">总睡眠记录(条)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.avg}h</span><span class="gm-stat-label">日均睡眠</span></div><div class="growth-chips">${(st.nightWake||st.nightmare||st.sick)?`${st.nightWake?`<span class="growth-chip ab">夜醒 ${st.nightWake}</span>`:''}${st.nightmare?`<span class="growth-chip ab">做梦哭闹 ${st.nightmare}</span>`:''}${st.sick?`<span class="growth-chip ab">生病 ${st.sick}</span>`:''}`:'<span class="growth-chip">暂无异常</span>'}</div>`}
+  if(mod==='sleep'){const chips=(st.tags||[]).filter(t=>st.ab[t]).map(t=>`<span class="growth-chip ab">${escapeHtml(t)} ${st.ab[t]}</span>`).join('');return `<div class="gm-stat"><span class="gm-stat-num">${st.count}</span><span class="gm-stat-label">总睡眠记录(条)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.avg}h</span><span class="gm-stat-label">日均睡眠</span></div><div class="growth-chips">${chips||'<span class="growth-chip">暂无异常</span>'}</div>`}
   if(mod==='diet'){return `<div class="gm-stat"><span class="gm-stat-num">${st.mealDays}</span><span class="gm-stat-label">正餐记录(天)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.normalSum}</span><span class="gm-stat-label">正常排便(次)</span></div><div class="gm-stat"><span class="gm-stat-num">${st.abnormalSum}</span><span class="gm-stat-label">异常排便(次)</span></div><div class="growth-chips">${st.picky?`<span class="growth-chip">挑食 ${st.picky}</span>`:''}${st.vomit?`<span class="growth-chip">呕吐 ${st.vomit}</span>`:''}${st.allergy?`<span class="growth-chip ab">过敏 ${st.allergy}</span>`:''}${st.mealDays===0&&st.normalSum===0&&st.abnormalSum===0&&!st.picky&&!st.vomit&&!st.allergy?'<span class="growth-chip">暂无记录</span>':''}</div>`}
   const top=st.topLocations.map((l,i)=>`${i+1}.${escapeHtml(l.loc)}(${l.count})`).join(' · ');
   return `<div class="gm-stat"><span class="gm-stat-num">${st.outDays}</span><span class="gm-stat-label">户外天数</span></div><div class="gm-stat"><span class="gm-stat-num">${st.exHours}h</span><span class="gm-stat-label">运动时长合计</span></div>${st.outDays?`<div class="growth-row">📍 Top3：${top}</div>`:''}`
