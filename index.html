@@ -782,7 +782,7 @@ img{max-width:100%;display:block}
 </div>
 <div id="app">
   <div class="header">
-    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v183</span></h1>
+    <h1><span class="header-logo">📝</span>个人工作台<span id="hdrVer" class="ver-tag">v184</span></h1>
     <div class="header-actions">
       <button class="btn btn-ghost" id="exportBtn">📥 导出备份</button>
       <button class="btn btn-ghost" id="importBtn">📤 导入备份</button>
@@ -1231,7 +1231,7 @@ img{max-width:100%;display:block}
   <button class="btn btn-sm" id="backupDismiss">知道了</button>
 </div>
 <div class="update-banner" id="updateBanner">
-  <span id="updateText">✅ 已是最新 v183</span>
+  <span id="updateText">✅ 已是最新 v184</span>
   <button class="btn btn-sm" id="updateReloadBtn">刷新</button>
 </div>
 <div id="verBadge" style="position:fixed;right:8px;bottom:30px;font-size:11px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:10px;z-index:60;pointer-events:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">v?</div>
@@ -3133,7 +3133,7 @@ function calMealCardHTML(date){
   return CAL_MEAL_META.map(m=>{
     const items=(rec&&rec.meals&&rec.meals[m.key])||[];
     const total=items.reduce((s,f)=>s+(Number(f.kcal)||0),0);
-    const itemsHTML=items.length?items.map((f,i)=>`<div class="cal-food"><span class="cal-food-name">${escapeHtml(f.name)}</span><span class="cal-food-kcal">${Math.round(Number(f.kcal)||0)} 千卡</span><button class="cal-food-del" onclick="calRemoveFood('${date}','${m.key}',${i})">×</button></div>`).join(''):'<div class="cal-food-empty">还没有记录</div>';
+    const itemsHTML=items.length?items.map((f,i)=>`<div class="cal-food"><span class="cal-food-name">${escapeHtml(f.name)}${Number(f.weight)>0?'<small style="color:var(--text-3)"> · '+Math.round(Number(f.weight))+'g</small>':''}</span><span class="cal-food-kcal">${Math.round(Number(f.kcal)||0)} 千卡</span><button class="cal-food-del" onclick="calRemoveFood('${date}','${m.key}',${i})">×</button></div>`).join(''):'<div class="cal-food-empty">还没有记录</div>';
     const chips=CAL_FOODS[m.key].map(f=>`<button class="cal-chip" onclick="calAddFood('${date}','${m.key}','${safeName(f[0])}',${f[1]},${f[2]},${f[3]},${f[4]})">${escapeHtml(f[0])} <b>${f[1]}</b></button>`).join('');
     return `<div class="cal-meal-card"><div class="cal-meal-head"><div class="cal-meal-name">${m.icon} ${m.name}<span>${m.sub}</span></div><div class="cal-meal-kcal">${Math.round(total)}</div></div><div class="cal-meal-items">${itemsHTML}</div><button class="cal-add-food" onclick="calTogglePanel('${date}','${m.key}')">＋ 添加${m.name}食物</button><div class="cal-food-panel" id="calPanel-${date}-${m.key}"><div class="cal-panel-title">快速添加（参考热量，可手动修改）</div><div class="cal-chips">${chips}</div><div class="cal-manual"><input type="text" id="calName-${date}-${m.key}" placeholder="食物名称"><input type="number" id="calKcal-${date}-${m.key}" placeholder="千卡" step="1"><input type="number" id="calP-${date}-${m.key}" placeholder="蛋白g" step="0.1"><input type="number" id="calF-${date}-${m.key}" placeholder="脂肪g" step="0.1"><input type="number" id="calC-${date}-${m.key}" placeholder="碳水g" step="0.1"><button class="btn btn-primary btn-sm" onclick="calAddManual('${date}','${m.key}')">添加</button><div class="cal-lib"><div class="cal-panel-title">我的食品库（自动记录你添加过的食物，点选可填入）</div><input type="text" id="calLibSearch-${date}-${m.key}" class="health-input health-input-sm cal-lib-search" placeholder="搜索食品库" oninput="calLibFilter('${date}','${m.key}')"><div class="cal-lib-list" id="calLibList-${date}-${m.key}">${calLibListHTML(date,m.key,'')}</div></div></div></div></div>`;
   }).join('');
@@ -3154,39 +3154,51 @@ let CAL_EXCEL_PENDING=null;
 function openCalExcelImport(){
   CAL_EXCEL_PENDING=null;
   openEditModal('Excel 导入餐食',`<div style="font-size:12px;color:var(--text-2);line-height:1.8">
-    <p style="margin:0 0 6px">按模板整理 Excel（.xlsx / .csv），一日期一行，多食物用 <b>、</b> 或 <b>，</b> 或换行分隔：</p>
-    <div style="background:#f5f8fc;border-radius:8px;padding:8px 10px;font-family:monospace;font-size:11px">日期 | 早餐 | 午餐 | 晚餐 | 加餐<br>2026-11-24 | 水煮鸡蛋、牛奶 | 米饭、炒牛肉 | 面条 | 苹果</div>
-    <p style="margin:6px 0 0">热量自动按「我的食品库 / 常见食物库」同名匹配，未收录的食物记 0 千卡（导入后可手动补）。同名食物不会重复导入，可放心分批导入。</p></div>
+    <p style="margin:0 0 6px">模板格式：<b>一行一个菜品</b>，列依次为 <b>日期 / 餐次 / 菜品 / 重量(g) / 热量(kcal) / 蛋白质(g) / 脂肪(g) / 碳水(g)</b>，例如：</p>
+    <div style="background:#f5f8fc;border-radius:8px;padding:8px 10px;font-family:monospace;font-size:11px">2026-11-24 | 午餐 | 碎肉蒸鸡蛋 | 79 | 71 | 6.3 | 4.7 | 1.6</div>
+    <p style="margin:6px 0 0">餐次支持：早餐 / 午餐 / 晚餐 / 加餐；重量与营养列可留空（记 0）。同一餐同名同热量不会重复导入，可放心分批导入。</p></div>
     <div style="display:flex;gap:8px;margin:12px 0"><button class="btn btn-ghost btn-sm" onclick="calExcelTemplate()">⬇️ 下载模板</button><button class="btn btn-primary btn-sm" onclick="document.getElementById('calExcelInput').click()">📁 选择文件</button></div>
     <input type="file" id="calExcelInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="calExcelParse(this)">
     <div id="calExcelPreview"></div>`);
   const sb=document.getElementById('saveEdit');if(sb)sb.style.display='none';
 }
 function calExcelTemplate(){if(typeof XLSX==='undefined'){showToast('Excel 组件加载中，请稍后重试','error');return}
-  const ws=XLSX.utils.json_to_sheet([{日期:'2026-11-24',早餐:'水煮鸡蛋、牛奶',午餐:'米饭、炒牛肉',晚餐:'面条',加餐:'苹果'}],{header:['日期','早餐','午餐','晚餐','加餐']});
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'餐食导入');
-  XLSX.writeFile(wb,'餐食导入模板.xlsx');showToast('模板已下载','success');}
+  const ws=XLSX.utils.json_to_sheet([
+    {'日期':'2026-11-24','餐次':'早餐','菜品':'水煮鸡蛋','重量(g)':60,'热量(kcal)':70,'蛋白质(g)':6,'脂肪(g)':5,'碳水(g)':1},
+    {'日期':'2026-11-24','餐次':'午餐','菜品':'碎肉蒸鸡蛋','重量(g)':79,'热量(kcal)':71,'蛋白质(g)':6.3,'脂肪(g)':4.7,'碳水(g)':1.6},
+    {'日期':'2026-11-24','餐次':'午餐','菜品':'象牙米','重量(g)':79,'热量(kcal)':92,'蛋白质(g)':2.1,'脂肪(g)':0.2,'碳水(g)':20.5},
+    {'日期':'2026-11-25','餐次':'晚餐','菜品':'清炒油麦菜','重量(g)':100,'热量(kcal)':60,'蛋白质(g)':2,'脂肪(g)':4,'碳水(g)':4}
+  ],{header:['日期','餐次','菜品','重量(g)','热量(kcal)','蛋白质(g)','脂肪(g)','碳水(g)']});
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'饮食记录');
+  XLSX.writeFile(wb,'导入_饮食记录.xlsx');showToast('模板已下载','success');}
 function calExcelDate(v){if(v==null||v==='')return null;if(v instanceof Date&&!isNaN(v))return fmtYMD(v);if(typeof v==='number'&&v>20000&&v<80000){const d=new Date(Math.round((v-25569)*86400000));return isNaN(d)?null:fmtYMD(d);}let s=String(v).trim().replace(/[年月./]/g,'-').replace(/日/g,'');let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);let y,mo,d;if(m){y=+m[1];mo=+m[2];d=+m[3];}else{m=s.match(/^(\d{1,2})-(\d{1,2})$/);if(!m)return null;y=new Date().getFullYear();mo=+m[1];d=+m[2];}if(mo<1||mo>12||d<1||d>31)return null;return fmtYMD(new Date(y,mo-1,d));}
 function calSplitFoods(v){if(v==null)return[];return String(v).split(/[、,，;；|\n\r\/]+/).map(s=>s.trim()).filter(Boolean);}
 function calFoodLookup(name){const n=(name||'').trim().toLowerCase();if(!n)return null;const lib=S.calFoodLib||[];for(let i=0;i<lib.length;i++){if(lib[i].name.trim().toLowerCase()===n)return{name:lib[i].name,kcal:Number(lib[i].kcal)||0,protein:Number(lib[i].protein)||0,fat:Number(lib[i].fat)||0,carb:Number(lib[i].carb)||0};}for(const mk in CAL_FOODS){const arr=CAL_FOODS[mk];for(let i=0;i<arr.length;i++){if(arr[i][0].toLowerCase()===n)return{name:arr[i][0],kcal:arr[i][1],protein:arr[i][2],fat:arr[i][3],carb:arr[i][4]};}}return null;}
+function calMealKeyOf(s){const t=String(s||'').trim();if(!t)return null;if(t.indexOf('早')>=0)return 'breakfast';if(t.indexOf('午')>=0||t.indexOf('中')>=0)return 'lunch';if(t.indexOf('晚')>=0)return 'dinner';if(t.indexOf('加')>=0||t.indexOf('零')>=0||t.indexOf('点')>=0)return 'snack';return null;}
+function calRv(rmap,names){for(let i=0;i<names.length;i++){const k=names[i];if(k in rmap&&rmap[k]!==''&&rmap[k]!=null)return rmap[k];}return '';}
 async function calExcelParse(input){const file=input.files&&input.files[0];if(!file)return;if(typeof XLSX==='undefined'){showToast('Excel 组件加载中，请稍后重试','error');input.value='';return}
  try{const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];if(!ws){showToast('文件中没有工作表','error');input.value='';return}
   const rows=XLSX.utils.sheet_to_json(ws,{defval:''});if(!rows.length){showToast('表格中没有数据','error');input.value='';return}
-  const MEALS={'早餐':'breakfast','午餐':'lunch','晚餐':'dinner','加餐':'snack','零食':'snack'};
   const parsed={};const errs=[];
   rows.forEach((row,ri)=>{const rmap={};Object.keys(row).forEach(k=>{rmap[String(k).trim()]=row[k]});
-   const d=calExcelDate(rmap['日期']);if(!d){errs.push('第'+(ri+2)+'行日期无效');return;}
+   const d=calExcelDate(calRv(rmap,['日期']));if(!d){errs.push('第'+(ri+2)+'行日期无效');return;}
+   const mk=calMealKeyOf(calRv(rmap,['餐次','餐']));if(!mk){errs.push('第'+(ri+2)+'行餐次无法识别（应为 早餐/午餐/晚餐/加餐）');return;}
+   const name=String(calRv(rmap,['菜品','食物','名称'])).trim();if(!name){errs.push('第'+(ri+2)+'行菜品为空');return;}
+   const num=k=>{const v=Number(calRv(rmap,k));return isNaN(v)?0:v;};
+   const it={name:name,kcal:num(['热量(kcal)','热量','千卡']),protein:num(['蛋白质(g)','蛋白质','蛋白']),fat:num(['脂肪(g)','脂肪']),carb:num(['碳水(g)','碳水','碳水化合物'])};
+   const w=num(['重量(g)','重量','克重']);if(w>0)it.weight=w;
    const day=parsed[d]||(parsed[d]={breakfast:[],lunch:[],dinner:[],snack:[]});
-   Object.keys(MEALS).forEach(h=>{const key=MEALS[h];if(!(h in rmap))return;calSplitFoods(rmap[h]).forEach(fn=>{if(day[key].some(x=>x.name===fn))return;const hit=calFoodLookup(fn);day[key].push(hit||{name:fn,kcal:0,protein:0,fat:0,carb:0});});});
+   if(day[mk].some(x=>x.name===name&&Math.round(x.kcal)===Math.round(it.kcal)))return;
+   day[mk].push(it);
   });
   const dates=Object.keys(parsed).filter(d=>['breakfast','lunch','dinner','snack'].some(k=>parsed[d][k].length));
-  if(!dates.length){showToast('没有可导入的餐食数据'+(errs.length?('：'+errs[0]):'，请检查表头（需含 日期/早餐/午餐/晚餐）'),'error');input.value='';return}
+  if(!dates.length){showToast('没有可导入的餐食数据'+(errs.length?('：'+errs[0]):'，请检查表头（需含 日期/餐次/菜品）'),'error');input.value='';return}
   CAL_EXCEL_PENDING={parsed:parsed,dates:dates,errs:errs};
   renderCalExcelPreview();input.value='';
  }catch(e){console.warn('calExcelParse',e);showToast('文件解析失败：'+((e&&e.message)||'未知错误'),'error');input.value='';}}
-function calExcelDayHTML(day){return CAL_MEAL_META.map(m=>{const its=day[m.key]||[];if(!its.length)return '';const kcal=its.reduce((s,f)=>s+(Number(f.kcal)||0),0);return `<div style="margin:2px 0"><b>${m.icon} ${m.name}</b>（${its.length}项 · ${Math.round(kcal)}千卡）：<span style="color:var(--text-2)">${its.map(f=>escapeHtml(f.name)+(Number(f.kcal)?'('+Math.round(f.kcal)+'千卡)':'(热量未知)')).join('、')}</span></div>`}).join('');}
+function calExcelDayHTML(day){return CAL_MEAL_META.map(m=>{const its=day[m.key]||[];if(!its.length)return '';const kcal=its.reduce((s,f)=>s+(Number(f.kcal)||0),0);return `<div style="margin:2px 0"><b>${m.icon} ${m.name}</b>（${its.length}项 · ${Math.round(kcal)}千卡）：<span style="color:var(--text-2)">${its.map(f=>escapeHtml(f.name)+(f.weight?'('+Math.round(f.weight)+'g':'(')+((Number(f.kcal)||0)?Math.round(f.kcal)+'千卡)':'热量未知)')).join('、')}</span></div>`}).join('');}
 function renderCalExcelPreview(){const box=document.getElementById('calExcelPreview');if(!box||!CAL_EXCEL_PENDING)return;const pv=CAL_EXCEL_PENDING;pv.dates.sort();box.innerHTML=`<div class="cal-panel-title" style="margin-top:6px">解析结果预览（${pv.dates.length} 天）${pv.errs.length?'<span style="color:#dc2626">，'+pv.errs.length+' 行无效已跳过</span>':''}</div>`+pv.dates.map(d=>`<div style="border:1px solid #e5e9f0;border-radius:8px;padding:8px 10px;margin:6px 0"><b>📅 ${d}</b>${calExcelDayHTML(pv.parsed[d])||'<span style="color:var(--text-3)">无餐食</span>'}</div>`).join('')+`<button class="btn btn-primary" style="margin-top:8px" onclick="calExcelDoImport()">✅ 确认导入 ${pv.dates.length} 天</button>`;}
-async function calExcelDoImport(){if(!CAL_EXCEL_PENDING)return;const pv=CAL_EXCEL_PENDING;let added=0,skipped=0;pv.dates.sort().forEach(d=>{const day=pv.parsed[d];const rec=ensureDietRecord(d);['breakfast','lunch','dinner','snack'].forEach(k=>{(day[k]||[]).forEach(f=>{if((rec.meals[k]||[]).some(x=>x.name===f.name&&Math.round(Number(x.kcal)||0)===Math.round(Number(f.kcal)||0))){skipped++;return;}rec.meals[k].push({name:f.name,kcal:Number(f.kcal)||0,protein:Number(f.protein)||0,fat:Number(f.fat)||0,carb:Number(f.carb)||0});added++;});});rec.timestamp=nowISO();});
+async function calExcelDoImport(){if(!CAL_EXCEL_PENDING)return;const pv=CAL_EXCEL_PENDING;let added=0,skipped=0;pv.dates.sort().forEach(d=>{const day=pv.parsed[d];const rec=ensureDietRecord(d);['breakfast','lunch','dinner','snack'].forEach(k=>{(day[k]||[]).forEach(f=>{if((rec.meals[k]||[]).some(x=>x.name===f.name&&Math.round(Number(x.kcal)||0)===Math.round(Number(f.kcal)||0))){skipped++;return;}rec.meals[k].push({name:f.name,kcal:Number(f.kcal)||0,protein:Number(f.protein)||0,fat:Number(f.fat)||0,carb:Number(f.carb)||0,weight:(Number(f.weight)>0?Number(f.weight):undefined)});added++;});});rec.timestamp=nowISO();});
  await DB.set('healthDiet',S.healthDiet).catch(()=>{});
  const box=document.getElementById('calExcelPreview');if(box)box.innerHTML='';
  CAL_EXCEL_PENDING=null;closeEditModal();renderCalorie();
@@ -3567,7 +3579,7 @@ document.getElementById('lightbox').addEventListener('click',()=>document.getEle
 
 // ===== PWA: Service Worker + Install Prompt + 更新提示 + 备份引导 =====
 const APP_VER='13';
-const PAGE_VER='v183'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
+const PAGE_VER='v184'; // 部署版本号（与 sw.js 的 CACHE 保持一致），加载即显示到徽章/云面板，不依赖 SW 广播
 // 接收 Service Worker 广播的版本号，显示在「刷新提示」与右下角常驻徽章，让你随时知道实际运行的是哪个版本
 let SW_VER=null;
 try{document.getElementById('verBadge').textContent=PAGE_VER;}catch(e){} // 加载即用部署版本填徽章，不依赖 SW 广播（避免首次未收到消息时停留在 v?，也避开 iOS 底部指示条遮挡）
